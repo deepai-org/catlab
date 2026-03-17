@@ -111,6 +111,47 @@ structure TheoryMorphism where
   /-- How source morphisms map to target expressions -/
   onMorphisms : GeneratorMap
 
+namespace TheoryMorphism
+
+/-- Identity morphism: every generator maps to its own atom. -/
+def id (t : Theory) : TheoryMorphism :=
+  { name := s!"id({t.name})"
+    source := t
+    target := t
+    onObjects   := GeneratorMap.ofList (t.objects.map   fun o => (o.id, .atom o.id))
+    onMorphisms := GeneratorMap.ofList (t.morphisms.map fun m => (m.id, .atom m.id)) }
+
+/-- Compose f : A → B with g : B → C to get g ∘ f : A → C.
+    For each A-generator x, (g ∘ f)(x) = g.lift(f(x)). -/
+def comp (f g : TheoryMorphism) : TheoryMorphism :=
+  { name := s!"{g.name} ∘ {f.name}"
+    source := f.source
+    target := g.target
+    onObjects   := GeneratorMap.ofList
+      (f.source.objects.map   fun o => (o.id, g.onObjects.liftExpr   (f.onObjects.apply   o.id)))
+    onMorphisms := GeneratorMap.ofList
+      (f.source.morphisms.map fun m => (m.id, g.onMorphisms.liftExpr (f.onMorphisms.apply m.id))) }
+
+/-- Smart inclusion: maps each generator of `sub` to the matching generator in `super`
+    by name. Generators in `sub` with no name match in `super` are left unmapped
+    (they default to their own atom via `GeneratorMap.apply`'s fallback). -/
+def inclusion (sub super : Theory) : TheoryMorphism :=
+  { name := s!"{sub.name} ↪ {super.name}"
+    source := sub
+    target := super
+    onObjects   := GeneratorMap.ofList
+      (sub.objects.filterMap fun o =>
+        if super.objects.any (fun o2 => o2.id.name == o.id.name)
+        then some (o.id, .atom { o.id with kind := .sort })
+        else none)
+    onMorphisms := GeneratorMap.ofList
+      (sub.morphisms.filterMap fun m =>
+        if super.morphisms.any (fun m2 => m2.id.name == m.id.name)
+        then some (m.id, .atom { m.id with kind := .morphism })
+        else none) }
+
+end TheoryMorphism
+
 /-- Check if a theory morphism preserves domains and codomains.
     For each morphism f : A → B in source, we need
     onMorphisms(f) : onObjects(A) → onObjects(B) in target. -/
