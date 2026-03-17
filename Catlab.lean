@@ -25,6 +25,11 @@ import Catlab.Library.Monoid
 import Catlab.Library.Group
 import Catlab.Library.Ring
 import Catlab.Library.BooleanAlgebra
+import Catlab.Library.Poset
+import Catlab.Library.Lattice
+import Catlab.Library.Semiring
+import Catlab.Library.Module
+import Catlab.Library.Category
 import Catlab.Library.Basic
 import Catlab.Repl.Protocol
 import Catlab.Repl.Server

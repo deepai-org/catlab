@@ -59,4 +59,15 @@ def mirror (t : Theory) : Theory :=
 theorem Expr.mirror_mirror (e : Expr) : e.mirror.mirror = e := by
   induction e <;> simp_all [Expr.mirror]
 
+/-- Mirror preserves the unit -/
+theorem Expr.mirror_unit : Expr.unit.mirror = Expr.unit := by
+  simp [Expr.mirror]
+
+/-- Mirror swaps terminal and initial -/
+theorem Expr.mirror_terminal : Expr.terminal.mirror = Expr.initial := by
+  simp [Expr.mirror]
+
+theorem Expr.mirror_initial : Expr.initial.mirror = Expr.terminal := by
+  simp [Expr.mirror]
+
 end CatLab

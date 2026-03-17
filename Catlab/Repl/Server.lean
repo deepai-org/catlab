@@ -13,10 +13,14 @@ import Catlab.Operators.Mirror
 import Catlab.Operators.DayConvolution
 import Catlab.Operators.Limits
 import Catlab.Operators.Decategorify
+import Catlab.Core.Validate
+import Catlab.Core.PrettyPrint
 import Catlab.Repl.Protocol
 import Catlab.Library.Monoid
 import Catlab.Library.Group
 import Catlab.Library.Ring
+import Catlab.Library.BooleanAlgebra
+import Catlab.Library.Basic
 
 namespace CatLab.Repl
 
@@ -28,7 +32,13 @@ def theoryRegistry : List (String × Theory) :=
     ("Group", TheoryOfGroups),
     ("AbelianGroup", TheoryOfAbelianGroups),
     ("Ring", TheoryOfRings),
-    ("CommutativeRing", TheoryOfCommutativeRings) ]
+    ("CommutativeRing", TheoryOfCommutativeRings),
+    ("BooleanAlgebra", TheoryOfBooleanAlgebra),
+    ("HeytingAlgebra", TheoryOfHeytingAlgebra),
+    ("Poset", TheoryOfPosets),
+    ("Lattice", TheoryOfLattices),
+    ("Semiring", TheoryOfSemirings),
+    ("Category", TheoryOfCategories) ]
 
 /-- Look up a theory by name -/
 def lookupTheory (name : String) : Option Theory :=
@@ -65,12 +75,22 @@ def executeCommand (input : String) : String :=
       resultToJson (.success result s!"Computed {result.name}")
     | none => resultToJson (.error s!"Theory '{name}' not found")
 
+  | ["validate", name] =>
+    match lookupTheory name with
+    | some t => resultToJson (.error (validationReport t))
+    | none => resultToJson (.error s!"Theory '{name}' not found")
+
+  | ["pretty", name] =>
+    match lookupTheory name with
+    | some t => resultToJson (.error (t.pp))
+    | none => resultToJson (.error s!"Theory '{name}' not found")
+
   | ["list"] =>
     let names := theoryRegistry.map Prod.fst |> String.intercalate ", "
     resultToJson (.error s!"Available theories: {names}")
 
   | ["help"] =>
-    resultToJson (.error "Commands: summary <name>, mirror <name>, tensor <name1> <name2>, decategorify <name>, list, help, quit")
+    resultToJson (.error "Commands: summary <name>, mirror <name>, tensor <name1> <name2>, decategorify <name>, validate <name>, pretty <name>, list, help, quit")
 
   | ["quit"] => "quit"
 
