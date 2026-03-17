@@ -25,7 +25,7 @@ namespace CatLab.Library
 def TheoryOfHopfAlgebra : Theory :=
   let H := Expr.atom (gid "H")   -- underlying k-module
   { name     := "HopfAlgebra"
-    doctrine := { doctrine := .HopfAlgebra }
+    doctrine := { doctrine := .SymmetricMonoidal }
     objects  := [
       { id := gid "H", description := "Underlying k-module of the Hopf algebra" }
     ]

@@ -38,8 +38,6 @@ inductive Doctrine where
   | EnrichedCategory
   | TriangulatedCategory
   | Locale
-  | HopfAlgebra
-  | LieAlgebra
   | DifferentialGraded
   deriving Repr, Inhabited, BEq
 

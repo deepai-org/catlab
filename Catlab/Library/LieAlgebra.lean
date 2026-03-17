@@ -30,7 +30,7 @@ namespace CatLab.Library
 def TheoryOfLieAlgebra : Theory :=
   let L := Expr.atom (gid "L")   -- the underlying k-vector space
   { name     := "LieAlgebra"
-    doctrine := { doctrine := .LieAlgebra }
+    doctrine := { doctrine := .LawvereTheory }
     objects  := [
       { id := gid "L", description := "Underlying k-vector space of the Lie algebra" }
     ]

@@ -19,6 +19,8 @@
 -/
 
 import Catlab.Core.Theory
+import Catlab.Operators.Nerve
+import Catlab.Library.Category
 
 namespace CatLab.Library
 
@@ -141,14 +143,13 @@ def TheoryOfInfinityTwoCategory : Theory :=
         description := "(α ∙ β) ∘ (γ ∙ δ) = (α ∘ γ) ∙ (β ∘ δ)" }
     ] }
 
--- Convenient alias for (∞,1)-categories (∞-categories proper)
+-- (∞,1)-categories derived as the nerve of the theory of categories.
+-- The nerve N(C) is the canonical (∞,1)-category presentation: its n-simplices
+-- are composable n-tuples, face maps compose, degeneracies insert identities,
+-- and the simplicial identities encode the full coherence of composition.
 def TheoryOfInfinityCategory : Theory :=
-  { TheoryOfInfinityTwoCategory with
-    name    := "InfinityCategory"
-    objects := TheoryOfInfinityTwoCategory.objects.filter (fun o => o.id.name != .root "Cell2")
-    morphisms := TheoryOfInfinityTwoCategory.morphisms.filter
-      (fun m => m.id.name != .root "s1" && m.id.name != .root "t1" &&
-                m.id.name != .root "id1" && m.id.name != .root "comp1v" &&
-                m.id.name != .root "comp1h" && m.id.name != .root "inv2") }
+  { nerve TheoryOfCategories with
+    name     := "InfinityCategory"
+    doctrine := { doctrine := .InfinityNCategory } }
 
 end CatLab.Library

@@ -30,7 +30,7 @@ def TheoryOfEnrichedCategory : Theory :=
   let VOb := Expr.atom (gid "VOb")   -- objects of the enriching category V
   let VMor := Expr.atom (gid "VMor") -- morphisms of V  (internal to V)
   { name     := "EnrichedCategory"
-    doctrine := { doctrine := .EnrichedCategory }
+    doctrine := { doctrine := .MonoidalCategory }
     objects  := [
       { id := gid "Ob",   description := "Objects of the enriched category C" },
       { id := gid "VOb",  description := "Objects of the enriching category V" },
