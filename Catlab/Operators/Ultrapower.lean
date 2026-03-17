@@ -29,16 +29,16 @@ structure UltrafilterSpec where
 def ultrapower (t : Theory) (uf : UltrafilterSpec) : Theory :=
   -- Ultrapower objects: A^I/U for each object A
   let ultraObjects : List Generator0 := t.objects.map fun a =>
-    { id := { name := .app (.root "ultra") a.id.name, kind := .sort }
+    { id := { name := .app (.root "ultra") a.id.name, index := 0, kind := .sort }
       description := s!"{a.id.name}^I/U under ultrafilter {uf.name}" }
 
   -- Ultrapower morphisms: f^I/U for each morphism f
   let ultraMorphisms : List Generator1 := t.morphisms.map fun f =>
     let domName := .app (.root "ultra") f.domain.toName
     let codName := .app (.root "ultra") f.codomain.toName
-    { id := { name := .app (.root "ultra") f.id.name, kind := .morphism }
-      domain := .atom { name := domName, kind := .sort }
-      codomain := .atom { name := codName, kind := .sort }
+    { id := { name := .app (.root "ultra") f.id.name, index := 0, kind := .morphism }
+      domain := .atom { name := domName, index := 0, kind := .sort }
+      codomain := .atom { name := codName, index := 0, kind := .sort }
       description := s!"{f.id.name}^I/U lifted morphism" }
 
   -- Diagonal embeddings: d_A : A → A^I/U for each object
@@ -46,7 +46,7 @@ def ultrapower (t : Theory) (uf : UltrafilterSpec) : Theory :=
     let ultraName := .app (.root "ultra") a.id.name
     { id := gid s!"d_{a.id.name}" (k := .morphism)
       domain := .atom a.id
-      codomain := .atom { name := ultraName, kind := .sort }
+      codomain := .atom { name := ultraName, index := 0, kind := .sort }
       description := s!"Diagonal embedding {a.id.name} → {a.id.name}^I/U" }
 
   -- Diagonal naturality: for each morphism f : A → B,
@@ -63,22 +63,16 @@ def ultrapower (t : Theory) (uf : UltrafilterSpec) : Theory :=
 
   -- Transfer axioms (Łoś's theorem): each axiom in the base theory
   -- lifts to the ultrapower
+  let rec liftExpr (e : Expr) : Expr := match e with
+    | .atom g => .atom { name := .app (.root "ultra") g.name, index := g.index, kind := g.kind }
+    | .id obj => .id (liftExpr obj)
+    | .comp f g => .comp (liftExpr f) (liftExpr g)
+    | other => other
   let transferAxioms : List Generator2 := t.axioms.map fun ax =>
-    let liftExpr (e : Expr) : Expr := match e with
-      | .atom g => .atom { name := .app (.root "ultra") g.name, kind := g.kind }
-      | .id obj => .id (liftExpr obj)
-      | .comp f g => .comp (liftExpr f) (liftExpr g)
-      | other => other
     { id := gid s!"los_{ax.id.name}" (k := .twoCell)
       leftPath := liftExpr ax.leftPath
       rightPath := liftExpr ax.rightPath
       description := s!"Łoś transfer of {ax.id.name}" }
-  where
-    liftExpr (e : Expr) : Expr := match e with
-      | .atom g => .atom { name := .app (.root "ultra") g.name, kind := g.kind }
-      | .id obj => .id (liftExpr obj)
-      | .comp f g => .comp (liftExpr f) (liftExpr g)
-      | other => other
 
   { name := s!"{t.name}^{uf.name}"
     doctrine := t.doctrine

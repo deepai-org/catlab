@@ -57,6 +57,17 @@ import Catlab.Operators.Internal
 import Catlab.Operators.Matrix
 import Catlab.Operators.Cleavage
 import Catlab.Operators.Family
+import Catlab.Operators.Booleanize
+import Catlab.Operators.Skolem
+import Catlab.Operators.PER
+import Catlab.Operators.Stabilize
+import Catlab.Operators.Derived
+import Catlab.Operators.Factorization
+import Catlab.Operators.MacNeille
+import Catlab.Operators.OperadEnvelope
+import Catlab.Operators.DrinfeldCenter
+import Catlab.Operators.Ultrapower
+import Catlab.Operators.Fractions
 import Catlab.Library.Monoid
 import Catlab.Library.Group
 import Catlab.Library.Ring
