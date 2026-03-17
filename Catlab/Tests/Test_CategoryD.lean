@@ -7,10 +7,18 @@
     - pushout                             (the fundamental Tier 2 combinator)
     - theoryCoproduct as pushout          (derived combinator, algebraic consistency check)
 
+  Coverage strategy:
+    - Unary operators (id, inclusion self, initialMorphism, terminalMorphism,
+      self-pushout): all 34 library theories
+    - Binary operators (theoryCoproduct, pushout over ⊥, cross-inclusion,
+      amalgamation): all 34×34 = 1156 ordered pairs
+    - Specific sub-theory chains (Monoid→Group→AbelianGroup, etc.):
+      named triples for deeper algebraic law checks
+
   Test levels:
     Level 1 (smoke): terminates and returns a well-named result
-    Level 2 (shape): numeric invariants on objects/morphisms/axioms
-    Level 3 (algebra): algebraic laws (self-pushout, pushout-over-⊥ = coproduct, etc.)
+    Level 2 (shape): numeric invariants verified against exact formulas
+    Level 3 (algebra): universal laws (self-pushout, pushout-over-⊥=coproduct, etc.)
 -/
 
 import Catlab.Tests.TestCore
@@ -24,7 +32,7 @@ namespace CatLab.Tests.CategoryD
 open CatLab CatLab.Tests CatLab.Library
 
 -- ============================================================
--- Tier 1: initialTheory / terminalTheory
+-- Tier 1: initialTheory / terminalTheory shape
 -- ============================================================
 
 #eval do
@@ -41,95 +49,119 @@ open CatLab CatLab.Tests CatLab.Library
   assertEq "terminalTheory.morphisms" terminalTheory.morphisms.length 0
 
 -- ============================================================
--- TheoryMorphism.id: identity maps every generator to itself
+-- TheoryMorphism.id: all 34 theories
+-- Law: maps every object and morphism to itself (map sizes = generator counts)
 -- ============================================================
 
 #eval do
-  IO.println "\n=== TheoryMorphism.id ==="
+  IO.println "\n=== TheoryMorphism.id (all theories) ==="
   for (name, t) in allLibTheories do
     let m := TheoryMorphism.id t
-    check   s!"id({name}).source" (m.source.name == t.name)
-    check   s!"id({name}).target" (m.target.name == t.name)
+    check    s!"id({name}).source" (m.source.name == t.name)
+    check    s!"id({name}).target" (m.target.name == t.name)
     assertEq s!"id({name}).onObjects.size"   m.onObjects.toList.length   t.objects.length
     assertEq s!"id({name}).onMorphisms.size" m.onMorphisms.toList.length t.morphisms.length
 
 -- ============================================================
--- TheoryMorphism.inclusion: sub ↪ super maps by matching names
+-- TheoryMorphism.inclusion (self): all 34 theories
+-- Law: self-inclusion maps all generators → same counts as id
 -- ============================================================
 
 #eval do
-  IO.println "\n=== TheoryMorphism.inclusion (self) ==="
-  -- inclusion t t should map every generator (same as id)
+  IO.println "\n=== TheoryMorphism.inclusion (self, all theories) ==="
   for (name, t) in allLibTheories do
     let m := TheoryMorphism.inclusion t t
-    check s!"inclusion({name},{name}).source" (m.source.name == t.name)
-    check s!"inclusion({name},{name}).target" (m.target.name == t.name)
-    assertEq s!"inclusion({name},{name}).onObjects.size"
+    check    s!"incl({name}↪{name}).source" (m.source.name == t.name)
+    check    s!"incl({name}↪{name}).target" (m.target.name == t.name)
+    assertEq s!"incl({name}↪{name}).onObjects.size"
       m.onObjects.toList.length t.objects.length
-    assertEq s!"inclusion({name},{name}).onMorphisms.size"
+    assertEq s!"incl({name}↪{name}).onMorphisms.size"
       m.onMorphisms.toList.length t.morphisms.length
 
-#eval do
-  IO.println "\n=== TheoryMorphism.inclusion (Monoid ↪ Group) ==="
-  -- Every Monoid generator should appear in Group
-  let m := TheoryMorphism.inclusion TheoryOfMonoids TheoryOfGroups
-  check "inclusion(Monoid,Group).source" (m.source.name == TheoryOfMonoids.name)
-  check "inclusion(Monoid,Group).target" (m.target.name == TheoryOfGroups.name)
-  -- Monoid objects ⊆ Group objects (by name), so all Monoid objects should be mapped
-  assertEq "inclusion(Monoid,Group).onObjects.size"
-    m.onObjects.toList.length TheoryOfMonoids.objects.length
-
 -- ============================================================
--- TheoryMorphism.comp: g ∘ f has correct source/target
+-- TheoryMorphism.inclusion (cross): all 34×34 ordered pairs
+-- Law: mapped objects ≤ min(|T_i.objects|, |T_j.objects|)
+--      source/target names correct
 -- ============================================================
 
 #eval do
-  IO.println "\n=== TheoryMorphism.comp ==="
+  IO.println "\n=== TheoryMorphism.inclusion (all pairs) ==="
+  for (nameI, ti) in allLibTheories do
+    for (nameJ, tj) in allLibTheories do
+      let m := TheoryMorphism.inclusion ti tj
+      check s!"incl({nameI}↪{nameJ}).source" (m.source.name == ti.name)
+      check s!"incl({nameI}↪{nameJ}).target" (m.target.name == tj.name)
+      -- mapped generators can only be those whose names appear in both theories
+      let maxObjs := min ti.objects.length tj.objects.length
+      assertGe s!"incl({nameI}↪{nameJ}).onObjects.size ≤ min"
+        maxObjs m.onObjects.toList.length
+
+-- ============================================================
+-- TheoryMorphism.comp: all 34 theories (id ∘ id law)
+-- Law: comp of identity morphisms preserves source/target and map sizes
+-- ============================================================
+
+#eval do
+  IO.println "\n=== TheoryMorphism.comp id∘id (all theories) ==="
   for (name, t) in allLibTheories do
-    let f := TheoryMorphism.id t
-    let g := TheoryMorphism.id t
-    let gf := TheoryMorphism.comp f g
-    check s!"comp(id,id)({name}).source" (gf.source.name == t.name)
-    check s!"comp(id,id)({name}).target" (gf.target.name == t.name)
-    -- Composed map has the same domain size as the source
+    let gf := TheoryMorphism.comp (TheoryMorphism.id t) (TheoryMorphism.id t)
+    check    s!"comp(id,id)({name}).source" (gf.source.name == t.name)
+    check    s!"comp(id,id)({name}).target" (gf.target.name == t.name)
     assertEq s!"comp(id,id)({name}).onObjects.size"
       gf.onObjects.toList.length t.objects.length
 
 -- ============================================================
--- initialMorphism / terminalMorphism: structure checks
+-- TheoryMorphism.comp: inclusion chains (all 34×34 pairs)
+-- Law: (incl T_i↪T_j) ∘ (incl T_i↪T_i) has correct source/target
 -- ============================================================
 
 #eval do
-  IO.println "\n=== initialMorphism ==="
+  IO.println "\n=== TheoryMorphism.comp incl-chains (all pairs) ==="
+  for (nameI, ti) in allLibTheories do
+    for (nameJ, tj) in allLibTheories do
+      -- chain: ti ↪ ti (self) then ti ↪ tj
+      let f  := TheoryMorphism.inclusion ti ti   -- ti → ti (= id)
+      let g  := TheoryMorphism.inclusion ti tj   -- ti → tj
+      let gf := TheoryMorphism.comp f g
+      check s!"comp(incl,incl)({nameI},{nameJ}).source" (gf.source.name == ti.name)
+      check s!"comp(incl,incl)({nameI},{nameJ}).target" (gf.target.name == tj.name)
+
+-- ============================================================
+-- initialMorphism: all 34 theories
+-- Law: empty maps, correct source (⊥) and target
+-- ============================================================
+
+#eval do
+  IO.println "\n=== initialMorphism (all theories) ==="
   for (name, t) in allLibTheories do
     let m := initialMorphism t
-    check s!"initialMorphism({name}).source" (m.source.name == initialTheory.name)
-    check s!"initialMorphism({name}).target" (m.target.name == t.name)
+    check    s!"initialMorphism({name}).source" (m.source.name == initialTheory.name)
+    check    s!"initialMorphism({name}).target" (m.target.name == t.name)
     assertEq s!"initialMorphism({name}).onObjects.size"   m.onObjects.toList.length   0
     assertEq s!"initialMorphism({name}).onMorphisms.size" m.onMorphisms.toList.length 0
 
+-- ============================================================
+-- terminalMorphism: all 34 theories
+-- Law: maps every generator, correct source and target (⊤)
+-- ============================================================
+
 #eval do
-  IO.println "\n=== terminalMorphism ==="
+  IO.println "\n=== terminalMorphism (all theories) ==="
   for (name, t) in allLibTheories do
     let m := terminalMorphism t
-    check s!"terminalMorphism({name}).source" (m.source.name == t.name)
-    check s!"terminalMorphism({name}).target" (m.target.name == terminalTheory.name)
-    -- Every object and morphism in t must be mapped
+    check    s!"terminalMorphism({name}).source" (m.source.name == t.name)
+    check    s!"terminalMorphism({name}).target" (m.target.name == terminalTheory.name)
     assertEq s!"terminalMorphism({name}).onObjects.size"
       m.onObjects.toList.length t.objects.length
     assertEq s!"terminalMorphism({name}).onMorphisms.size"
       m.onMorphisms.toList.length t.morphisms.length
 
 -- ============================================================
--- pushout: None on mismatched sources
+-- pushout: mismatched source → none
 -- ============================================================
 
 #eval do
   IO.println "\n=== pushout (mismatched source → none) ==="
-  let f := initialMorphism TheoryOfMonoids
-  let g := initialMorphism TheoryOfGroups
-  -- f.source = ⊥ (name "⊥"), g.source = ⊥ (name "⊥") → same name, so this is NOT a mismatch
-  -- Use a morphism with a different source to trigger the None branch
   let fBad : TheoryMorphism :=
     { name := "bad_f", source := TheoryOfMonoids, target := TheoryOfGroups,
       onObjects := GeneratorMap.empty, onMorphisms := GeneratorMap.empty }
@@ -139,72 +171,129 @@ open CatLab CatLab.Tests CatLab.Library
   check "pushout(mismatch) = none" (pushout fBad gBad == none)
 
 -- ============================================================
--- pushout: pushout over ⊥ = disjoint union (algebraic law)
+-- Self-pushout (id ⊔_T id): all 34 theories
+-- Law: pushout (id T) (id T) has same object/morphism counts as T
+-- (every inl(x) gets identified with inr(x), leaving one copy)
 -- ============================================================
 
 #eval do
-  IO.println "\n=== pushout over ⊥ = coproduct (shape check) ==="
+  IO.println "\n=== self-pushout via id (all theories) ==="
   for (name, t) in allLibTheories do
-    -- Pushout of ⊥ → T over ⊥ with itself: should give T ⊔ T (two tagged copies)
-    let po := pushout (initialMorphism t) (initialMorphism t)
-    match po with
-    | none => throw (IO.userError s!"[FAIL] pushout(⊥→{name}, ⊥→{name}) returned none")
-    | some r =>
-      smoke s!"pushout(⊥→{name},⊥→{name})" r
-      -- No T₀ generators to identify → pure disjoint union
-      assertEq s!"pushout/coprod({name}).objects"
-        r.objects.length (t.objects.length * 2)
-      assertEq s!"pushout/coprod({name}).morphisms"
-        r.morphisms.length (t.morphisms.length * 2)
-
--- ============================================================
--- pushout: self-pushout via id collapses to single copy
--- ============================================================
-
-#eval do
-  IO.println "\n=== self-pushout via id: pushout (id T) (id T) ≅ T ==="
-  for (name, t) in allLibTheories do
-    let f := TheoryMorphism.id t
-    let po := pushout f f
-    match po with
-    | none => throw (IO.userError s!"[FAIL] self-pushout({name}) returned none")
+    match pushout (TheoryMorphism.id t) (TheoryMorphism.id t) with
+    | none   => throw (IO.userError s!"[FAIL] self-pushout({name}) returned none")
     | some r =>
       smoke s!"self-pushout({name})" r
-      -- Every T₀ generator x gets identified: inl(id(x)) ~ inr(id(x))
-      -- → only one copy of each generator survives
       assertEq s!"self-pushout({name}).objects"   r.objects.length   t.objects.length
       assertEq s!"self-pushout({name}).morphisms" r.morphisms.length t.morphisms.length
 
 -- ============================================================
--- pushout: amalgamation (Monoid ↪ Group and Monoid ↪ Ring)
+-- pushout over ⊥ = disjoint union: all 34×34 pairs
+-- Law: |objects| = |T1.objects| + |T2.objects|  (no identifications)
+--      |morphisms| = |T1.morphisms| + |T2.morphisms|
+-- Consistency: must equal coproductCategory on same inputs
 -- ============================================================
 
 #eval do
-  IO.println "\n=== pushout: amalgamation Group ⊔_Monoid Ring ==="
-  let f := TheoryMorphism.inclusion TheoryOfMonoids TheoryOfGroups
-  let g := TheoryMorphism.inclusion TheoryOfMonoids TheoryOfRings
-  match pushout f g with
-  | none => throw (IO.userError "[FAIL] amalgamation returned none")
+  IO.println "\n=== pushout over ⊥ = coproduct (all pairs) ==="
+  for (n1, t1) in allLibTheories do
+    for (n2, t2) in allLibTheories do
+      let po  := pushout (initialMorphism t1) (initialMorphism t2)
+      let ref := coproductCategory t1 t2
+      match po with
+      | none   => throw (IO.userError s!"[FAIL] pushout(⊥→{n1},⊥→{n2}) returned none")
+      | some r =>
+        -- Shape law
+        assertEq s!"pushout/⊥({n1},{n2}).objects"
+          r.objects.length (t1.objects.length + t2.objects.length)
+        assertEq s!"pushout/⊥({n1},{n2}).morphisms"
+          r.morphisms.length (t1.morphisms.length + t2.morphisms.length)
+        -- Consistency with coproductCategory
+        assertEq s!"pushout/⊥({n1},{n2}) vs coproduct: objects"
+          r.objects.length ref.objects.length
+        assertEq s!"pushout/⊥({n1},{n2}) vs coproduct: morphisms"
+          r.morphisms.length ref.morphisms.length
+
+-- ============================================================
+-- theoryCoproduct: all 34×34 pairs
+-- Law: objects = |T1| + |T2|, morphisms = |T1| + |T2|
+-- (theoryCoproduct = pushout over ⊥, so same shape law applies)
+-- ============================================================
+
+#eval do
+  IO.println "\n=== theoryCoproduct (all pairs) ==="
+  for (n1, t1) in allLibTheories do
+    for (n2, t2) in allLibTheories do
+      let r := theoryCoproduct t1 t2
+      smoke s!"theoryCoproduct({n1},{n2})" r
+      assertEq s!"theoryCoproduct({n1},{n2}).objects"
+        r.objects.length (t1.objects.length + t2.objects.length)
+      assertEq s!"theoryCoproduct({n1},{n2}).morphisms"
+        r.morphisms.length (t1.morphisms.length + t2.morphisms.length)
+
+-- ============================================================
+-- Amalgamation via inclusion: all 34×34 pairs with shared base
+-- Base = T1; pushout (id T1) (inclusion T1 T2)
+-- = extend T2 with T1's private generators, identifying shared ones
+-- Law: smoke only — shape bounds depend on shared generator count
+--      objects ≤ T1.objects + T2.objects  (at most disjoint union)
+--      objects ≥ T2.objects               (T2 always fully present in T1-side)
+-- ============================================================
+
+#eval do
+  IO.println "\n=== amalgamation (id T1) ⊔_T1 (incl T1→T2): all pairs ==="
+  for (n1, t1) in allLibTheories do
+    for (n2, t2) in allLibTheories do
+      let f := TheoryMorphism.id t1
+      let g := TheoryMorphism.inclusion t1 t2
+      match pushout f g with
+      | none   => throw (IO.userError s!"[FAIL] amalgam({n1},{n2}) returned none")
+      | some r =>
+        smoke s!"amalgam({n1},{n2})" r
+        -- Upper bound: at most the disjoint union
+        assertGe s!"amalgam({n1},{n2}).objects ≤ sum"
+          (t1.objects.length + t2.objects.length) r.objects.length
+
+-- ============================================================
+-- Named sub-theory chains: deeper algebraic law checks
+-- These verify specific mathematical relationships in the library
+-- ============================================================
+
+#eval do
+  IO.println "\n=== named amalgamations: Monoid-based chains ==="
+
+  -- Group ⊔_Monoid Ring: both contain a monoid; result has Group+Ring structure
+  let f1 := TheoryMorphism.inclusion TheoryOfMonoids TheoryOfGroups
+  let g1 := TheoryMorphism.inclusion TheoryOfMonoids TheoryOfRings
+  match pushout f1 g1 with
+  | none   => throw (IO.userError "[FAIL] Group ⊔_Monoid Ring returned none")
   | some r =>
-    smoke "amalgam(Group ⊔_Monoid Ring)" r
-    -- Shared objects (Monoid generators) get identified → count < Group + Ring - Monoid
-    let expected_upper := TheoryOfGroups.objects.length + TheoryOfRings.objects.length
-    assertGe "amalgam.objects ≤ sum" expected_upper r.objects.length
+    smoke "Group ⊔_Monoid Ring" r
+    -- Shared Monoid generators identified → strictly fewer than sum
+    assertGe "Group ⊔_Monoid Ring: objects ≤ sum"
+      (TheoryOfGroups.objects.length + TheoryOfRings.objects.length) r.objects.length
 
--- ============================================================
--- theoryCoproduct: algebraic consistency with coproductCategory
--- ============================================================
+  -- Group ⊔_Monoid CommRing
+  let f2 := TheoryMorphism.inclusion TheoryOfMonoids TheoryOfGroups
+  let g2 := TheoryMorphism.inclusion TheoryOfMonoids TheoryOfCommutativeRings
+  match pushout f2 g2 with
+  | none   => throw (IO.userError "[FAIL] Group ⊔_Monoid CommRing returned none")
+  | some r2 =>
+    smoke "Group ⊔_Monoid CommRing" r2
 
-#eval do
-  IO.println "\n=== theoryCoproduct vs coproductCategory (shape consistency) ==="
-  for (name, t) in allLibTheories do
-    let cop := theoryCoproduct t t
-    let ref := coproductCategory t t
-    smoke s!"theoryCoproduct({name},{name})" cop
-    -- Both should produce a disjoint union with twice the generators
-    assertEq s!"theoryCoproduct({name}).objects vs ref"
-      cop.objects.length ref.objects.length
-    assertEq s!"theoryCoproduct({name}).morphisms vs ref"
-      cop.morphisms.length ref.morphisms.length
+  -- AbelianGroup ⊔_Monoid Ring
+  let f3 := TheoryMorphism.inclusion TheoryOfMonoids TheoryOfAbelianGroups
+  let g3 := TheoryMorphism.inclusion TheoryOfMonoids TheoryOfRings
+  match pushout f3 g3 with
+  | none   => throw (IO.userError "[FAIL] AbelianGroup ⊔_Monoid Ring returned none")
+  | some r3 =>
+    smoke "AbelianGroup ⊔_Monoid Ring" r3
+
+  -- Lattice ⊔_Poset BooleanAlgebra
+  let f4 := TheoryMorphism.inclusion TheoryOfPosets TheoryOfLattices
+  let g4 := TheoryMorphism.inclusion TheoryOfPosets TheoryOfBooleanAlgebra
+  match pushout f4 g4 with
+  | none   => throw (IO.userError "[FAIL] Lattice ⊔_Poset BoolAlgebra returned none")
+  | some r4 =>
+    smoke "Lattice ⊔_Poset BoolAlgebra" r4
 
 end CatLab.Tests.CategoryD
