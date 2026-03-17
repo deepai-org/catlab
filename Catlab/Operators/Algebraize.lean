@@ -66,7 +66,8 @@ def addInverse (t : Theory) (opName : String) (unitName : String) : Theory :=
   | none, _ | _, none => t
   | some op, some unitMor =>
     let carrier := op.codomain
-    let invId   := { name := .nested (.root opName) "inv", index := 0, kind := .morphism }
+    -- Flat name so renameGenerator can easily match: "μ_inv", "add_inv", etc.
+    let invId   := { name := .root s!"{opName}_inv", index := 0, kind := .morphism }
     let invMor : Generator1 :=
       { id          := invId
         domain      := carrier
@@ -100,7 +101,8 @@ def addUnit (t : Theory) (opName : String) : Theory :=
   | none => t
   | some op =>
     let carrier := op.codomain
-    let unitId  := { name := .nested (.root opName) "unit", index := 0, kind := .morphism }
+    -- Flat name so renameGenerator can easily match: "μ_unit", "add_unit", etc.
+    let unitId  := { name := .root s!"{opName}_unit", index := 0, kind := .morphism }
     let unitMor : Generator1 :=
       { id          := unitId
         domain      := .terminal
@@ -267,5 +269,30 @@ def renameGenerator (t : Theory) (renames : List (String × String)) : Theory :=
   { t with
     morphisms := t.morphisms.map renameMor
     axioms    := t.axioms.map renameAx }
+
+-- ============================================================
+-- addAnnihilator
+-- ============================================================
+
+/-- Add zero-annihilation axioms for `mulName` with absorbing element `zeroName`:
+      left_annihilate  :  mul(zero, a) = zero
+      right_annihilate :  mul(a, zero) = zero
+    Used to complete the semiring axioms (0 · a = 0 and a · 0 = 0). -/
+def addAnnihilator (t : Theory) (mulName : String) (zeroName : String) : Theory :=
+  match t.findMorphism (.root mulName), t.findMorphism (.root zeroName) with
+  | none, _ | _, none => t
+  | some mulOp, some zeroMor =>
+    let carrier := mulOp.codomain
+    let leftAnn : Generator2 :=
+      { id        := gid s!"left_annihilate_{mulName}"
+        leftPath  := .comp (.prod (.atom zeroMor.id) (.id carrier)) (.atom mulOp.id)
+        rightPath := .atom zeroMor.id
+        description := s!"Left annihilation: {mulName}({zeroName}, a) = {zeroName}" }
+    let rightAnn : Generator2 :=
+      { id        := gid s!"right_annihilate_{mulName}"
+        leftPath  := .comp (.prod (.id carrier) (.atom zeroMor.id)) (.atom mulOp.id)
+        rightPath := .atom zeroMor.id
+        description := s!"Right annihilation: {mulName}(a, {zeroName}) = {zeroName}" }
+    { t with axioms := t.axioms ++ [leftAnn, rightAnn] }
 
 end CatLab

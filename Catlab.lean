@@ -100,7 +100,6 @@ import Catlab.Library.Locale
 import Catlab.Library.HopfAlgebra
 import Catlab.Library.LieAlgebra
 import Catlab.Library.DifferentialGradedAlgebra
-import Catlab.Library.CoreAlgebra
 import Catlab.Repl.Protocol
 import Catlab.Repl.Server
 import Catlab.Demo
