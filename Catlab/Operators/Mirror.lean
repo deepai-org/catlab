@@ -35,6 +35,12 @@ def Expr.mirror : Expr → Expr
     Swaps domain/codomain of every morphism and reverses equation sides.
     This is Stone Duality in action: Boolean Algebra ↦ Stone Spaces. -/
 def mirror (t : Theory) : Theory :=
+  -- Build morphism name rewriting function
+  let renameMor (e : Expr) : Expr := match e with
+    | .atom gid =>
+      if t.morphisms.any (fun m => m.id == gid) then .atom ⟨s!"{gid.name}ᵒᵖ", gid.index⟩
+      else e
+    | other => other
   { t with
     name := s!"{t.name}ᵒᵖ"
     morphisms := t.morphisms.map fun g =>
@@ -45,8 +51,8 @@ def mirror (t : Theory) : Theory :=
     axioms := t.axioms.map fun a =>
       { a with
         id := { a.id with name := s!"{a.id.name}ᵒᵖ" }
-        leftPath := a.rightPath.mirror
-        rightPath := a.leftPath.mirror
+        leftPath := a.rightPath.mirror.mapAtoms renameMor
+        rightPath := a.leftPath.mirror.mapAtoms renameMor
         proofName := none } }
 
 /-- Mirror is an involution: (C^op)^op ≅ C -/

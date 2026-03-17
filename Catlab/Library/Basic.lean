@@ -52,7 +52,9 @@ def TheoryOfLattices : Theory :=
       { id := ⟨"∧", 0⟩, domain := .prod L L, codomain := L,
         description := "Meet: L × L → L" },
       { id := ⟨"∨", 0⟩, domain := .prod L L, codomain := L,
-        description := "Join: L × L → L" }
+        description := "Join: L × L → L" },
+      { id := ⟨"swap", 0⟩, domain := .prod L L, codomain := .prod L L,
+        description := "Symmetry: L × L → L × L" }
     ]
     axioms := [
       { id := ⟨"meet_assoc", 0⟩
@@ -107,7 +109,9 @@ def TheoryOfSemirings : Theory :=
       { id := ⟨"mul", 0⟩, domain := .prod S S, codomain := S,
         description := "Multiplication: S × S → S" },
       { id := ⟨"one", 0⟩, domain := .terminal, codomain := S,
-        description := "Multiplicative unit: 1 → S" }
+        description := "Multiplicative unit: 1 → S" },
+      { id := ⟨"swap", 0⟩, domain := .prod S S, codomain := .prod S S,
+        description := "Symmetry: S × S → S × S" }
     ]
     axioms := [
       { id := ⟨"add_assoc", 0⟩
@@ -161,7 +165,9 @@ def TheoryOfModules (ringName : String := "R") : Theory :=
       { id := ⟨"neg", 0⟩, domain := MO, codomain := MO,
         description := "Negation: M → M" },
       { id := ⟨"smul", 0⟩, domain := .prod R MO, codomain := MO,
-        description := s!"Scalar multiplication: {ringName} × M → M" }
+        description := s!"Scalar multiplication: {ringName} × M → M" },
+      { id := ⟨"swap", 0⟩, domain := .prod MO MO, codomain := .prod MO MO,
+        description := "Symmetry: M × M → M × M" }
     ]
     axioms := [
       { id := ⟨"add_assoc", 0⟩

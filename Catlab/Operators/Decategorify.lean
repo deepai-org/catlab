@@ -13,6 +13,7 @@
 -/
 
 import Catlab.Core.Theory
+import Catlab.Core.Validate
 
 namespace CatLab
 
@@ -35,16 +36,21 @@ def decategorify (t : Theory) (strategy : DecatStrategy := .isoClasses) : Theory
   match strategy with
   | .isoClasses =>
     -- Objects become elements of a set (0-generators of the decategorified theory)
+    let objNames := t.objects.map (·.id.name)
     let decat0 := t.objects.map fun a =>
       { id := ⟨s!"[{a.id.name}]", 0⟩
         description := s!"Isomorphism class of {a.id.name}" }
-    -- Morphisms become equalities: if A ≅ B then [A] = [B]
-    -- Non-iso morphisms are forgotten; only isomorphisms survive as equations
-    let decatAxioms := t.axioms.map fun ax =>
-      { id := ⟨s!"decat_{ax.id.name}", 0⟩
-        leftPath := ax.leftPath
-        rightPath := ax.rightPath
-        description := s!"Decategorified: {ax.description}" }
+    -- Only keep axioms whose atoms all refer to objects (not morphisms)
+    -- since morphisms are collapsed away
+    let morNames := t.morphisms.map (·.id.name)
+    let decatAxioms := t.axioms.filterMap fun ax =>
+      let atoms := ax.leftPath.atoms ++ ax.rightPath.atoms
+      let referencesMorphism := atoms.any (fun a => morNames.contains a)
+      if referencesMorphism then none
+      else some { id := ⟨s!"decat_{ax.id.name}", 0⟩
+                  leftPath := ax.leftPath
+                  rightPath := ax.rightPath
+                  description := s!"Decategorified: {ax.description}" }
     { name := s!"Decat({t.name})"
       doctrine := { doctrine := .Category }
       objects := decat0

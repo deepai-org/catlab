@@ -85,4 +85,21 @@ def Expr.subst (e : Expr) (name : String) (replacement : Expr) : Expr :=
   | .proj i s => .proj i (s.subst name replacement)
   | .inj i t => .inj i (t.subst name replacement)
 
+/-- Apply a function to every atom in an expression -/
+partial def Expr.mapAtoms (e : Expr) (f : Expr → Expr) : Expr :=
+  match e with
+  | .atom _ => f e
+  | .unit | .terminal | .initial | .var _ => e
+  | .id obj => .id (obj.mapAtoms f)
+  | .comp a b => .comp (a.mapAtoms f) (b.mapAtoms f)
+  | .prod a b => .prod (a.mapAtoms f) (b.mapAtoms f)
+  | .coprod a b => .coprod (a.mapAtoms f) (b.mapAtoms f)
+  | .hom a b => .hom (a.mapAtoms f) (b.mapAtoms f)
+  | .tensor a b => .tensor (a.mapAtoms f) (b.mapAtoms f)
+  | .sigma v base fam => .sigma v (base.mapAtoms f) (fam.mapAtoms f)
+  | .pi v base fam => .pi v (base.mapAtoms f) (fam.mapAtoms f)
+  | .fiber m p => .fiber (m.mapAtoms f) (p.mapAtoms f)
+  | .proj i s => .proj i (s.mapAtoms f)
+  | .inj i t => .inj i (t.mapAtoms f)
+
 end CatLab

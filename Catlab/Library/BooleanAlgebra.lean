@@ -27,7 +27,9 @@ def TheoryOfBooleanAlgebra : Theory :=
       { id := ⟨"⊤", 0⟩, domain := .terminal, codomain := B,
         description := "Top (TRUE): 1 → B" },
       { id := ⟨"⊥", 0⟩, domain := .terminal, codomain := B,
-        description := "Bottom (FALSE): 1 → B" }
+        description := "Bottom (FALSE): 1 → B" },
+      { id := ⟨"swap", 0⟩, domain := .prod B B, codomain := .prod B B,
+        description := "Symmetry: B × B → B × B" }
     ]
     axioms := [
       { id := ⟨"meet_assoc", 0⟩

@@ -35,7 +35,9 @@ def TheoryOfRings : Theory :=
       { id := ⟨"zero", 0⟩, domain := .terminal, codomain := R,
         description := "Additive unit: 1 → R" },
       { id := ⟨"neg", 0⟩, domain := R, codomain := R,
-        description := "Additive inverse: R → R" }
+        description := "Additive inverse: R → R" },
+      { id := ⟨"swap", 0⟩, domain := .prod R R, codomain := .prod R R,
+        description := "Symmetry: R × R → R × R" }
     ]
     axioms := [
       -- Multiplicative monoid axioms

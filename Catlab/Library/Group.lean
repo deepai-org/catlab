@@ -20,7 +20,9 @@ def TheoryOfGroups : Theory :=
       { id := ⟨"η", 0⟩, domain := .terminal, codomain := G,
         description := "Unit: 1 → G" },
       { id := ⟨"ι", 0⟩, domain := G, codomain := G,
-        description := "Inverse: G → G" }
+        description := "Inverse: G → G" },
+      { id := ⟨"swap", 0⟩, domain := .prod G G, codomain := .prod G G,
+        description := "Symmetry: G × G → G × G" }
     ]
     axioms := [
       { id := ⟨"assoc", 0⟩
