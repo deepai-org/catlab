@@ -22,7 +22,7 @@ def slice (t : Theory) (x : Expr) : Theory :=
   -- whose codomain matches x becomes an object
   let sliceObjects := t.morphisms.filterMap fun g =>
     -- In a full implementation, we'd check codomain == x structurally
-    some { id := ⟨s!"({g.id.name} → X)", 0⟩
+    some { id := { name := .root s!"({g.id.name} → X)", index := 0 }
            description := s!"Slice object: {g.id.name} over X" }
 
   -- Morphisms of C/X: for each pair of slice objects (f : A → X, g : B → X),
@@ -39,8 +39,8 @@ def slice (t : Theory) (x : Expr) : Theory :=
 /-- The forgetful functor C/X → C: sends (f : A → X) ↦ A -/
 def sliceForgetful (t : Theory) (x : Expr) : List Generator1 :=
   t.morphisms.filterMap fun g =>
-    some { id := ⟨s!"forget_{g.id.name}", 0⟩
-           domain := .atom ⟨s!"({g.id.name} → X)", 0⟩
+    some { id := { name := .root s!"forget_{g.id.name}", index := 0 }
+           domain := .atom { name := .root s!"({g.id.name} → X)", index := 0 }
            codomain := g.domain
            description := s!"Forgetful: slice object to domain" }
 

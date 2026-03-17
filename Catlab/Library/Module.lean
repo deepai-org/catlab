@@ -7,42 +7,42 @@ import Catlab.Core.Theory
 namespace CatLab.Library
 
 def TheoryOfModules (ringName : String := "R") : Theory :=
-  let R := Expr.atom ⟨ringName, 0⟩
-  let MO := Expr.atom ⟨"M", 0⟩
+  let R := Expr.atom (gid ringName)
+  let MO := Expr.atom (gid "M")
   { name := s!"{ringName}-Module"
     doctrine := { doctrine := .LawvereTheory }
     objects := [
-      { id := ⟨ringName, 0⟩, description := "The scalar ring" },
-      { id := ⟨"M", 0⟩, description := "The module" }
+      { id := gid ringName, description := "The scalar ring" },
+      { id := gid "M", description := "The module" }
     ]
     morphisms := [
-      { id := ⟨"add", 0⟩, domain := .prod MO MO, codomain := MO,
+      { id := gid "add", domain := .prod MO MO, codomain := MO,
         description := "Module addition: M × M → M" },
-      { id := ⟨"zero", 0⟩, domain := .terminal, codomain := MO,
+      { id := gid "zero", domain := .terminal, codomain := MO,
         description := "Zero vector: 1 → M" },
-      { id := ⟨"neg", 0⟩, domain := MO, codomain := MO,
+      { id := gid "neg", domain := MO, codomain := MO,
         description := "Negation: M → M" },
-      { id := ⟨"smul", 0⟩, domain := .prod R MO, codomain := MO,
+      { id := gid "smul", domain := .prod R MO, codomain := MO,
         description := s!"Scalar multiplication: {ringName} × M → M" },
-      { id := ⟨"swap", 0⟩, domain := .prod MO MO, codomain := .prod MO MO,
+      { id := gid "swap", domain := .prod MO MO, codomain := .prod MO MO,
         description := "Symmetry: M × M → M × M" }
     ]
     axioms := [
-      { id := ⟨"add_assoc", 0⟩
-        leftPath := .comp (.prod (.atom ⟨"add", 0⟩) (.id MO)) (.atom ⟨"add", 0⟩)
-        rightPath := .comp (.prod (.id MO) (.atom ⟨"add", 0⟩)) (.atom ⟨"add", 0⟩)
+      { id := gid "add_assoc"
+        leftPath := .comp (.prod (.atom (gid "add")) (.id MO)) (.atom (gid "add"))
+        rightPath := .comp (.prod (.id MO) (.atom (gid "add"))) (.atom (gid "add"))
         description := "Addition is associative" },
-      { id := ⟨"add_comm", 0⟩
-        leftPath := .atom ⟨"add", 0⟩
-        rightPath := .comp (.atom ⟨"swap", 0⟩) (.atom ⟨"add", 0⟩)
+      { id := gid "add_comm"
+        leftPath := .atom (gid "add")
+        rightPath := .comp (.atom (gid "swap")) (.atom (gid "add"))
         description := "Addition is commutative" },
-      { id := ⟨"smul_distrib", 0⟩
-        leftPath := .comp (.prod (.id R) (.atom ⟨"add", 0⟩)) (.atom ⟨"smul", 0⟩)
-        rightPath := .comp (.prod (.atom ⟨"smul", 0⟩) (.atom ⟨"smul", 0⟩)) (.atom ⟨"add", 0⟩)
+      { id := gid "smul_distrib"
+        leftPath := .comp (.prod (.id R) (.atom (gid "add"))) (.atom (gid "smul"))
+        rightPath := .comp (.prod (.atom (gid "smul")) (.atom (gid "smul"))) (.atom (gid "add"))
         description := "Scalar distributes over addition: r(a+b) = ra + rb" },
-      { id := ⟨"smul_assoc", 0⟩
-        leftPath := .comp (.prod (.atom ⟨"mul", 0⟩) (.id MO)) (.atom ⟨"smul", 0⟩)
-        rightPath := .comp (.prod (.id R) (.atom ⟨"smul", 0⟩)) (.atom ⟨"smul", 0⟩)
+      { id := gid "smul_assoc"
+        leftPath := .comp (.prod (.atom (gid "mul")) (.id MO)) (.atom (gid "smul"))
+        rightPath := .comp (.prod (.id R) (.atom (gid "smul"))) (.atom (gid "smul"))
         description := "Scalar associativity: (rs)m = r(sm)" }
     ] }
 

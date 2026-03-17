@@ -9,35 +9,35 @@ import Catlab.Core.Theory
 
 namespace CatLab.Library
 
-def M : Expr := .atom ⟨"M", 0⟩
+def M : Expr := .atom (gid "M")
 
 def TheoryOfMonoids : Theory :=
   { name := "Monoid"
     doctrine := { doctrine := .LawvereTheory }
     objects := [
-      { id := ⟨"M", 0⟩, description := "The carrier set" }
+      { id := gid "M", description := "The carrier set" }
     ]
     morphisms := [
-      { id := ⟨"μ", 0⟩
+      { id := gid "μ"
         domain := .prod M M
         codomain := M
         description := "Multiplication: M × M → M" },
-      { id := ⟨"η", 0⟩
+      { id := gid "η"
         domain := .terminal
         codomain := M
         description := "Unit: 1 → M" }
     ]
     axioms := [
-      { id := ⟨"assoc", 0⟩
-        leftPath := .comp (.prod (.atom ⟨"μ", 0⟩) (.id M)) (.atom ⟨"μ", 0⟩)
-        rightPath := .comp (.prod (.id M) (.atom ⟨"μ", 0⟩)) (.atom ⟨"μ", 0⟩)
+      { id := gid "assoc"
+        leftPath := .comp (.prod (.atom (gid "μ")) (.id M)) (.atom (gid "μ"))
+        rightPath := .comp (.prod (.id M) (.atom (gid "μ"))) (.atom (gid "μ"))
         description := "Associativity: μ(μ(a,b),c) = μ(a,μ(b,c))" },
-      { id := ⟨"left_unit", 0⟩
-        leftPath := .comp (.prod (.atom ⟨"η", 0⟩) (.id M)) (.atom ⟨"μ", 0⟩)
+      { id := gid "left_unit"
+        leftPath := .comp (.prod (.atom (gid "η")) (.id M)) (.atom (gid "μ"))
         rightPath := .id M
         description := "Left unit: μ(η,a) = a" },
-      { id := ⟨"right_unit", 0⟩
-        leftPath := .comp (.prod (.id M) (.atom ⟨"η", 0⟩)) (.atom ⟨"μ", 0⟩)
+      { id := gid "right_unit"
+        leftPath := .comp (.prod (.id M) (.atom (gid "η"))) (.atom (gid "μ"))
         rightPath := .id M
         description := "Right unit: μ(a,η) = a" }
     ] }

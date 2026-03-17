@@ -13,7 +13,7 @@ namespace CatLab
 
 /-- Reverse an expression by swapping hom directions -/
 def Expr.mirror : Expr → Expr
-  | .atom gid => .atom gid
+  | .atom g => .atom g
   | Expr.id obj => Expr.id obj.mirror
   | .comp f g => .comp g.mirror f.mirror  -- reverse composition order
   | .prod a b => .coprod a.mirror b.mirror  -- products ↔ coproducts
@@ -29,6 +29,10 @@ def Expr.mirror : Expr → Expr
   | .proj i s => .inj i s.mirror  -- projections ↔ injections
   | .inj i t => .proj i t.mirror
   | .var n => .var n
+  | .app fn x => .app fn.mirror x.mirror
+  | .limit d => .colimit d.mirror
+  | .colimit d => .limit d.mirror
+  | .natComponent n x => .natComponent n.mirror x.mirror
 
 /-- The Mirror operator: compute C^op.
 
@@ -37,20 +41,20 @@ def Expr.mirror : Expr → Expr
 def mirror (t : Theory) : Theory :=
   -- Build morphism name rewriting function
   let renameMor (e : Expr) : Expr := match e with
-    | .atom gid =>
-      if t.morphisms.any (fun m => m.id == gid) then .atom ⟨s!"{gid.name}ᵒᵖ", gid.index⟩
+    | .atom g =>
+      if t.morphisms.any (fun m => m.id == g) then .atom { g with name := .op g.name }
       else e
     | other => other
   { t with
     name := s!"{t.name}ᵒᵖ"
     morphisms := t.morphisms.map fun g =>
       { g with
-        id := { g.id with name := s!"{g.id.name}ᵒᵖ" }
+        id := { g.id with name := .op g.id.name }
         domain := g.codomain.mirror
         codomain := g.domain.mirror }
     axioms := t.axioms.map fun a =>
       { a with
-        id := { a.id with name := s!"{a.id.name}ᵒᵖ" }
+        id := { a.id with name := .op a.id.name }
         leftPath := a.rightPath.mirror.mapAtoms renameMor
         rightPath := a.leftPath.mirror.mapAtoms renameMor
         proofName := none } }

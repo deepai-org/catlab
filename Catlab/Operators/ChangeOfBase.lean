@@ -52,7 +52,7 @@ def changeOfBase (func : LaxMonoidalFunctor) (enriched : EnrichedCategory) : The
   let applyF (e : Expr) : Expr := func.mapObj e
 
   let newMorphisms := t.morphisms.map fun m =>
-    { id := ⟨s!"F_*({m.id.name})", 0⟩
+    { id := gid s!"F_*({m.id.name})"
       domain := applyF m.domain
       codomain := applyF m.codomain
       description := s!"Image of {m.id.name} under {func.name}_*"
@@ -62,7 +62,7 @@ def changeOfBase (func : LaxMonoidalFunctor) (enriched : EnrichedCategory) : The
   let laxMaps := t.objects.flatMap fun a =>
     t.objects.flatMap fun b =>
       t.objects.map fun c =>
-        { id := ⟨s!"φ_{a.id.name}_{b.id.name}_{c.id.name}", 0⟩
+        { id := gid s!"φ_{a.id.name}_{b.id.name}_{c.id.name}"
           domain := .tensor
             (applyF (.hom (.atom b.id) (.atom c.id)))
             (applyF (.hom (.atom a.id) (.atom b.id)))
@@ -76,7 +76,7 @@ def changeOfBase (func : LaxMonoidalFunctor) (enriched : EnrichedCategory) : The
   let compositionMaps := t.objects.flatMap fun a =>
     t.objects.flatMap fun b =>
       t.objects.map fun c =>
-        { id := ⟨s!"comp_F_*_{a.id.name}_{b.id.name}_{c.id.name}", 0⟩
+        { id := gid s!"comp_F_*_{a.id.name}_{b.id.name}_{c.id.name}"
           domain := .tensor
             (applyF (.hom (.atom b.id) (.atom c.id)))
             (applyF (.hom (.atom a.id) (.atom b.id)))
@@ -86,7 +86,7 @@ def changeOfBase (func : LaxMonoidalFunctor) (enriched : EnrichedCategory) : The
 
   -- Unit map: φ₀ : I_W → F(I_V)
   let unitMap :=
-    { id := ⟨s!"φ₀_{func.name}", 0⟩
+    { id := gid s!"φ₀_{func.name}"
       domain := .unit
       codomain := applyF .unit
       description := s!"Lax monoidal unit map for {func.name}"
@@ -97,11 +97,11 @@ def changeOfBase (func : LaxMonoidalFunctor) (enriched : EnrichedCategory) : The
   let functorialityAxioms := t.objects.flatMap fun a =>
     t.objects.flatMap fun b =>
       t.objects.map fun c =>
-        { id := ⟨s!"functoriality_{a.id.name}_{b.id.name}_{c.id.name}", 0⟩
-          leftPath := .atom ⟨s!"comp_F_*_{a.id.name}_{b.id.name}_{c.id.name}", 0⟩
+        { id := gid s!"functoriality_{a.id.name}_{b.id.name}_{c.id.name}"
+          leftPath := .atom (gid s!"comp_F_*_{a.id.name}_{b.id.name}_{c.id.name}")
           rightPath := .comp
-            (.atom ⟨s!"φ_{a.id.name}_{b.id.name}_{c.id.name}", 0⟩)
-            (applyF (.atom ⟨s!"comp_{a.id.name}_{b.id.name}_{c.id.name}", 0⟩))
+            (.atom (gid s!"φ_{a.id.name}_{b.id.name}_{c.id.name}"))
+            (applyF (.atom (gid s!"comp_{a.id.name}_{b.id.name}_{c.id.name}")))
           description := s!"Functoriality: F_* composition factors through lax structure"
             : Generator2 }
 
@@ -110,17 +110,17 @@ def changeOfBase (func : LaxMonoidalFunctor) (enriched : EnrichedCategory) : The
     t.objects.flatMap fun b =>
       t.objects.flatMap fun c =>
         t.objects.map fun d =>
-          { id := ⟨s!"lax_assoc_{a.id.name}_{b.id.name}_{c.id.name}_{d.id.name}", 0⟩
+          { id := gid s!"lax_assoc_{a.id.name}_{b.id.name}_{c.id.name}_{d.id.name}"
             leftPath := .comp
               (.tensor
-                (.atom ⟨s!"φ_{b.id.name}_{c.id.name}_{d.id.name}", 0⟩)
+                (.atom (gid s!"φ_{b.id.name}_{c.id.name}_{d.id.name}"))
                 (Expr.id (applyF (.hom (.atom a.id) (.atom b.id)))))
-              (.atom ⟨s!"φ_{a.id.name}_{b.id.name}_{d.id.name}", 0⟩)
+              (.atom (gid s!"φ_{a.id.name}_{b.id.name}_{d.id.name}"))
             rightPath := .comp
               (.tensor
                 (Expr.id (applyF (.hom (.atom c.id) (.atom d.id))))
-                (.atom ⟨s!"φ_{a.id.name}_{b.id.name}_{c.id.name}", 0⟩))
-              (.atom ⟨s!"φ_{a.id.name}_{c.id.name}_{d.id.name}", 0⟩)
+                (.atom (gid s!"φ_{a.id.name}_{b.id.name}_{c.id.name}")))
+              (.atom (gid s!"φ_{a.id.name}_{c.id.name}_{d.id.name}"))
             description := s!"Lax associativity coherence"
               : Generator2 }
 

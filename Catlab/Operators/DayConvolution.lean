@@ -31,17 +31,17 @@ def dayConvolution (ms : MonoidalStructure) (f g : Theory) : Theory :=
   -- For each object c in the base, (F ⊗_Day G)(c) is the coend
   -- ∫^{a,b} Hom(a ⊗ b, c) × F(a) × G(b)
   let dayObjects := ms.theory.objects.map fun c =>
-    { id := ⟨s!"({f.name}⊗{g.name})({c.id.name})", 0⟩
+    { id := { name := .root s!"({f.name}⊗{g.name})({c.id.name})", index := 0 }
       description := s!"Day convolution at {c.id.name}" }
 
   -- The coend structure: for each pair (a, b), we have a component
   let dayMorphisms := ms.theory.objects.flatMap fun a =>
     ms.theory.objects.map fun b =>
       let ab := ms.tensor (.atom a.id) (.atom b.id)
-      { id := ⟨s!"day_component_{a.id.name}_{b.id.name}", 0⟩
-        domain := .prod (.prod (.hom ab (.var "c")) (.atom ⟨s!"{f.name}({a.id.name})", 0⟩))
-                        (.atom ⟨s!"{g.name}({b.id.name})", 0⟩)
-        codomain := .atom ⟨s!"({f.name}⊗{g.name})(c)", 0⟩
+      { id := { name := .root s!"day_component_{a.id.name}_{b.id.name}", index := 0 }
+        domain := .prod (.prod (.hom ab (.var "c")) (.atom { name := .root s!"{f.name}({a.id.name})", index := 0 }))
+                        (.atom { name := .root s!"{g.name}({b.id.name})", index := 0 })
+        codomain := .atom { name := .root s!"({f.name}⊗{g.name})(c)", index := 0 }
         description := s!"Day component for ({a.id.name},{b.id.name})" }
 
   { name := s!"{f.name} ⊗_Day {g.name}"
@@ -54,46 +54,40 @@ def dayConvolution (ms : MonoidalStructure) (f g : Theory) : Theory :=
     This is the operator that produces "every operation of T₁ commutes
     with every operation of T₂" (the Eckmann-Hilton phenomenon). -/
 def tensorTheories (t1 t2 : Theory) : Theory :=
-  -- The tensor product of theories: generators are pairs,
-  -- and we add commutativity axioms between cross-theory operations
-
-  -- Build object name mapping: if t1 has "M" and t2 has "G", tensor object is "M⊗G"
-  -- For single-sorted theories (common case), map both source object names to the tensor object
   let tensorObjects := t1.objects.flatMap fun a =>
     t2.objects.map fun b =>
-      { id := ⟨s!"{a.id.name}⊗{b.id.name}", 0⟩
+      { id := { name := .root s!"{a.id.name}⊗{b.id.name}", index := 0 }
         description := s!"Tensor of {a.id.name} and {b.id.name}" }
 
   -- Build the rewrite function for t1 generators
   let rewriteExpr1 (e : Expr) : Expr := match e with
-    | .atom gid =>
-      if t1.morphisms.any (fun m => m.id == gid) then .atom ⟨s!"{gid.name}⊗id", 0⟩
-      else if t1.objects.any (fun o => o.id == gid) then
-        -- Map object to first matching tensor object
+    | .atom gi =>
+      if t1.morphisms.any (fun m => m.id == gi) then .atom { gi with name := .root s!"{gi.name}⊗id" }
+      else if t1.objects.any (fun o => o.id == gi) then
         match t2.objects[0]? with
-        | some b => .atom ⟨s!"{gid.name}⊗{b.id.name}", 0⟩
+        | some b => .atom { gi with name := .root s!"{gi.name}⊗{b.id.name}" }
         | none => e
       else e
     | other => other
 
   let rewriteExpr2 (e : Expr) : Expr := match e with
-    | .atom gid =>
-      if t2.morphisms.any (fun m => m.id == gid) then .atom ⟨s!"id⊗{gid.name}", 0⟩
-      else if t2.objects.any (fun o => o.id == gid) then
+    | .atom gi =>
+      if t2.morphisms.any (fun m => m.id == gi) then .atom { gi with name := .root s!"id⊗{gi.name}" }
+      else if t2.objects.any (fun o => o.id == gi) then
         match t1.objects[0]? with
-        | some a => .atom ⟨s!"{a.id.name}⊗{gid.name}", 0⟩
+        | some a => .atom { gi with name := .root s!"{a.id.name}⊗{gi.name}" }
         | none => e
       else e
     | other => other
 
   let t1Morphisms := t1.morphisms.map fun f =>
-    { id := ⟨s!"{f.id.name}⊗id", 0⟩
+    { id := { name := .root s!"{f.id.name}⊗id", index := 0 }
       domain := f.domain.mapAtoms rewriteExpr1
       codomain := f.codomain.mapAtoms rewriteExpr1
       description := s!"{f.id.name} tensored with identity" }
 
   let t2Morphisms := t2.morphisms.map fun g =>
-    { id := ⟨s!"id⊗{g.id.name}", 0⟩
+    { id := { name := .root s!"id⊗{g.id.name}", index := 0 }
       domain := g.domain.mapAtoms rewriteExpr2
       codomain := g.codomain.mapAtoms rewriteExpr2
       description := s!"Identity tensored with {g.id.name}" }
@@ -101,19 +95,19 @@ def tensorTheories (t1 t2 : Theory) : Theory :=
   -- The key: interchange axioms (Eckmann-Hilton)
   let interchangeAxioms := t1.morphisms.flatMap fun f =>
     t2.morphisms.map fun g =>
-      { id := ⟨s!"interchange_{f.id.name}_{g.id.name}", 0⟩
-        leftPath := .comp (.atom ⟨s!"{f.id.name}⊗id", 0⟩) (.atom ⟨s!"id⊗{g.id.name}", 0⟩)
-        rightPath := .comp (.atom ⟨s!"id⊗{g.id.name}", 0⟩) (.atom ⟨s!"{f.id.name}⊗id", 0⟩)
+      { id := { name := .root s!"interchange_{f.id.name}_{g.id.name}", index := 0 }
+        leftPath := .comp (.atom { name := .root s!"{f.id.name}⊗id", index := 0 }) (.atom { name := .root s!"id⊗{g.id.name}", index := 0 })
+        rightPath := .comp (.atom { name := .root s!"id⊗{g.id.name}", index := 0 }) (.atom { name := .root s!"{f.id.name}⊗id", index := 0 })
         description := s!"Interchange: {f.id.name} and {g.id.name} commute" }
 
   -- Rewrite and prefix axiom names to avoid duplicates
   let t1Axioms := t1.axioms.map fun ax =>
-    { id := ⟨s!"{t1.name}_{ax.id.name}", 0⟩
+    { id := { name := .root s!"{t1.name}_{ax.id.name}", index := 0 }
       leftPath := ax.leftPath.mapAtoms rewriteExpr1
       rightPath := ax.rightPath.mapAtoms rewriteExpr1
       description := ax.description }
   let t2Axioms := t2.axioms.map fun ax =>
-    { id := ⟨s!"{t2.name}_{ax.id.name}", 0⟩
+    { id := { name := .root s!"{t2.name}_{ax.id.name}", index := 0 }
       leftPath := ax.leftPath.mapAtoms rewriteExpr2
       rightPath := ax.rightPath.mapAtoms rewriteExpr2
       description := ax.description }

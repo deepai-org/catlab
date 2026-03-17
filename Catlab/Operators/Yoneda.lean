@@ -19,15 +19,15 @@ namespace CatLab
 def representable (t : Theory) (a : Generator0) : Theory :=
   -- For each object B in C, we get a "set" Hom(B, A)
   let homSets := t.objects.map fun b =>
-    { id := ⟨s!"Hom({b.id.name},{a.id.name})", 0⟩
+    { id := { name := .root s!"Hom({b.id.name},{a.id.name})", index := 0 }
       description := s!"Hom-set from {b.id.name} to {a.id.name}" }
 
   -- For each morphism f : B → C in C, we get a function
   -- f* : Hom(C, A) → Hom(B, A) (precomposition, contravariant)
   let precompMaps := t.morphisms.map fun f =>
-    { id := ⟨s!"{f.id.name}*", 0⟩
-      domain := .atom ⟨s!"Hom({repr f.codomain},{repr (Expr.atom a.id)})", 0⟩  -- simplified
-      codomain := .atom ⟨s!"Hom({repr f.domain},{repr (Expr.atom a.id)})", 0⟩
+    { id := { name := .root s!"{f.id.name}*", index := 0 }
+      domain := .atom { name := .root s!"Hom({repr f.codomain},{repr (Expr.atom a.id)})", index := 0 }
+      codomain := .atom { name := .root s!"Hom({repr f.domain},{repr (Expr.atom a.id)})", index := 0 }
       description := s!"Precomposition by {f.id.name}" }
 
   { name := s!"y({a.id.name})"
@@ -46,19 +46,19 @@ def yonedaEmbedding (t : Theory) : List (Generator0 × Theory) :=
     This is the "free cocompletion" of C. -/
 def presheafCategory (t : Theory) : Theory :=
   let repObjects := t.objects.map fun a =>
-    { id := ⟨s!"y({a.id.name})", 0⟩
+    { id := { name := .root s!"y({a.id.name})", index := 0 }
       description := s!"Representable presheaf for {a.id.name}" }
   -- Natural transformations between representables are morphisms of C (Yoneda lemma)
   let natTransMorphisms := t.morphisms.map fun f =>
-    { id := ⟨s!"y({f.id.name})", 0⟩
-      domain := .atom ⟨s!"y({repr f.domain})", 0⟩
-      codomain := .atom ⟨s!"y({repr f.codomain})", 0⟩
+    { id := { name := .root s!"y({f.id.name})", index := 0 }
+      domain := .atom { name := .root s!"y({repr f.domain})", index := 0 }
+      codomain := .atom { name := .root s!"y({repr f.codomain})", index := 0 }
       description := s!"Yoneda image of {f.id.name}" }
   { name := s!"PSh({t.name})"
     doctrine := { doctrine := .GrothendieckTopos }  -- presheaf categories are topoi
     objects := repObjects
     morphisms := natTransMorphisms
     axioms := t.axioms.map fun a =>
-      { a with id := ⟨s!"y({a.id.name})", 0⟩, proofName := none } }
+      { a with id := { name := .root s!"y({a.id.name})", index := 0 }, proofName := none } }
 
 end CatLab

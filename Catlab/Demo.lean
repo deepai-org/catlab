@@ -43,7 +43,7 @@ def exampleA : Theory := tensorTheories TheoryOfMonoids TheoryOfAbelianGroups
     IO.println s!"  • {mor.pp}"
   IO.println ""
   IO.println "Interchange axioms (Eckmann-Hilton):"
-  for ax in t.axioms.filter (fun (a : Generator2) => a.id.name.startsWith "interchange") do
+  for ax in t.axioms.filter (fun (a : Generator2) => a.id.name.toString.startsWith "interchange") do
     IO.println s!"  • {ax.pp}"
 
 -- ============================================================
@@ -126,8 +126,8 @@ def exampleA : Theory := tensorTheories TheoryOfMonoids TheoryOfAbelianGroups
 
 #eval do
   IO.println s!"\n=== Example G: Universal Constructions ==="
-  let f : Generator1 := { id := ⟨"f", 0⟩, domain := .atom ⟨"A", 0⟩, codomain := .atom ⟨"C", 0⟩ }
-  let g : Generator1 := { id := ⟨"g", 0⟩, domain := .atom ⟨"B", 0⟩, codomain := .atom ⟨"C", 0⟩ }
+  let f : Generator1 := { id := gid "f", domain := .atom (gid "A"), codomain := .atom (gid "C") }
+  let g : Generator1 := { id := gid "g", domain := .atom (gid "B"), codomain := .atom (gid "C") }
   let pb := computePullback f g
   IO.println s!"Pullback of f : A → C and g : B → C"
   IO.println s!"  Object: {pb.object.id.name}"

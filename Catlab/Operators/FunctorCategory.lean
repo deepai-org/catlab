@@ -30,25 +30,25 @@ def functorCategory (source target : Theory) : Theory :=
 
   -- We create a "generic functor" object for each possible assignment
   -- In practice this is the internal hom in the 2-category Cat
-  let funcObj := { id := ⟨s!"[{source.name},{target.name}]", 0⟩
+  let funcObj := { id := gid s!"[{source.name},{target.name}]"
                    description := s!"Functor category [{source.name}, {target.name}]" }
 
   -- Natural transformation components: for each object a of C,
   -- a morphism α_a : F(a) → G(a) in D
   let natTransComponents := source.objects.map fun a =>
-    { id := ⟨s!"α_{a.id.name}", 0⟩
-      domain := .atom ⟨s!"F({a.id.name})", 0⟩
-      codomain := .atom ⟨s!"G({a.id.name})", 0⟩
+    { id := gid s!"α_{a.id.name}"
+      domain := .atom (gid s!"F({a.id.name})")
+      codomain := .atom (gid s!"G({a.id.name})")
       description := s!"Component of natural transformation at {a.id.name}" }
 
   -- Naturality squares: for each morphism f : a → b in C,
   -- G(f) ∘ α_a = α_b ∘ F(f)
   let naturalityAxioms := source.morphisms.map fun f =>
-    { id := ⟨s!"naturality_{f.id.name}", 0⟩
-      leftPath := .comp (.atom ⟨s!"α_{repr f.domain}", 0⟩)
-                        (.atom ⟨s!"G({f.id.name})", 0⟩)
-      rightPath := .comp (.atom ⟨s!"F({f.id.name})", 0⟩)
-                         (.atom ⟨s!"α_{repr f.codomain}", 0⟩)
+    { id := gid s!"naturality_{f.id.name}"
+      leftPath := .comp (.atom (gid s!"α_{repr f.domain}"))
+                        (.atom (gid s!"G({f.id.name})"))
+      rightPath := .comp (.atom (gid s!"F({f.id.name})"))
+                         (.atom (gid s!"α_{repr f.codomain}"))
       description := s!"Naturality: G({f.id.name}) ∘ α = α ∘ F({f.id.name})" }
 
   { name := s!"[{source.name}, {target.name}]"
@@ -61,9 +61,9 @@ def functorCategory (source target : Theory) : Theory :=
     sending (F, a) ↦ F(a). -/
 def evalFunctor (source target : Theory) : List Generator1 :=
   source.objects.map fun a =>
-    { id := ⟨s!"ev_{a.id.name}", 0⟩
-      domain := .prod (.atom ⟨s!"[{source.name},{target.name}]", 0⟩) (.atom a.id)
-      codomain := .atom ⟨s!"F({a.id.name})", 0⟩
+    { id := gid s!"ev_{a.id.name}"
+      domain := .prod (.atom (gid s!"[{source.name},{target.name}]")) (.atom a.id)
+      codomain := .atom (gid s!"F({a.id.name})")
       description := s!"Evaluation at {a.id.name}" }
 
 /-- Compute the natural transformation category Nat(F, G)
@@ -71,19 +71,19 @@ def evalFunctor (source target : Theory) : List Generator1 :=
     This is the hom-set in [C, D], made into an object of D. -/
 def natTransformations (source : Theory)
     (fOnObj gOnObj : GeneratorId → Expr) : Theory :=
-  let natObj := { id := ⟨"Nat(F,G)", 0⟩
+  let natObj := { id := gid "Nat(F,G)"
                   description := "Natural transformations F ⟹ G" }
 
   let components := source.objects.map fun a =>
-    { id := ⟨s!"α_{a.id.name}", 0⟩
+    { id := gid s!"α_{a.id.name}"
       domain := fOnObj a.id
       codomain := gOnObj a.id
       description := s!"Component at {a.id.name}" }
 
   let naturality := source.morphisms.map fun f =>
-    { id := ⟨s!"nat_{f.id.name}", 0⟩
-      leftPath := .comp (.atom ⟨s!"α_{repr f.domain}", 0⟩) (gOnObj f.id)
-      rightPath := .comp (fOnObj f.id) (.atom ⟨s!"α_{repr f.codomain}", 0⟩)
+    { id := gid s!"nat_{f.id.name}"
+      leftPath := .comp (.atom (gid s!"α_{repr f.domain}")) (gOnObj f.id)
+      rightPath := .comp (fOnObj f.id) (.atom (gid s!"α_{repr f.codomain}"))
       description := s!"Naturality square for {f.id.name}" }
 
   { name := "Nat(F,G)"

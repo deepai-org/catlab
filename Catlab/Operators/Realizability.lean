@@ -48,85 +48,85 @@ structure Assembly where
 def realizabilityTopos (pca : PCA) : Theory :=
   -- The PCA carrier as an assembly over itself (the "generic" assembly)
   let carrierAssembly : Generator0 :=
-    { id := ⟨s!"Asm({pca.name})", 0⟩
+    { id := gid s!"Asm({pca.name})"
       description := s!"PCA carrier {pca.name} as assembly over itself" }
 
   -- Terminal object: one-element set, realized by K
   let terminalObj : Generator0 :=
-    { id := ⟨"1", 0⟩
+    { id := gid "1"
       description := "Terminal assembly: one element, realized by K" }
 
   -- Subobject classifier Ω: realized propositions
   -- Elements are "realizability predicates" i.e. subsets of A
   -- ⦃p⦄ = p itself (a proposition is realized by its own realizers)
   let omega : Generator0 :=
-    { id := ⟨"Ω_rt", 0⟩
+    { id := gid "Ω_rt"
       description := "Subobject classifier: realized propositions (subsets of A)" }
 
   -- Natural number object (PCAs give rise to toposes with NNO)
   let natObj : Generator0 :=
-    { id := ⟨"N_rt", 0⟩
+    { id := gid "N_rt"
       description := "Natural number object in the realizability topos" }
 
   -- True: 1 → Ω (the total predicate, realized by K)
   let trueMap : Generator1 :=
-    { id := ⟨"⊤_rt", 0⟩
+    { id := gid "⊤_rt"
       domain := .terminal
-      codomain := .atom ⟨"Ω_rt", 0⟩
+      codomain := .atom (gid "Ω_rt")
       description := "True morphism: the always-realized proposition" }
 
   -- Application morphism: A × A → A (partial, but we model it as total on its domain)
   let appMorphism : Generator1 :=
-    { id := ⟨"app", 0⟩
-      domain := .prod (.atom ⟨s!"Asm({pca.name})", 0⟩)
-                      (.atom ⟨s!"Asm({pca.name})", 0⟩)
-      codomain := .atom ⟨s!"Asm({pca.name})", 0⟩
+    { id := gid "app"
+      domain := .prod (.atom (gid s!"Asm({pca.name})"))
+                      (.atom (gid s!"Asm({pca.name})"))
+      codomain := .atom (gid s!"Asm({pca.name})")
       description := "Partial application in the PCA" }
 
   -- K combinator as a global element
   let kMap : Generator1 :=
-    { id := ⟨"K_elem", 0⟩
+    { id := gid "K_elem"
       domain := .terminal
-      codomain := .atom ⟨s!"Asm({pca.name})", 0⟩
+      codomain := .atom (gid s!"Asm({pca.name})")
       description := "K combinator as global element" }
 
   -- S combinator as a global element
   let sMap : Generator1 :=
-    { id := ⟨"S_elem", 0⟩
+    { id := gid "S_elem"
       domain := .terminal
-      codomain := .atom ⟨s!"Asm({pca.name})", 0⟩
+      codomain := .atom (gid s!"Asm({pca.name})")
       description := "S combinator as global element" }
 
   -- Characteristic morphism: for each mono, a map to Ω
   let charMap : Generator1 :=
-    { id := ⟨"char_rt", 0⟩
-      domain := .atom ⟨s!"Asm({pca.name})", 0⟩
-      codomain := .atom ⟨"Ω_rt", 0⟩
+    { id := gid "char_rt"
+      domain := .atom (gid s!"Asm({pca.name})")
+      codomain := .atom (gid "Ω_rt")
       description := "Generic characteristic morphism to Ω" }
 
   -- K axiom: K a b = a
   let kAxiom : Generator2 :=
-    { id := ⟨"K_axiom", 0⟩
-      leftPath := .comp (.atom ⟨"K_elem", 0⟩)
-                        (.comp (.atom ⟨"app", 0⟩) (.atom ⟨"app", 0⟩))
-      rightPath := .proj 0 (.prod (.atom ⟨s!"Asm({pca.name})", 0⟩)
-                                   (.atom ⟨s!"Asm({pca.name})", 0⟩))
+    { id := gid "K_axiom"
+      leftPath := .comp (.atom (gid "K_elem"))
+                        (.comp (.atom (gid "app")) (.atom (gid "app")))
+      rightPath := .proj 0 (.prod (.atom (gid s!"Asm({pca.name})"))
+                                   (.atom (gid s!"Asm({pca.name})")))
       description := "K combinator axiom: K a b = a" }
 
   -- S axiom: S a b c = (a c)(b c)
   let sAxiom : Generator2 :=
-    { id := ⟨"S_axiom", 0⟩
-      leftPath := .comp (.atom ⟨"S_elem", 0⟩)
-                        (.comp (.atom ⟨"app", 0⟩)
-                               (.comp (.atom ⟨"app", 0⟩) (.atom ⟨"app", 0⟩)))
-      rightPath := .comp (.atom ⟨"app", 0⟩) (.atom ⟨"app", 0⟩)
+    { id := gid "S_axiom"
+      leftPath := .comp (.atom (gid "S_elem"))
+                        (.comp (.atom (gid "app"))
+                               (.comp (.atom (gid "app")) (.atom (gid "app"))))
+      rightPath := .comp (.atom (gid "app")) (.atom (gid "app"))
       description := "S combinator axiom: S a b c = (a c)(b c)" }
 
   -- Subobject classifier axiom
   let omegaAxiom : Generator2 :=
-    { id := ⟨"subobj_classifier_rt", 0⟩
-      leftPath := .comp (.atom ⟨"mono", 0⟩) (.atom ⟨"char_rt", 0⟩)
-      rightPath := .comp (.atom ⟨"!_rt", 0⟩) (.atom ⟨"⊤_rt", 0⟩)
+    { id := gid "subobj_classifier_rt"
+      leftPath := .comp (.atom (gid "mono")) (.atom (gid "char_rt"))
+      rightPath := .comp (.atom (gid "!_rt")) (.atom (gid "⊤_rt"))
       description := "Subobject classifier: monos correspond to maps to Ω" }
 
   { name := s!"RT({pca.name})"
@@ -142,11 +142,11 @@ def kleeneFirstAlgebra : PCA :=
     carrier :=
       { name := "ℕ"
         doctrine := { doctrine := .Category }
-        objects := [{ id := ⟨"ℕ", 0⟩, description := "Natural numbers" }]
+        objects := [{ id := gid "ℕ", description := "Natural numbers" }]
         morphisms := []
         axioms := [] }
-    kComb := ⟨"K", 0⟩
-    sComb := ⟨"S", 0⟩ }
+    kComb := gid "K"
+    sComb := gid "S" }
 
 /-- The effective topos: the realizability topos over Kleene's first algebra.
     This is the "home" of computable mathematics. -/

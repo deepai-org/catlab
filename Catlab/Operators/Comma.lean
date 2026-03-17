@@ -31,13 +31,13 @@ def commaCategory
   -- Objects: for each (a, b), an object representing the hom F(a) → G(b)
   let commaObjects := fSource.objects.flatMap fun a =>
     gSource.objects.map fun b =>
-      { id := ⟨s!"({a.id.name},{b.id.name},h)", 0⟩
+      { id := gid s!"({a.id.name},{b.id.name},h)"
         description := s!"Comma object: {fName}({a.id.name}) → {gName}({b.id.name})" }
 
   -- The structural morphism h for each comma object
   let structureMaps := fSource.objects.flatMap fun a =>
     gSource.objects.map fun b =>
-      { id := ⟨s!"h_{a.id.name}_{b.id.name}", 0⟩
+      { id := gid s!"h_{a.id.name}_{b.id.name}"
         domain := fOnObj a.id
         codomain := gOnObj b.id
         description := s!"Structure map: {fName}({a.id.name}) → {gName}({b.id.name})" }
@@ -52,19 +52,19 @@ def commaCategory
     Objects are morphisms of C. Morphisms are commuting squares. -/
 def arrowCategory (t : Theory) : Theory :=
   let arrObjects := t.morphisms.map fun f =>
-    { id := ⟨s!"arr({f.id.name})", 0⟩
+    { id := gid s!"arr({f.id.name})"
       description := s!"Arrow: {f.id.name}" }
 
   -- Source and target projections
   let sourceMaps := t.morphisms.map fun f =>
-    { id := ⟨s!"src_{f.id.name}", 0⟩
-      domain := .atom ⟨s!"arr({f.id.name})", 0⟩
+    { id := gid s!"src_{f.id.name}"
+      domain := .atom (gid s!"arr({f.id.name})")
       codomain := f.domain
       description := s!"Source of arrow {f.id.name}" }
 
   let targetMaps := t.morphisms.map fun f =>
-    { id := ⟨s!"tgt_{f.id.name}", 0⟩
-      domain := .atom ⟨s!"arr({f.id.name})", 0⟩
+    { id := gid s!"tgt_{f.id.name}"
+      domain := .atom (gid s!"arr({f.id.name})")
       codomain := f.codomain
       description := s!"Target of arrow {f.id.name}" }
 
@@ -77,7 +77,7 @@ def arrowCategory (t : Theory) : Theory :=
 /-- Over category (coslice) X/C: objects are morphisms out of X. -/
 def overCategory (t : Theory) (x : Expr) : Theory :=
   let overObjects := t.morphisms.filterMap fun g =>
-    some { id := ⟨s!"(X → {g.id.name})", 0⟩
+    some { id := gid s!"(X → {g.id.name})"
            description := s!"Over object: X → {g.id.name}" }
   { name := s!"X/{t.name}"
     doctrine := t.doctrine

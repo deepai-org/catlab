@@ -33,21 +33,21 @@ def regCompletion (t : Theory) (namePrefix : String := "reg") : Theory :=
       else none
 
   let coequalizerObjects := kernelPairs.map fun (f, g) =>
-    ({ id := ⟨s!"{namePrefix}_coeq_{f.id.name}_{g.id.name}", 0⟩
+    ({ id := gid s!"{namePrefix}_coeq_{f.id.name}_{g.id.name}"
        description := s!"Coequalizer of kernel pair ({f.id.name}, {g.id.name})" }
       : Generator0)
 
   let coequalizerMorphisms := kernelPairs.map fun (f, g) =>
-    let coeqObjId : GeneratorId := ⟨s!"{namePrefix}_coeq_{f.id.name}_{g.id.name}", 0⟩
-    ({ id := ⟨s!"{namePrefix}_q_{f.id.name}_{g.id.name}", 0⟩
+    let coeqObjId : GeneratorId := gid s!"{namePrefix}_coeq_{f.id.name}_{g.id.name}"
+    ({ id := gid s!"{namePrefix}_q_{f.id.name}_{g.id.name}"
        domain := f.codomain
        codomain := .atom coeqObjId
        description := s!"Quotient map for kernel pair ({f.id.name}, {g.id.name})" }
       : Generator1)
 
   let coequalizerAxioms := kernelPairs.map fun (f, g) =>
-    let qId : GeneratorId := ⟨s!"{namePrefix}_q_{f.id.name}_{g.id.name}", 0⟩
-    ({ id := ⟨s!"{namePrefix}_coeq_ax_{f.id.name}_{g.id.name}", 0⟩
+    let qId : GeneratorId := gid s!"{namePrefix}_q_{f.id.name}_{g.id.name}"
+    ({ id := gid s!"{namePrefix}_coeq_ax_{f.id.name}_{g.id.name}"
        leftPath := .comp (.atom f.id) (.atom qId)
        rightPath := .comp (.atom g.id) (.atom qId)
        description := s!"Coequalizer condition: q ∘ {f.id.name} = q ∘ {g.id.name}" }
@@ -70,70 +70,70 @@ def exCompletion (t : Theory) (namePrefix : String := "ex") : Theory :=
   -- For each object A, create the trivial equivalence relation (A, A, id, id)
   -- and for each kernel pair, create the associated equivalence relation object.
   let eqRelObjects := t.objects.map fun a =>
-    ({ id := ⟨s!"{namePrefix}_eqrel_{a.id.name}", 0⟩
+    ({ id := gid s!"{namePrefix}_eqrel_{a.id.name}"
        description := s!"Equivalence relation on {a.id.name}" }
       : Generator0)
 
   -- d₀, d₁ : R → A for each equivalence relation object
   let d0Morphisms := t.objects.map fun a =>
-    ({ id := ⟨s!"{namePrefix}_d0_{a.id.name}", 0⟩
-       domain := .atom ⟨s!"{namePrefix}_eqrel_{a.id.name}", 0⟩
+    ({ id := gid s!"{namePrefix}_d0_{a.id.name}"
+       domain := .atom (gid s!"{namePrefix}_eqrel_{a.id.name}")
        codomain := .atom a.id
        description := s!"First projection of equivalence relation on {a.id.name}" }
       : Generator1)
 
   let d1Morphisms := t.objects.map fun a =>
-    ({ id := ⟨s!"{namePrefix}_d1_{a.id.name}", 0⟩
-       domain := .atom ⟨s!"{namePrefix}_eqrel_{a.id.name}", 0⟩
+    ({ id := gid s!"{namePrefix}_d1_{a.id.name}"
+       domain := .atom (gid s!"{namePrefix}_eqrel_{a.id.name}")
        codomain := .atom a.id
        description := s!"Second projection of equivalence relation on {a.id.name}" }
       : Generator1)
 
   -- Reflexivity: σ : A → R such that d₀ ∘ σ = id and d₁ ∘ σ = id
   let reflexMorphisms := t.objects.map fun a =>
-    ({ id := ⟨s!"{namePrefix}_refl_{a.id.name}", 0⟩
+    ({ id := gid s!"{namePrefix}_refl_{a.id.name}"
        domain := .atom a.id
-       codomain := .atom ⟨s!"{namePrefix}_eqrel_{a.id.name}", 0⟩
+       codomain := .atom (gid s!"{namePrefix}_eqrel_{a.id.name}")
        description := s!"Reflexivity map for equivalence relation on {a.id.name}" }
       : Generator1)
 
   let reflexAxioms_d0 := t.objects.map fun a =>
-    ({ id := ⟨s!"{namePrefix}_refl_d0_{a.id.name}", 0⟩
-       leftPath := .comp (.atom ⟨s!"{namePrefix}_refl_{a.id.name}", 0⟩)
-                         (.atom ⟨s!"{namePrefix}_d0_{a.id.name}", 0⟩)
+    ({ id := gid s!"{namePrefix}_refl_d0_{a.id.name}"
+       leftPath := .comp (.atom (gid s!"{namePrefix}_refl_{a.id.name}"))
+                         (.atom (gid s!"{namePrefix}_d0_{a.id.name}"))
        rightPath := Expr.id (.atom a.id)
        description := s!"d₀ ∘ σ = id on {a.id.name}" }
       : Generator2)
 
   let reflexAxioms_d1 := t.objects.map fun a =>
-    ({ id := ⟨s!"{namePrefix}_refl_d1_{a.id.name}", 0⟩
-       leftPath := .comp (.atom ⟨s!"{namePrefix}_refl_{a.id.name}", 0⟩)
-                         (.atom ⟨s!"{namePrefix}_d1_{a.id.name}", 0⟩)
+    ({ id := gid s!"{namePrefix}_refl_d1_{a.id.name}"
+       leftPath := .comp (.atom (gid s!"{namePrefix}_refl_{a.id.name}"))
+                         (.atom (gid s!"{namePrefix}_d1_{a.id.name}"))
        rightPath := Expr.id (.atom a.id)
        description := s!"d₁ ∘ σ = id on {a.id.name}" }
       : Generator2)
 
   -- Symmetry: τ : R → R such that d₀ ∘ τ = d₁ and d₁ ∘ τ = d₀
   let symmMorphisms := t.objects.map fun a =>
-    ({ id := ⟨s!"{namePrefix}_symm_{a.id.name}", 0⟩
-       domain := .atom ⟨s!"{namePrefix}_eqrel_{a.id.name}", 0⟩
-       codomain := .atom ⟨s!"{namePrefix}_eqrel_{a.id.name}", 0⟩
+    ({ id := gid s!"{namePrefix}_symm_{a.id.name}"
+       domain := .atom (gid s!"{namePrefix}_eqrel_{a.id.name}")
+       codomain := .atom (gid s!"{namePrefix}_eqrel_{a.id.name}")
        description := s!"Symmetry map for equivalence relation on {a.id.name}" }
       : Generator1)
 
   let symmAxioms_d0 := t.objects.map fun a =>
-    ({ id := ⟨s!"{namePrefix}_symm_d0_{a.id.name}", 0⟩
-       leftPath := .comp (.atom ⟨s!"{namePrefix}_symm_{a.id.name}", 0⟩)
-                         (.atom ⟨s!"{namePrefix}_d0_{a.id.name}", 0⟩)
-       rightPath := .atom ⟨s!"{namePrefix}_d1_{a.id.name}", 0⟩
+    ({ id := gid s!"{namePrefix}_symm_d0_{a.id.name}"
+       leftPath := .comp (.atom (gid s!"{namePrefix}_symm_{a.id.name}"))
+                         (.atom (gid s!"{namePrefix}_d0_{a.id.name}"))
+       rightPath := .atom (gid s!"{namePrefix}_d1_{a.id.name}")
        description := s!"d₀ ∘ τ = d₁ on {a.id.name}" }
       : Generator2)
 
   let symmAxioms_d1 := t.objects.map fun a =>
-    ({ id := ⟨s!"{namePrefix}_symm_d1_{a.id.name}", 0⟩
-       leftPath := .comp (.atom ⟨s!"{namePrefix}_symm_{a.id.name}", 0⟩)
-                         (.atom ⟨s!"{namePrefix}_d1_{a.id.name}", 0⟩)
-       rightPath := .atom ⟨s!"{namePrefix}_d0_{a.id.name}", 0⟩
+    ({ id := gid s!"{namePrefix}_symm_d1_{a.id.name}"
+       leftPath := .comp (.atom (gid s!"{namePrefix}_symm_{a.id.name}"))
+                         (.atom (gid s!"{namePrefix}_d1_{a.id.name}"))
+       rightPath := .atom (gid s!"{namePrefix}_d0_{a.id.name}")
        description := s!"d₁ ∘ τ = d₀ on {a.id.name}" }
       : Generator2)
 

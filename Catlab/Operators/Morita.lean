@@ -39,46 +39,46 @@ private def findEndomorphisms (t : Theory) : List Generator1 :=
 def moritaEnvelope (t : Theory) : Theory :=
   -- Every object A gives rise to (A, id_A)
   let trivialObjects : List Generator0 := t.objects.map fun obj =>
-    { id := ⟨s!"({obj.id.name},id)", 0⟩
+    { id := gid s!"({obj.id.name},id)"
       description := s!"Morita envelope object ({obj.id.name}, id)" }
 
   -- For each endomorphism e : A → A, add split object (A, e)
   let endos := findEndomorphisms t
   let splitObjects : List Generator0 := endos.map fun m =>
-    { id := ⟨s!"({m.id.name}_split)", 0⟩
+    { id := gid s!"({m.id.name}_split)"
       description := s!"Split object for endomorphism {m.id.name}" }
 
   -- Retraction r : A → (A, e) for each endomorphism
   let retractions : List Generator1 := endos.map fun m =>
-    { id := ⟨s!"r_{m.id.name}", 0⟩
+    { id := gid s!"r_{m.id.name}"
       domain := m.domain
-      codomain := .atom ⟨s!"({m.id.name}_split)", 0⟩
+      codomain := .atom (gid s!"({m.id.name}_split)")
       description := s!"Retraction for {m.id.name}" }
 
   -- Section s : (A, e) → A for each endomorphism
   let sections : List Generator1 := endos.map fun m =>
-    { id := ⟨s!"s_{m.id.name}", 0⟩
-      domain := .atom ⟨s!"({m.id.name}_split)", 0⟩
+    { id := gid s!"s_{m.id.name}"
+      domain := .atom (gid s!"({m.id.name}_split)")
       codomain := m.domain
       description := s!"Section for {m.id.name}" }
 
   -- Axiom: s ∘ r = e
   let factorAxioms : List Generator2 := endos.map fun m =>
-    { id := ⟨s!"morita_factor_{m.id.name}", 0⟩
-      leftPath := .comp (.atom ⟨s!"s_{m.id.name}", 0⟩) (.atom ⟨s!"r_{m.id.name}", 0⟩)
+    { id := gid s!"morita_factor_{m.id.name}"
+      leftPath := .comp (.atom (gid s!"s_{m.id.name}")) (.atom (gid s!"r_{m.id.name}"))
       rightPath := .atom m.id
       description := s!"Factorization: s ∘ r = {m.id.name}" }
 
   -- Axiom: r ∘ s = id_(A,e)
   let retractionAxioms : List Generator2 := endos.map fun m =>
-    { id := ⟨s!"morita_retract_{m.id.name}", 0⟩
-      leftPath := .comp (.atom ⟨s!"r_{m.id.name}", 0⟩) (.atom ⟨s!"s_{m.id.name}", 0⟩)
-      rightPath := Expr.id (.atom ⟨s!"({m.id.name}_split)", 0⟩)
+    { id := gid s!"morita_retract_{m.id.name}"
+      leftPath := .comp (.atom (gid s!"r_{m.id.name}")) (.atom (gid s!"s_{m.id.name}"))
+      rightPath := Expr.id (.atom (gid s!"({m.id.name}_split)"))
       description := s!"Retraction: r ∘ s = id" }
 
   -- Idempotence axioms: e ∘ e = e (strengthening the splitting)
   let idempotenceAxioms : List Generator2 := endos.map fun m =>
-    { id := ⟨s!"morita_idem_{m.id.name}", 0⟩
+    { id := gid s!"morita_idem_{m.id.name}"
       leftPath := .comp (.atom m.id) (.atom m.id)
       rightPath := .atom m.id
       description := s!"Idempotence: {m.id.name} ∘ {m.id.name} = {m.id.name}" }
@@ -134,13 +134,13 @@ def presheafEquivalence (t1 t2 : Theory) : PresheafEquivalenceData :=
   -- Forward functor: restriction along the embedding T₂ ↪ Cauchy(T₂) ≃ Cauchy(T₁)
   -- For each object of T₂, map it to the corresponding object in T₁'s envelope
   let forwardComponents : List Generator1 := t1.objects.map fun s =>
-    { id := ⟨s!"F_{s.id.name}", 0⟩
-      domain := .atom ⟨s!"PSh({t1.name})_{s.id.name}", 0⟩
-      codomain := .atom ⟨s!"PSh({t2.name})_{s.id.name}", 0⟩
+    { id := gid s!"F_{s.id.name}"
+      domain := .atom (gid s!"PSh({t1.name})_{s.id.name}")
+      codomain := .atom (gid s!"PSh({t2.name})_{s.id.name}")
       description := s!"Forward functor component at {s.id.name}" }
 
   let fwdObj : Generator0 :=
-    { id := ⟨s!"PSh({t1.name})→PSh({t2.name})", 0⟩
+    { id := gid s!"PSh({t1.name})→PSh({t2.name})"
       description := "Forward equivalence functor" }
   let forwardFunctor : Theory :=
     { name := s!"PSh({t1.name})→PSh({t2.name})"
@@ -150,13 +150,13 @@ def presheafEquivalence (t1 t2 : Theory) : PresheafEquivalenceData :=
       axioms := [] }
 
   let backwardComponents : List Generator1 := t2.objects.map fun s =>
-    { id := ⟨s!"G_{s.id.name}", 0⟩
-      domain := .atom ⟨s!"PSh({t2.name})_{s.id.name}", 0⟩
-      codomain := .atom ⟨s!"PSh({t1.name})_{s.id.name}", 0⟩
+    { id := gid s!"G_{s.id.name}"
+      domain := .atom (gid s!"PSh({t2.name})_{s.id.name}")
+      codomain := .atom (gid s!"PSh({t1.name})_{s.id.name}")
       description := s!"Backward functor component at {s.id.name}" }
 
   let bwdObj : Generator0 :=
-    { id := ⟨s!"PSh({t2.name})→PSh({t1.name})", 0⟩
+    { id := gid s!"PSh({t2.name})→PSh({t1.name})"
       description := "Backward equivalence functor" }
   let backwardFunctor : Theory :=
     { name := s!"PSh({t2.name})→PSh({t1.name})"

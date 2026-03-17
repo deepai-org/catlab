@@ -6,28 +6,28 @@ import Catlab.Core.Theory
 
 namespace CatLab.Library
 
-private def P : Expr := .atom ⟨"P", 0⟩
+private def P : Expr := .atom (gid "P")
 
 def TheoryOfPosets : Theory :=
   { name := "Poset"
     doctrine := { doctrine := .Category }
-    objects := [{ id := ⟨"P", 0⟩, description := "The carrier set" }]
+    objects := [{ id := gid "P", description := "The carrier set" }]
     morphisms := [
-      { id := ⟨"≤", 0⟩, domain := .prod P P, codomain := P,
+      { id := gid "≤", domain := .prod P P, codomain := P,
         description := "Partial order: P × P → Prop (represented as P)" }
     ]
     axioms := [
-      { id := ⟨"refl", 0⟩
-        leftPath := .comp (.prod (.id P) (.id P)) (.atom ⟨"≤", 0⟩)
+      { id := gid "refl"
+        leftPath := .comp (.prod (.id P) (.id P)) (.atom (gid "≤"))
         rightPath := .id P
         description := "Reflexivity: a ≤ a" },
-      { id := ⟨"antisym", 0⟩
-        leftPath := .comp (.prod (.atom ⟨"≤", 0⟩) (.atom ⟨"≤", 0⟩)) (.atom ⟨"eq", 0⟩)
+      { id := gid "antisym"
+        leftPath := .comp (.prod (.atom (gid "≤")) (.atom (gid "≤"))) (.atom (gid "eq"))
         rightPath := .id P
         description := "Antisymmetry: a ≤ b ∧ b ≤ a → a = b" },
-      { id := ⟨"trans", 0⟩
-        leftPath := .comp (.prod (.atom ⟨"≤", 0⟩) (.atom ⟨"≤", 0⟩)) (.atom ⟨"≤", 0⟩)
-        rightPath := .atom ⟨"≤", 0⟩
+      { id := gid "trans"
+        leftPath := .comp (.prod (.atom (gid "≤")) (.atom (gid "≤"))) (.atom (gid "≤"))
+        rightPath := .atom (gid "≤")
         description := "Transitivity: a ≤ b ∧ b ≤ c → a ≤ c" }
     ] }
 

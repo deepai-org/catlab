@@ -43,22 +43,22 @@ structure Cowedge where
     π_a : E → F(a,a) such that for every f : a → b in C,
     F(f, id_b) ∘ π_b = F(id_a, f) ∘ π_a. -/
 def computeEnd (p : Profunctor) : Theory :=
-  let endObj := { id := ⟨s!"∫_{p.name}", 0⟩
+  let endObj := { id := gid s!"∫_{p.name}"
                   description := s!"End of {p.name}" }
 
   -- Projection morphisms: π_a : ∫F → F(a,a)
   let projections := p.source.objects.map fun a =>
-    { id := ⟨s!"π^end_{a.id.name}", 0⟩
-      domain := .atom ⟨s!"∫_{p.name}", 0⟩
+    { id := gid s!"π^end_{a.id.name}"
+      domain := .atom (gid s!"∫_{p.name}")
       codomain := p.onObjects a.id a.id
       description := s!"End projection at {a.id.name}" }
 
   -- Wedge condition: for each f : a → b,
   -- F(f, id) ∘ π_b = F(id, f) ∘ π_a
   let wedgeAxioms := p.source.morphisms.map fun f =>
-    { id := ⟨s!"wedge_{f.id.name}", 0⟩
-      leftPath := .comp (.atom ⟨s!"π^end_{repr f.codomain}", 0⟩) (p.onMorphisms f.id ⟨"id", 0⟩)
-      rightPath := .comp (.atom ⟨s!"π^end_{repr f.domain}", 0⟩) (p.onMorphisms ⟨"id", 0⟩ f.id)
+    { id := gid s!"wedge_{f.id.name}"
+      leftPath := .comp (.atom (gid s!"π^end_{repr f.codomain}")) (p.onMorphisms f.id (gid "id"))
+      rightPath := .comp (.atom (gid s!"π^end_{repr f.domain}")) (p.onMorphisms (gid "id") f.id)
       description := s!"Wedge condition for {f.id.name}" }
 
   { name := s!"∫({p.name})"
@@ -73,21 +73,21 @@ def computeEnd (p : Profunctor) : Theory :=
     ι_a : F(a,a) → Q such that for every f : a → b,
     F(id_a, f) ∘ ι_a = F(f, id_b) ∘ ι_b  (after composing into Q). -/
 def computeCoend (p : Profunctor) : Theory :=
-  let coendObj := { id := ⟨s!"∫^{p.name}", 0⟩
+  let coendObj := { id := gid s!"∫^{p.name}"
                     description := s!"Coend of {p.name}" }
 
   -- Injection morphisms: ι_a : F(a,a) → ∫^F
   let injections := p.source.objects.map fun a =>
-    { id := ⟨s!"ι^coend_{a.id.name}", 0⟩
+    { id := gid s!"ι^coend_{a.id.name}"
       domain := p.onObjects a.id a.id
-      codomain := .atom ⟨s!"∫^{p.name}", 0⟩
+      codomain := .atom (gid s!"∫^{p.name}")
       description := s!"Coend injection at {a.id.name}" }
 
   -- Cowedge condition (dual of wedge)
   let cowedgeAxioms := p.source.morphisms.map fun f =>
-    { id := ⟨s!"cowedge_{f.id.name}", 0⟩
-      leftPath := .comp (p.onMorphisms ⟨"id", 0⟩ f.id) (.atom ⟨s!"ι^coend_{repr f.domain}", 0⟩)
-      rightPath := .comp (p.onMorphisms f.id ⟨"id", 0⟩) (.atom ⟨s!"ι^coend_{repr f.codomain}", 0⟩)
+    { id := gid s!"cowedge_{f.id.name}"
+      leftPath := .comp (p.onMorphisms (gid "id") f.id) (.atom (gid s!"ι^coend_{repr f.domain}"))
+      rightPath := .comp (p.onMorphisms f.id (gid "id")) (.atom (gid s!"ι^coend_{repr f.codomain}"))
       description := s!"Cowedge condition for {f.id.name}" }
 
   { name := s!"∫^({p.name})"
@@ -99,8 +99,8 @@ def computeCoend (p : Profunctor) : Theory :=
 /-- The Ninja Yoneda lemma: ∫_{a} [Hom(a, b), F(a)] ≅ F(b)
     This is the computation that makes Kan extensions work. -/
 def ninjaYoneda (p : Profunctor) (b : GeneratorId) : Generator2 :=
-  { id := ⟨s!"ninja_yoneda_{b.name}", 0⟩
-    leftPath := .atom ⟨s!"∫_{p.name}_at_{b.name}", 0⟩
+  { id := gid s!"ninja_yoneda_{b.name}"
+    leftPath := .atom (gid s!"∫_{p.name}_at_{b.name}")
     rightPath := p.onObjects b b
     description := s!"Ninja Yoneda: end over Hom(-, {b.name}) ⊗ F ≅ F({b.name})" }
 

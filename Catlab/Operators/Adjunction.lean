@@ -35,7 +35,7 @@ def adjunctionUnit (adj : Adjunction) : List Generator1 :=
   adj.source.objects.map fun a =>
     let fa := adj.leftAdjoint.onObjects a.id
     let gfa := adj.rightAdjoint.onObjects a.id  -- simplified: should be G applied to F(a)
-    { id := ⟨s!"η_{a.id.name}", 0⟩
+    { id := gid s!"η_{a.id.name}"
       domain := .atom a.id
       codomain := gfa
       description := s!"Unit at {a.id.name}: {a.id.name} → GF({a.id.name})" }
@@ -46,7 +46,7 @@ def adjunctionCounit (adj : Adjunction) : List Generator1 :=
   adj.target.objects.map fun b =>
     let gb := adj.rightAdjoint.onObjects b.id
     let fgb := adj.leftAdjoint.onObjects b.id  -- simplified
-    { id := ⟨s!"ε_{b.id.name}", 0⟩
+    { id := gid s!"ε_{b.id.name}"
       domain := fgb
       codomain := .atom b.id
       description := s!"Counit at {b.id.name}: FG({b.id.name}) → {b.id.name}" }
@@ -55,15 +55,15 @@ def adjunctionCounit (adj : Adjunction) : List Generator1 :=
     (εF) ∘ (Fη) = id_F  and  (Gε) ∘ (ηG) = id_G -/
 def triangleIdentities (adj : Adjunction) : List Generator2 :=
   let leftTriangle := adj.source.objects.map fun a =>
-    { id := ⟨s!"triangle_left_{a.id.name}", 0⟩
-      leftPath := .comp (.atom ⟨s!"η_{a.id.name}", 0⟩)
-                        (.atom ⟨s!"ε_F({a.id.name})", 0⟩)
+    { id := gid s!"triangle_left_{a.id.name}"
+      leftPath := .comp (.atom (gid s!"η_{a.id.name}"))
+                        (.atom (gid s!"ε_F({a.id.name})"))
       rightPath := .id (adj.leftAdjoint.onObjects a.id)
       description := s!"Left triangle: (εF) ∘ (Fη) = id at {a.id.name}" }
   let rightTriangle := adj.target.objects.map fun b =>
-    { id := ⟨s!"triangle_right_{b.id.name}", 0⟩
-      leftPath := .comp (.atom ⟨s!"ε_{b.id.name}", 0⟩)
-                        (.atom ⟨s!"η_G({b.id.name})", 0⟩)
+    { id := gid s!"triangle_right_{b.id.name}"
+      leftPath := .comp (.atom (gid s!"ε_{b.id.name}"))
+                        (.atom (gid s!"η_G({b.id.name})"))
       rightPath := .id (adj.rightAdjoint.onObjects b.id)
       description := s!"Right triangle: (Gε) ∘ (ηG) = id at {b.id.name}" }
   leftTriangle ++ rightTriangle
@@ -71,17 +71,17 @@ def triangleIdentities (adj : Adjunction) : List Generator2 :=
 /-- Extract the monad T = GF from an adjunction F ⊣ G.
     This gives the monad on the source category C. -/
 def adjunctionToMonad (adj : Adjunction) : MonadData :=
-  { functor := fun e => adj.rightAdjoint.onObjects (adj.leftAdjoint.onObjects ⟨s!"{repr e}", 0⟩ |> fun _ => ⟨s!"GF", 0⟩)
-    unit := ⟨s!"{adj.name}_η", 0⟩
-    mult := ⟨s!"{adj.name}_μ", 0⟩
+  { functor := fun e => adj.rightAdjoint.onObjects (adj.leftAdjoint.onObjects (gid s!"{repr e}") |> fun _ => gid "GF")
+    unit := gid s!"{adj.name}_η"
+    mult := gid s!"{adj.name}_μ"
     base := adj.source }
 
 /-- Extract the comonad W = FG from an adjunction F ⊣ G.
     This gives the comonad on the target category D. -/
 def adjunctionToComonad (adj : Adjunction) : ComonadData :=
-  { functor := fun e => adj.leftAdjoint.onObjects (adj.rightAdjoint.onObjects ⟨s!"{repr e}", 0⟩ |> fun _ => ⟨s!"FG", 0⟩)
-    counit := ⟨s!"{adj.name}_ε", 0⟩
-    comult := ⟨s!"{adj.name}_δ", 0⟩
+  { functor := fun e => adj.leftAdjoint.onObjects (adj.rightAdjoint.onObjects (gid s!"{repr e}") |> fun _ => gid "FG")
+    counit := gid s!"{adj.name}_ε"
+    comult := gid s!"{adj.name}_δ"
     base := adj.target }
 
 /-- The hom-set adjunction: Hom_D(F(a), b) ≅ Hom_C(a, G(b)).
@@ -89,7 +89,7 @@ def adjunctionToComonad (adj : Adjunction) : ComonadData :=
 def homAdjunction (adj : Adjunction) : List Generator2 :=
   adj.source.objects.flatMap fun a =>
     adj.target.objects.map fun b =>
-      { id := ⟨s!"hom_adj_{a.id.name}_{b.id.name}", 0⟩
+      { id := gid s!"hom_adj_{a.id.name}_{b.id.name}"
         leftPath := .hom (adj.leftAdjoint.onObjects a.id) (.atom b.id)
         rightPath := .hom (.atom a.id) (adj.rightAdjoint.onObjects b.id)
         description := s!"Hom(F({a.id.name}), {b.id.name}) ≅ Hom({a.id.name}, G({b.id.name}))" }
@@ -107,7 +107,7 @@ def freeForgetfulAdjunction (t : Theory) : Adjunction :=
   let setTheory : Theory :=
     { name := "Set"
       doctrine := { doctrine := .Topos }
-      objects := [{ id := ⟨"S", 0⟩, description := "A set" }]
+      objects := [{ id := gid "S", description := "A set" }]
       morphisms := []
       axioms := [] }
   let freeF : TheoryFunctor :=

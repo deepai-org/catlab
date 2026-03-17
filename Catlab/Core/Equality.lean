@@ -28,6 +28,10 @@ def Expr.beq : Expr → Expr → Bool
   | .proj i1 s1, .proj i2 s2 => i1 == i2 && s1.beq s2
   | .inj i1 t1, .inj i2 t2 => i1 == i2 && t1.beq t2
   | .var n1, .var n2 => n1 == n2
+  | .app f1 x1, .app f2 x2 => f1.beq f2 && x1.beq x2
+  | .limit d1, .limit d2 => d1.beq d2
+  | .colimit d1, .colimit d2 => d1.beq d2
+  | .natComponent n1 x1, .natComponent n2 x2 => n1.beq n2 && x1.beq x2
   | _, _ => false
 
 instance : BEq Expr where beq := Expr.beq
@@ -46,7 +50,7 @@ instance : BEq Generator2 where
     Two expressions are alpha-equivalent if there exists a consistent
     renaming of atom names that makes them structurally equal. -/
 partial def Expr.alphaEquiv (e1 e2 : Expr)
-    (mapping : List (String × String) := []) : Bool :=
+    (mapping : List (Name × Name) := []) : Bool :=
   match e1, e2 with
   | .atom a, .atom b =>
     match mapping.find? (fun (k, _) => k == a.name) with
@@ -67,6 +71,10 @@ partial def Expr.alphaEquiv (e1 e2 : Expr)
   | .proj i1 s1, .proj i2 s2 => i1 == i2 && s1.alphaEquiv s2 mapping
   | .inj i1 t1, .inj i2 t2 => i1 == i2 && t1.alphaEquiv t2 mapping
   | .var n1, .var n2 => n1 == n2
+  | .app f1 x1, .app f2 x2 => f1.alphaEquiv f2 mapping && x1.alphaEquiv x2 mapping
+  | .limit d1, .limit d2 => d1.alphaEquiv d2 mapping
+  | .colimit d1, .colimit d2 => d1.alphaEquiv d2 mapping
+  | .natComponent n1 x1, .natComponent n2 x2 => n1.alphaEquiv n2 mapping && x1.alphaEquiv x2 mapping
   | _, _ => false
 
 /-- A theory morphism: a mapping between theories preserving structure -/
@@ -86,8 +94,8 @@ def TheoryMorphism.preservesTyping (tm : TheoryMorphism) : Bool :=
   tm.source.morphisms.all fun m =>
     -- Check that target has a morphism with matching domain/codomain
     -- (simplified: just check the mapped expressions are well-formed atoms)
-    let mappedDom := tm.onObjects ⟨s!"{repr m.domain}", 0⟩
-    let mappedCod := tm.onObjects ⟨s!"{repr m.codomain}", 0⟩
+    let mappedDom := tm.onObjects (gid s!"{repr m.domain}")
+    let mappedCod := tm.onObjects (gid s!"{repr m.codomain}")
     -- At minimum, the mapped objects should exist
     mappedDom != .unit || mappedCod != .unit  -- placeholder
 

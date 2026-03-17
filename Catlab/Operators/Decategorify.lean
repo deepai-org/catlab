@@ -38,7 +38,7 @@ def decategorify (t : Theory) (strategy : DecatStrategy := .isoClasses) : Theory
     -- Objects become elements of a set (0-generators of the decategorified theory)
     let objNames := t.objects.map (·.id.name)
     let decat0 := t.objects.map fun a =>
-      { id := ⟨s!"[{a.id.name}]", 0⟩
+      { id := gid s!"[{a.id.name}]"
         description := s!"Isomorphism class of {a.id.name}" }
     -- Only keep axioms whose atoms all refer to objects (not morphisms)
     -- since morphisms are collapsed away
@@ -47,7 +47,7 @@ def decategorify (t : Theory) (strategy : DecatStrategy := .isoClasses) : Theory
       let atoms := ax.leftPath.atoms ++ ax.rightPath.atoms
       let referencesMorphism := atoms.any (fun a => morNames.contains a)
       if referencesMorphism then none
-      else some { id := ⟨s!"decat_{ax.id.name}", 0⟩
+      else some { id := gid s!"decat_{ax.id.name}"
                   leftPath := ax.leftPath
                   rightPath := ax.rightPath
                   description := s!"Decategorified: {ax.description}" }
@@ -59,13 +59,13 @@ def decategorify (t : Theory) (strategy : DecatStrategy := .isoClasses) : Theory
 
   | .grothendieckGroup =>
     -- K₀: free abelian group on iso classes, with [A ⊕ B] = [A] + [B]
-    let k0obj := { id := ⟨s!"K₀({t.name})", 0⟩
+    let k0obj := { id := gid s!"K₀({t.name})"
                    description := s!"Grothendieck group of {t.name}" }
     -- Each original object gives a generator of K₀
     let generators := t.objects.map fun a =>
-      { id := ⟨s!"[{a.id.name}]", 0⟩
+      { id := gid s!"[{a.id.name}]"
         domain := .terminal
-        codomain := .atom ⟨s!"K₀({t.name})", 0⟩
+        codomain := .atom (gid s!"K₀({t.name})")
         description := s!"K₀ class of {a.id.name}" }
     -- Additivity: [A ⊕ B] = [A] + [B] for each coproduct
     { name := s!"K₀({t.name})"
@@ -76,11 +76,11 @@ def decategorify (t : Theory) (strategy : DecatStrategy := .isoClasses) : Theory
 
   | .eulerCharacteristic =>
     -- χ: alternating sum of dimensions in a chain complex
-    let chiObj := { id := ⟨s!"χ({t.name})", 0⟩
+    let chiObj := { id := gid s!"χ({t.name})"
                     description := s!"Euler characteristic target" }
-    let chiMap := { id := ⟨s!"χ", 0⟩
-                    domain := .atom ⟨t.name, 0⟩
-                    codomain := .atom ⟨s!"χ({t.name})", 0⟩
+    let chiMap := { id := gid "χ"
+                    domain := .atom (gid t.name)
+                    codomain := .atom (gid s!"χ({t.name})")
                     description := "Euler characteristic map" }
     { name := s!"χ({t.name})"
       doctrine := { doctrine := .Category }

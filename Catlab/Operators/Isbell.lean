@@ -23,15 +23,15 @@ namespace CatLab
 def isbellSpec (t : Theory) : Theory :=
   -- For each presheaf (approximated by objects of C), Spec maps it to a copresheaf
   let specObjects := t.objects.map fun a =>
-    { id := ⟨s!"Spec({a.id.name})", 0⟩
+    { id := gid s!"Spec({a.id.name})"
       description := s!"Isbell spectrum of {a.id.name}: Nat(P, Hom(-,{a.id.name}))" : Generator0 }
 
   -- For each morphism f : a → b in C, Spec is covariant:
   -- Spec(P)(f) : Spec(P)(a) → Spec(P)(b) by postcomposition
   let specMorphisms := t.morphisms.map fun f =>
-    { id := ⟨s!"Spec({f.id.name})", 0⟩
-      domain := .atom ⟨s!"Spec({repr f.domain})", 0⟩
-      codomain := .atom ⟨s!"Spec({repr f.codomain})", 0⟩
+    { id := gid s!"Spec({f.id.name})"
+      domain := .atom (gid s!"Spec({repr f.domain})")
+      codomain := .atom (gid s!"Spec({repr f.codomain})")
       description := s!"Spec applied to {f.id.name} (covariant)" : Generator1 }
 
   { name := s!"Spec({t.name})"
@@ -46,14 +46,14 @@ def isbellSpec (t : Theory) : Theory :=
     corepresentable to Q. -/
 def isbellCospec (t : Theory) : Theory :=
   let cospecObjects := t.objects.map fun a =>
-    { id := ⟨s!"Cospec({a.id.name})", 0⟩
+    { id := gid s!"Cospec({a.id.name})"
       description := s!"Isbell costructure at {a.id.name}: Nat(Hom({a.id.name},-), Q)" : Generator0 }
 
   let cospecMorphisms := t.morphisms.map fun f =>
-    { id := ⟨s!"Cospec({f.id.name})", 0⟩
+    { id := gid s!"Cospec({f.id.name})"
       -- Contravariant: reverses direction
-      domain := .atom ⟨s!"Cospec({repr f.codomain})", 0⟩
-      codomain := .atom ⟨s!"Cospec({repr f.domain})", 0⟩
+      domain := .atom (gid s!"Cospec({repr f.codomain})")
+      codomain := .atom (gid s!"Cospec({repr f.domain})")
       description := s!"Cospec applied to {f.id.name} (contravariant)" : Generator1 }
 
   { name := s!"Cospec({t.name})"
@@ -73,39 +73,39 @@ def isbellAdjunction (t : Theory) : Theory :=
   -- Unit η : P → Cospec(Spec(P))
   -- For each object (representing a presheaf), the unit component
   let unitMorphisms := t.objects.map fun a =>
-    { id := ⟨s!"η_isbell_{a.id.name}", 0⟩
+    { id := gid s!"η_isbell_{a.id.name}"
       domain := .atom a.id
-      codomain := .atom ⟨s!"Cospec(Spec({a.id.name}))", 0⟩
+      codomain := .atom (gid s!"Cospec(Spec({a.id.name}))")
       description := s!"Isbell unit at {a.id.name}: P → Cospec(Spec(P))" : Generator1 }
 
   -- Counit ε : Spec(Cospec(Q)) → Q
   -- For each object (representing a copresheaf), the counit component
   let counitMorphisms := t.objects.map fun a =>
-    { id := ⟨s!"ε_isbell_{a.id.name}", 0⟩
-      domain := .atom ⟨s!"Spec(Cospec({a.id.name}))", 0⟩
+    { id := gid s!"ε_isbell_{a.id.name}"
+      domain := .atom (gid s!"Spec(Cospec({a.id.name}))")
       codomain := .atom a.id
       description := s!"Isbell counit at {a.id.name}: Spec(Cospec(Q)) → Q" : Generator1 }
 
   -- Triangle identities
   let triangleLeft := t.objects.map fun a =>
-    { id := ⟨s!"isbell_triangle_L_{a.id.name}", 0⟩
-      leftPath := .comp (.atom ⟨s!"η_isbell_{a.id.name}", 0⟩)
-                        (.atom ⟨s!"ε_isbell_Spec({a.id.name})", 0⟩)
-      rightPath := Expr.id (.atom ⟨s!"Spec({a.id.name})", 0⟩)
+    { id := gid s!"isbell_triangle_L_{a.id.name}"
+      leftPath := .comp (.atom (gid s!"η_isbell_{a.id.name}"))
+                        (.atom (gid s!"ε_isbell_Spec({a.id.name})"))
+      rightPath := Expr.id (.atom (gid s!"Spec({a.id.name})"))
       description := s!"Left triangle identity at {a.id.name}" : Generator2 }
 
   let triangleRight := t.objects.map fun a =>
-    { id := ⟨s!"isbell_triangle_R_{a.id.name}", 0⟩
-      leftPath := .comp (.atom ⟨s!"ε_isbell_{a.id.name}", 0⟩)
-                        (.atom ⟨s!"η_isbell_Cospec({a.id.name})", 0⟩)
-      rightPath := Expr.id (.atom ⟨s!"Cospec({a.id.name})", 0⟩)
+    { id := gid s!"isbell_triangle_R_{a.id.name}"
+      leftPath := .comp (.atom (gid s!"ε_isbell_{a.id.name}"))
+                        (.atom (gid s!"η_isbell_Cospec({a.id.name})"))
+      rightPath := Expr.id (.atom (gid s!"Cospec({a.id.name})"))
       description := s!"Right triangle identity at {a.id.name}" : Generator2 }
 
   -- Objects fixed by the monad Cospec ∘ Spec are "Isbell self-dual"
   let selfDualAxioms := t.objects.map fun a =>
-    { id := ⟨s!"isbell_fixed_{a.id.name}", 0⟩
-      leftPath := .comp (.atom ⟨s!"η_isbell_{a.id.name}", 0⟩)
-                        (.atom ⟨s!"cospec_spec_proj_{a.id.name}", 0⟩)
+    { id := gid s!"isbell_fixed_{a.id.name}"
+      leftPath := .comp (.atom (gid s!"η_isbell_{a.id.name}"))
+                        (.atom (gid s!"cospec_spec_proj_{a.id.name}"))
       rightPath := Expr.id (.atom a.id)
       description := s!"Isbell self-duality condition at {a.id.name}: η is iso iff self-dual" : Generator2 }
 
@@ -120,7 +120,7 @@ def isbellAdjunction (t : Theory) : Theory :=
     Returns the self-duality axiom name for the given object. -/
 def isbellSelfDualCheck (t : Theory) (objName : String) : Option GeneratorId :=
   let adj := isbellAdjunction t
-  adj.axioms.find? (fun ax => ax.id.name == s!"isbell_fixed_{objName}")
+  adj.axioms.find? (fun ax => ax.id.name == .root s!"isbell_fixed_{objName}")
   |>.map (·.id)
 
 end CatLab

@@ -49,27 +49,27 @@ def triposToTopos (tr : Tripos) : Theory :=
   -- The subobject classifier Ω: the PER of "truth values"
   -- In the tripos, this is the object of propositions with ↔ as the PER
   let omega : Generator0 :=
-    { id := ⟨"Ω", 0⟩
+    { id := gid "Ω"
       description := "Subobject classifier (truth values)" }
 
   -- True: 1 → Ω (the "true" predicate)
   let trueMap : Generator1 :=
-    { id := ⟨"⊤", 0⟩
+    { id := gid "⊤"
       domain := .terminal
-      codomain := .atom ⟨"Ω", 0⟩
+      codomain := .atom (gid "Ω")
       description := "True: the top element of Ω" }
 
   -- For each base object I, we get a PER-object in the topos
   let perObjects := tr.base.objects.map fun i =>
-    { id := ⟨s!"PER({i.id.name})", 0⟩
+    { id := gid s!"PER({i.id.name})"
       description := s!"PER over {i.id.name}" }
 
   -- The characteristic morphism: for each mono m : A ↪ B,
   -- there exists a unique χ_m : B → Ω such that A = χ_m⁻¹(⊤)
   let charAxiom : Generator2 :=
-    { id := ⟨"subobject_classifier_axiom", 0⟩
-      leftPath := .comp (.atom ⟨"m", 0⟩) (.atom ⟨"χ_m", 0⟩)
-      rightPath := .comp (.atom ⟨"!", 0⟩) (.atom ⟨"⊤", 0⟩)
+    { id := gid "subobject_classifier_axiom"
+      leftPath := .comp (.atom (gid "m")) (.atom (gid "χ_m"))
+      rightPath := .comp (.atom (gid "!")) (.atom (gid "⊤"))
       description := "Universal property of Ω: monos are classified by maps to Ω" }
 
   { name := s!"Topos({tr.base.name})"

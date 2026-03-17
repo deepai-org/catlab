@@ -46,34 +46,34 @@ structure LimitResult where
     Returns generators for A × B, π₁, π₂, and the universal property. -/
 def computeProduct (a b : Expr) (namePrefix : String := "prod") : LimitResult :=
   let prodObj := Expr.prod a b
-  { object := { id := ⟨namePrefix, 0⟩, description := s!"Product of {repr a} and {repr b}" }
+  { object := { id := gid namePrefix, description := s!"Product of {repr a} and {repr b}" }
     morphisms := [
-      { id := ⟨s!"{namePrefix}_π₁", 0⟩, domain := prodObj, codomain := a,
+      { id := gid s!"{namePrefix}_π₁", domain := prodObj, codomain := a,
         description := "First projection" },
-      { id := ⟨s!"{namePrefix}_π₂", 0⟩, domain := prodObj, codomain := b,
+      { id := gid s!"{namePrefix}_π₂", domain := prodObj, codomain := b,
         description := "Second projection" }
     ]
     axioms := [
-      { id := ⟨s!"{namePrefix}_univ", 0⟩,
-        leftPath := .comp (.atom ⟨"⟨f,g⟩", 0⟩) (.atom ⟨s!"{namePrefix}_π₁", 0⟩),
-        rightPath := .atom ⟨"f", 0⟩,
+      { id := gid s!"{namePrefix}_univ",
+        leftPath := .comp (.atom (gid "⟨f,g⟩")) (.atom (gid s!"{namePrefix}_π₁")),
+        rightPath := .atom (gid "f"),
         description := "Universal property of product" }
     ] }
 
 /-- Compute the binary coproduct (disjoint union) of two expressions. -/
 def computeCoproduct (a b : Expr) (namePrefix : String := "coprod") : LimitResult :=
   let coprodObj := Expr.coprod a b
-  { object := { id := ⟨namePrefix, 0⟩, description := s!"Coproduct of {repr a} and {repr b}" }
+  { object := { id := gid namePrefix, description := s!"Coproduct of {repr a} and {repr b}" }
     morphisms := [
-      { id := ⟨s!"{namePrefix}_ι₁", 0⟩, domain := a, codomain := coprodObj,
+      { id := gid s!"{namePrefix}_ι₁", domain := a, codomain := coprodObj,
         description := "First injection" },
-      { id := ⟨s!"{namePrefix}_ι₂", 0⟩, domain := b, codomain := coprodObj,
+      { id := gid s!"{namePrefix}_ι₂", domain := b, codomain := coprodObj,
         description := "Second injection" }
     ]
     axioms := [
-      { id := ⟨s!"{namePrefix}_univ", 0⟩,
-        leftPath := .comp (.atom ⟨s!"{namePrefix}_ι₁", 0⟩) (.atom ⟨"[f,g]", 0⟩),
-        rightPath := .atom ⟨"f", 0⟩,
+      { id := gid s!"{namePrefix}_univ",
+        leftPath := .comp (.atom (gid s!"{namePrefix}_ι₁")) (.atom (gid "[f,g]")),
+        rightPath := .atom (gid "f"),
         description := "Universal property of coproduct" }
     ] }
 
@@ -81,72 +81,72 @@ def computeCoproduct (a b : Expr) (namePrefix : String := "coprod") : LimitResul
     Returns the pullback object P with projections p₁ : P → A, p₂ : P → B
     satisfying f ∘ p₁ = g ∘ p₂. -/
 def computePullback (f g : Generator1) (namePrefix : String := "pb") : LimitResult :=
-  let pbObj := Expr.atom ⟨namePrefix, 0⟩
-  let pbId : GeneratorId := ⟨namePrefix, 0⟩
-  { object := { id := pbId, description := s!"Pullback of {f.id.name} and {g.id.name}" }
+  let pbObj := Expr.atom (gid namePrefix)
+  let pbId := gid namePrefix
+  { object := { id := pbId, description := s!"Pullback of {f.id} and {g.id}" }
     morphisms := [
-      { id := ⟨s!"{namePrefix}_p₁", 0⟩, domain := pbObj, codomain := f.domain,
+      { id := gid s!"{namePrefix}_p₁", domain := pbObj, codomain := f.domain,
         description := "Pullback projection to first factor" },
-      { id := ⟨s!"{namePrefix}_p₂", 0⟩, domain := pbObj, codomain := g.domain,
+      { id := gid s!"{namePrefix}_p₂", domain := pbObj, codomain := g.domain,
         description := "Pullback projection to second factor" }
     ]
     axioms := [
-      { id := ⟨s!"{namePrefix}_comm", 0⟩,
-        leftPath := .comp (.atom ⟨s!"{namePrefix}_p₁", 0⟩) (.atom f.id),
-        rightPath := .comp (.atom ⟨s!"{namePrefix}_p₂", 0⟩) (.atom g.id),
+      { id := gid s!"{namePrefix}_comm",
+        leftPath := .comp (.atom (gid s!"{namePrefix}_p₁")) (.atom f.id),
+        rightPath := .comp (.atom (gid s!"{namePrefix}_p₂")) (.atom g.id),
         description := "Pullback square commutes: f ∘ p₁ = g ∘ p₂" }
     ] }
 
 /-- Compute the pushout of f : C → A and g : C → B.
     Dual to pullback. -/
 def computePushout (f g : Generator1) (namePrefix : String := "po") : LimitResult :=
-  let poObj := Expr.atom ⟨namePrefix, 0⟩
-  let poId : GeneratorId := ⟨namePrefix, 0⟩
-  { object := { id := poId, description := s!"Pushout of {f.id.name} and {g.id.name}" }
+  let poObj := Expr.atom (gid namePrefix)
+  let poId := gid namePrefix
+  { object := { id := poId, description := s!"Pushout of {f.id} and {g.id}" }
     morphisms := [
-      { id := ⟨s!"{namePrefix}_ι₁", 0⟩, domain := f.codomain, codomain := poObj,
+      { id := gid s!"{namePrefix}_ι₁", domain := f.codomain, codomain := poObj,
         description := "Pushout injection from first factor" },
-      { id := ⟨s!"{namePrefix}_ι₂", 0⟩, domain := g.codomain, codomain := poObj,
+      { id := gid s!"{namePrefix}_ι₂", domain := g.codomain, codomain := poObj,
         description := "Pushout injection from second factor" }
     ]
     axioms := [
-      { id := ⟨s!"{namePrefix}_comm", 0⟩,
-        leftPath := .comp (.atom f.id) (.atom ⟨s!"{namePrefix}_ι₁", 0⟩),
-        rightPath := .comp (.atom g.id) (.atom ⟨s!"{namePrefix}_ι₂", 0⟩),
+      { id := gid s!"{namePrefix}_comm",
+        leftPath := .comp (.atom f.id) (.atom (gid s!"{namePrefix}_ι₁")),
+        rightPath := .comp (.atom g.id) (.atom (gid s!"{namePrefix}_ι₂")),
         description := "Pushout square commutes: ι₁ ∘ f = ι₂ ∘ g" }
     ] }
 
 /-- Compute the equalizer of f, g : A → B.
     The subobject E → A where f and g agree. -/
 def computeEqualizer (f g : Generator1) (namePrefix : String := "eq") : LimitResult :=
-  let eqObj := Expr.atom ⟨namePrefix, 0⟩
-  let eqId : GeneratorId := ⟨namePrefix, 0⟩
-  { object := { id := eqId, description := s!"Equalizer of {f.id.name} and {g.id.name}" }
+  let eqObj := Expr.atom (gid namePrefix)
+  let eqId := gid namePrefix
+  { object := { id := eqId, description := s!"Equalizer of {f.id} and {g.id}" }
     morphisms := [
-      { id := ⟨s!"{namePrefix}_ι", 0⟩, domain := eqObj, codomain := f.domain,
+      { id := gid s!"{namePrefix}_ι", domain := eqObj, codomain := f.domain,
         description := "Equalizer inclusion" }
     ]
     axioms := [
-      { id := ⟨s!"{namePrefix}_eq", 0⟩,
-        leftPath := .comp (.atom ⟨s!"{namePrefix}_ι", 0⟩) (.atom f.id),
-        rightPath := .comp (.atom ⟨s!"{namePrefix}_ι", 0⟩) (.atom g.id),
+      { id := gid s!"{namePrefix}_eq",
+        leftPath := .comp (.atom (gid s!"{namePrefix}_ι")) (.atom f.id),
+        rightPath := .comp (.atom (gid s!"{namePrefix}_ι")) (.atom g.id),
         description := "Equalizer condition: f ∘ ι = g ∘ ι" }
     ] }
 
 /-- Compute the coequalizer of f, g : A → B.
     The quotient B → Q where f and g are identified. -/
 def computeCoequalizer (f g : Generator1) (namePrefix : String := "coeq") : LimitResult :=
-  let coeqObj := Expr.atom ⟨namePrefix, 0⟩
-  let coeqId : GeneratorId := ⟨namePrefix, 0⟩
-  { object := { id := coeqId, description := s!"Coequalizer of {f.id.name} and {g.id.name}" }
+  let coeqObj := Expr.atom (gid namePrefix)
+  let coeqId := gid namePrefix
+  { object := { id := coeqId, description := s!"Coequalizer of {f.id} and {g.id}" }
     morphisms := [
-      { id := ⟨s!"{namePrefix}_π", 0⟩, domain := f.codomain, codomain := coeqObj,
+      { id := gid s!"{namePrefix}_π", domain := f.codomain, codomain := coeqObj,
         description := "Coequalizer quotient map" }
     ]
     axioms := [
-      { id := ⟨s!"{namePrefix}_eq", 0⟩,
-        leftPath := .comp (.atom f.id) (.atom ⟨s!"{namePrefix}_π", 0⟩),
-        rightPath := .comp (.atom g.id) (.atom ⟨s!"{namePrefix}_π", 0⟩),
+      { id := gid s!"{namePrefix}_eq",
+        leftPath := .comp (.atom f.id) (.atom (gid s!"{namePrefix}_π")),
+        rightPath := .comp (.atom g.id) (.atom (gid s!"{namePrefix}_π")),
         description := "Coequalizer condition: π ∘ f = π ∘ g" }
     ] }
 

@@ -28,14 +28,14 @@ def artinGluing
   -- Objects: triples (s, e, α : s → Γ(e)) for each s ∈ base, e ∈ topos
   let gluingObjects := base.objects.flatMap fun s =>
     topos.objects.map fun e =>
-      ({ id := ⟨s!"{namePrefix}_({s.id.name},{e.id.name})", 0⟩
+      ({ id := gid s!"{namePrefix}_({s.id.name},{e.id.name})"
          description := s!"Gluing object: ({s.id.name}, {e.id.name}, α : {s.id.name} → Γ({e.id.name}))" }
         : Generator0)
 
   -- Structure maps α : s → Γ(e) for each gluing object
   let structureMaps := base.objects.flatMap fun s =>
     topos.objects.map fun e =>
-      ({ id := ⟨s!"{namePrefix}_α_{s.id.name}_{e.id.name}", 0⟩
+      ({ id := gid s!"{namePrefix}_α_{s.id.name}_{e.id.name}"
          domain := .atom s.id
          codomain := gammaOnObj e.id
          description := s!"Structure map α : {s.id.name} → Γ({e.id.name})" }
@@ -47,9 +47,9 @@ def artinGluing
     base.objects.flatMap fun s' =>
       topos.objects.flatMap fun e =>
         topos.objects.map fun e' =>
-          ({ id := ⟨s!"{namePrefix}_f_{s.id.name}_{e.id.name}_to_{s'.id.name}_{e'.id.name}", 0⟩
-             domain := .atom ⟨s!"{namePrefix}_({s.id.name},{e.id.name})", 0⟩
-             codomain := .atom ⟨s!"{namePrefix}_({s'.id.name},{e'.id.name})", 0⟩
+          ({ id := gid s!"{namePrefix}_f_{s.id.name}_{e.id.name}_to_{s'.id.name}_{e'.id.name}"
+             domain := .atom (gid s!"{namePrefix}_({s.id.name},{e.id.name})")
+             codomain := .atom (gid s!"{namePrefix}_({s'.id.name},{e'.id.name})")
              description := s!"Gluing morphism ({s.id.name},{e.id.name}) → ({s'.id.name},{e'.id.name})" }
             : Generator1)
 
@@ -60,10 +60,10 @@ def artinGluing
       topos.objects.flatMap fun e =>
         topos.objects.map fun e' =>
           let fId : GeneratorId :=
-            ⟨s!"{namePrefix}_f_{s.id.name}_{e.id.name}_to_{s'.id.name}_{e'.id.name}", 0⟩
-          let αId : GeneratorId := ⟨s!"{namePrefix}_α_{s.id.name}_{e.id.name}", 0⟩
-          let α'Id : GeneratorId := ⟨s!"{namePrefix}_α_{s'.id.name}_{e'.id.name}", 0⟩
-          ({ id := ⟨s!"{namePrefix}_comm_{s.id.name}_{e.id.name}_{s'.id.name}_{e'.id.name}", 0⟩
+            gid s!"{namePrefix}_f_{s.id.name}_{e.id.name}_to_{s'.id.name}_{e'.id.name}"
+          let αId : GeneratorId := gid s!"{namePrefix}_α_{s.id.name}_{e.id.name}"
+          let α'Id : GeneratorId := gid s!"{namePrefix}_α_{s'.id.name}_{e'.id.name}"
+          ({ id := gid s!"{namePrefix}_comm_{s.id.name}_{e.id.name}_{s'.id.name}_{e'.id.name}"
              leftPath := .comp (.atom αId) (.atom fId)
              rightPath := .comp (.atom fId) (.atom α'Id)
              description := s!"Commutativity: α' ∘ f = Γ(g) ∘ α for ({s.id.name},{e.id.name}) → ({s'.id.name},{e'.id.name})" }
@@ -84,7 +84,7 @@ def freydCover
   let baseTheory : Theory :=
     { name := "Set"
       doctrine := topos.doctrine
-      objects := [{ id := ⟨"*", 0⟩, description := "Terminal / point" }]
+      objects := [{ id := gid "*", description := "Terminal / point" }]
       morphisms := []
       axioms := [] }
   artinGluing baseTheory topos gammaOnObj namePrefix

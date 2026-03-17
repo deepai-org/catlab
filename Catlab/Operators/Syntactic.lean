@@ -43,14 +43,14 @@ end Context
 
 /-- Build all singleton contexts from a theory's sorts -/
 def singletonContexts (t : Theory) : List Context :=
-  t.objects.map fun ob => { vars := [{ name := ob.id.name, sort := ob.id }] }
+  t.objects.map fun ob => { vars := [{ name := toString ob.id.name, sort := ob.id }] }
 
 /-- Build pairwise product contexts from a theory's sorts -/
 def pairContexts (t : Theory) : List Context :=
   t.objects.flatMap fun a =>
     t.objects.map fun b =>
-      { vars := [{ name := a.id.name, sort := a.id },
-                  { name := b.id.name, sort := b.id }] }
+      { vars := [{ name := toString a.id.name, sort := a.id },
+                  { name := toString b.id.name, sort := b.id }] }
 
 /-- Construct the classifying (syntactic) category of a theory.
 
@@ -66,18 +66,18 @@ def syntacticCategory (t : Theory) : Theory :=
   let allContexts := [emptyCtx] ++ singletons ++ pairs
 
   let contextObjects := allContexts.map fun ctx =>
-    { id := ⟨s!"[{ctx.name}]", 0⟩
+    { id := gid s!"[{ctx.name}]"
       description := s!"Context {ctx.name}" : Generator0 }
 
   -- Projection morphisms: for each pair context (A,B), projections π₁ and π₂
   let projections := pairs.flatMap fun ctx =>
     match ctx.vars with
     | [v1, v2] =>
-      [{ id := ⟨s!"π₁_{v1.sort.name}_{v2.sort.name}", 0⟩
+      [{ id := gid s!"π₁_{v1.sort.name}_{v2.sort.name}"
          domain := ctx.toExpr
          codomain := .atom v1.sort
          description := s!"First projection from ({v1.sort.name},{v2.sort.name})" : Generator1 },
-       { id := ⟨s!"π₂_{v1.sort.name}_{v2.sort.name}", 0⟩
+       { id := gid s!"π₂_{v1.sort.name}_{v2.sort.name}"
          domain := ctx.toExpr
          codomain := .atom v2.sort
          description := s!"Second projection from ({v1.sort.name},{v2.sort.name})" }]
@@ -87,7 +87,7 @@ def syntacticCategory (t : Theory) : Theory :=
   -- categorically the diagonal / pairing with identity
   let weakenings := t.objects.flatMap fun a =>
     t.objects.map fun b =>
-      { id := ⟨s!"weaken_{a.id.name}_{b.id.name}", 0⟩
+      { id := gid s!"weaken_{a.id.name}_{b.id.name}"
         domain := .atom a.id
         codomain := .prod (.atom a.id) (.atom b.id)
         description := s!"Weakening: extend context {a.id.name} with {b.id.name}" : Generator1 }
@@ -95,14 +95,14 @@ def syntacticCategory (t : Theory) : Theory :=
   -- Substitution morphisms: for each morphism f : A → B in the theory,
   -- lifting to the syntactic category
   let substitutions := t.morphisms.map fun f =>
-    { id := ⟨s!"subst_{f.id.name}", 0⟩
+    { id := gid s!"subst_{f.id.name}"
       domain := f.domain
       codomain := f.codomain
       description := s!"Substitution by {f.id.name}" : Generator1 }
 
   -- Terminal morphisms: from each context to the empty context
   let terminalMaps := singletons.map fun ctx =>
-    { id := ⟨s!"!_{ctx.name}", 0⟩
+    { id := gid s!"!_{ctx.name}"
       domain := ctx.toExpr
       codomain := .terminal
       description := s!"Terminal morphism from [{ctx.name}]" : Generator1 }
@@ -110,16 +110,16 @@ def syntacticCategory (t : Theory) : Theory :=
   -- Axioms from the theory become equations in the syntactic category
   let liftedAxioms := t.axioms.map fun ax =>
     { ax with
-      id := ⟨s!"syn_{ax.id.name}", 0⟩
+      id := gid s!"syn_{ax.id.name}"
       proofName := none
       description := s!"Syntactic lifting of {ax.id.name}" }
 
   -- Product-projection axioms: π₁ ∘ ⟨f,g⟩ = f
   let projAxioms := t.objects.flatMap fun a =>
     t.objects.map fun b =>
-      { id := ⟨s!"proj_beta_{a.id.name}_{b.id.name}", 0⟩
-        leftPath := .comp (.atom ⟨s!"weaken_{a.id.name}_{b.id.name}", 0⟩)
-                          (.atom ⟨s!"π₁_{a.id.name}_{b.id.name}", 0⟩)
+      { id := gid s!"proj_beta_{a.id.name}_{b.id.name}"
+        leftPath := .comp (.atom (gid s!"weaken_{a.id.name}_{b.id.name}"))
+                          (.atom (gid s!"π₁_{a.id.name}_{b.id.name}"))
         rightPath := Expr.id (.atom a.id)
         description := s!"β-rule: π₁ ∘ weaken = id at {a.id.name}" : Generator2 }
 
@@ -139,23 +139,23 @@ def modelCategory (t : Theory) (c : Theory) : Theory :=
 
   -- For each object (context) in Syn(T), a model assigns an object of C
   let modelObjects := synT.objects.map fun ctx =>
-    { id := ⟨s!"M({ctx.id.name})", 0⟩
+    { id := gid s!"M({ctx.id.name})"
       description := s!"Image of {ctx.id.name} under model" : Generator0 }
 
   -- For each morphism in Syn(T), a model assigns a morphism of C
   let modelMorphisms := synT.morphisms.map fun f =>
-    { id := ⟨s!"M({f.id.name})", 0⟩
-      domain := .atom ⟨s!"M({repr f.domain})", 0⟩
-      codomain := .atom ⟨s!"M({repr f.codomain})", 0⟩
+    { id := gid s!"M({f.id.name})"
+      domain := .atom (gid s!"M({repr f.domain})")
+      codomain := .atom (gid s!"M({repr f.codomain})")
       description := s!"Image of {f.id.name} under model" : Generator1 }
 
   -- Product-preservation: M(A × B) ≅ M(A) × M(B)
   let preservationAxioms := t.objects.flatMap fun a =>
     t.objects.map fun b =>
-      { id := ⟨s!"preserve_prod_{a.id.name}_{b.id.name}", 0⟩
-        leftPath := .atom ⟨s!"M({repr (Expr.prod (.atom a.id) (.atom b.id))})", 0⟩
-        rightPath := .prod (.atom ⟨s!"M([{a.id.name}])", 0⟩)
-                           (.atom ⟨s!"M([{b.id.name}])", 0⟩)
+      { id := gid s!"preserve_prod_{a.id.name}_{b.id.name}"
+        leftPath := .atom (gid s!"M({repr (Expr.prod (.atom a.id) (.atom b.id))})")
+        rightPath := .prod (.atom (gid s!"M([{a.id.name}])"))
+                           (.atom (gid s!"M([{b.id.name}])"))
         description := s!"Product preservation: M({a.id.name}×{b.id.name}) ≅ M({a.id.name})×M({b.id.name})" : Generator2 }
 
   { name := s!"Mod({t.name},{c.name})"

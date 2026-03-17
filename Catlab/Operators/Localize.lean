@@ -30,7 +30,7 @@ def simplicialLocalize (we : WeakEquivalences) : Theory :=
   -- Add formal inverses for each weak equivalence
   let inverses := we.morphisms.filterMap fun wId =>
     we.theory.findMorphism wId.name |>.map fun w =>
-      { id := ⟨s!"{wId.name}⁻¹", 0⟩
+      { id := gid s!"{wId.name}⁻¹"
         domain := w.codomain
         codomain := w.domain
         description := s!"Formal inverse of {wId.name}" }
@@ -38,15 +38,15 @@ def simplicialLocalize (we : WeakEquivalences) : Theory :=
   -- Add invertibility axioms
   let leftInvAxioms := we.morphisms.filterMap fun wId =>
     we.theory.findMorphism wId.name |>.map fun w =>
-      { id := ⟨s!"left_inv_{wId.name}", 0⟩
-        leftPath := .comp (.atom ⟨s!"{wId.name}⁻¹", 0⟩) (.atom wId)
+      { id := gid s!"left_inv_{wId.name}"
+        leftPath := .comp (.atom (gid s!"{wId.name}⁻¹")) (.atom wId)
         rightPath := .id w.codomain
         description := s!"w⁻¹ ∘ w = id for {wId.name}" }
 
   let rightInvAxioms := we.morphisms.filterMap fun wId =>
     we.theory.findMorphism wId.name |>.map fun w =>
-      { id := ⟨s!"right_inv_{wId.name}", 0⟩
-        leftPath := .comp (.atom wId) (.atom ⟨s!"{wId.name}⁻¹", 0⟩)
+      { id := gid s!"right_inv_{wId.name}"
+        leftPath := .comp (.atom wId) (.atom (gid s!"{wId.name}⁻¹"))
         rightPath := .id w.domain
         description := s!"w ∘ w⁻¹ = id for {wId.name}" }
 
@@ -75,14 +75,14 @@ def bousfieldLocalize (t : Theory) (e : HomologyTheory) : Theory :=
 
   -- Add E-local objects: for each object X, create L_E(X)
   let localObjects := t.objects.map fun x =>
-    { id := ⟨s!"L_{e.name}({x.id.name})", 0⟩
+    { id := gid s!"L_{e.name}({x.id.name})"
       description := s!"{e.name}-localization of {x.id.name}" }
 
   -- Localization maps: X → L_E(X)
   let locMaps := t.objects.map fun x =>
-    { id := ⟨s!"loc_{x.id.name}", 0⟩
+    { id := gid s!"loc_{x.id.name}"
       domain := .atom x.id
-      codomain := .atom ⟨s!"L_{e.name}({x.id.name})", 0⟩
+      codomain := .atom (gid s!"L_{e.name}({x.id.name})")
       description := s!"Localization map for {x.id.name}" }
 
   { localized with

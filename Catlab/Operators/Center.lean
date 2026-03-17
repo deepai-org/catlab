@@ -24,7 +24,7 @@ namespace CatLab
 def center (t : Theory) : Theory :=
   -- For each object A, create a center object (A, σ^A)
   let centerObjects := t.objects.map fun a =>
-    { id := ⟨s!"({a.id.name}, σ^{a.id.name})", 0⟩
+    { id := gid s!"({a.id.name}, σ^{a.id.name})"
       description := s!"Object {a.id.name} with half-braiding σ^{a.id.name}"
         : Generator0 }
 
@@ -32,7 +32,7 @@ def center (t : Theory) : Theory :=
   -- σ^A_X : A ⊗ X → X ⊗ A
   let halfBraidings := t.objects.flatMap fun a =>
     t.objects.map fun x =>
-      { id := ⟨s!"σ^{a.id.name}_{x.id.name}", 0⟩
+      { id := gid s!"σ^{a.id.name}_{x.id.name}"
         domain := .tensor (.atom a.id) (.atom x.id)
         codomain := .tensor (.atom x.id) (.atom a.id)
         description := s!"Half-braiding for {a.id.name} at {x.id.name}"
@@ -41,7 +41,7 @@ def center (t : Theory) : Theory :=
   -- For each morphism f : A → B in C, create the center morphism
   -- with the compatibility condition
   let centerMorphisms := t.morphisms.map fun f =>
-    { id := ⟨s!"Z({f.id.name})", 0⟩
+    { id := gid s!"Z({f.id.name})"
       domain := f.domain
       codomain := f.codomain
       description := s!"Center lift of {f.id.name}"
@@ -51,13 +51,13 @@ def center (t : Theory) : Theory :=
   -- (g ⊗ id_A) ∘ σ^A_X = σ^A_Y ∘ (id_A ⊗ g)
   let naturalityAxioms := t.objects.flatMap fun a =>
     t.morphisms.map fun g =>
-      { id := ⟨s!"naturality_σ^{a.id.name}_{g.id.name}", 0⟩
+      { id := gid s!"naturality_σ^{a.id.name}_{g.id.name}"
         leftPath := .comp
-          (.atom ⟨s!"σ^{a.id.name}_{g.id.name}", 0⟩)
+          (.atom (gid s!"σ^{a.id.name}_{g.id.name}"))
           (.tensor (.atom g.id) (Expr.id (.atom a.id)))
         rightPath := .comp
           (.tensor (Expr.id (.atom a.id)) (.atom g.id))
-          (.atom ⟨s!"σ^{a.id.name}_{g.id.name}", 0⟩)
+          (.atom (gid s!"σ^{a.id.name}_{g.id.name}"))
         description := s!"Naturality of σ^{a.id.name} at {g.id.name}"
           : Generator2 }
 
@@ -65,13 +65,13 @@ def center (t : Theory) : Theory :=
   -- σ^B_X ∘ (Z(f) ⊗ id_X) = (id_X ⊗ Z(f)) ∘ σ^A_X
   let compatibilityAxioms := t.morphisms.flatMap fun f =>
     t.objects.map fun x =>
-      { id := ⟨s!"compat_{f.id.name}_{x.id.name}", 0⟩
+      { id := gid s!"compat_{f.id.name}_{x.id.name}"
         leftPath := .comp
-          (.tensor (.atom ⟨s!"Z({f.id.name})", 0⟩) (Expr.id (.atom x.id)))
-          (.atom ⟨s!"σ^{f.codomain}_{x.id.name}", 0⟩)
+          (.tensor (.atom (gid s!"Z({f.id.name})")) (Expr.id (.atom x.id)))
+          (.atom (gid s!"σ^{f.codomain}_{x.id.name}"))
         rightPath := .comp
-          (.atom ⟨s!"σ^{f.domain}_{x.id.name}", 0⟩)
-          (.tensor (Expr.id (.atom x.id)) (.atom ⟨s!"Z({f.id.name})", 0⟩))
+          (.atom (gid s!"σ^{f.domain}_{x.id.name}"))
+          (.tensor (Expr.id (.atom x.id)) (.atom (gid s!"Z({f.id.name})")))
         description := s!"Compatibility of Z({f.id.name}) with half-braidings at {x.id.name}"
           : Generator2 }
 
@@ -79,20 +79,20 @@ def center (t : Theory) : Theory :=
   let tensorCompatAxioms := t.objects.flatMap fun a =>
     t.objects.flatMap fun x =>
       t.objects.map fun y =>
-        { id := ⟨s!"tensor_compat_σ^{a.id.name}_{x.id.name}_{y.id.name}", 0⟩
-          leftPath := .atom ⟨s!"σ^{a.id.name}_{x.id.name}⊗{y.id.name}", 0⟩
+        { id := gid s!"tensor_compat_σ^{a.id.name}_{x.id.name}_{y.id.name}"
+          leftPath := .atom (gid s!"σ^{a.id.name}_{x.id.name}⊗{y.id.name}")
           rightPath := .comp
-            (.tensor (.atom ⟨s!"σ^{a.id.name}_{x.id.name}", 0⟩) (Expr.id (.atom y.id)))
-            (.tensor (Expr.id (.atom x.id)) (.atom ⟨s!"σ^{a.id.name}_{y.id.name}", 0⟩))
+            (.tensor (.atom (gid s!"σ^{a.id.name}_{x.id.name}")) (Expr.id (.atom y.id)))
+            (.tensor (Expr.id (.atom x.id)) (.atom (gid s!"σ^{a.id.name}_{y.id.name}")))
           description := s!"Tensor compatibility for σ^{a.id.name} at ({x.id.name}, {y.id.name})"
             : Generator2 }
 
   -- Braiding on the center: β_{(A,σ^A),(B,σ^B)} = σ^A_B
   let braidingAxioms := t.objects.flatMap fun a =>
     t.objects.map fun b =>
-      { id := ⟨s!"braiding_{a.id.name}_{b.id.name}", 0⟩
-        leftPath := .atom ⟨s!"β_{a.id.name}_{b.id.name}", 0⟩
-        rightPath := .atom ⟨s!"σ^{a.id.name}_{b.id.name}", 0⟩
+      { id := gid s!"braiding_{a.id.name}_{b.id.name}"
+        leftPath := .atom (gid s!"β_{a.id.name}_{b.id.name}")
+        rightPath := .atom (gid s!"σ^{a.id.name}_{b.id.name}")
         description := s!"Braiding on Z(C) given by the half-braiding"
           : Generator2 }
 

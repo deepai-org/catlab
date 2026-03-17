@@ -14,9 +14,9 @@ namespace CatLab
 
 /-- A validation error -/
 inductive ValidationError where
-  | duplicateName (name : String)
-  | undeclaredObject (referencedIn : String) (name : String)
-  | undeclaredMorphism (referencedIn : String) (name : String)
+  | duplicateName (name : Name)
+  | undeclaredObject (referencedIn : String) (name : Name)
+  | undeclaredMorphism (referencedIn : String) (name : Name)
   | doctrineViolation (message : String)
   deriving Repr, Inhabited
 
@@ -28,7 +28,7 @@ instance : ToString ValidationError where
     | .doctrineViolation msg => s!"Doctrine violation: {msg}"
 
 /-- Collect all atom names referenced in an expression -/
-def Expr.atoms : Expr → List String
+def Expr.atoms : Expr → List Name
   | .atom gid => [gid.name]
   | Expr.id obj => obj.atoms
   | .comp f g => f.atoms ++ g.atoms
@@ -41,12 +41,16 @@ def Expr.atoms : Expr → List String
   | .fiber m p => m.atoms ++ p.atoms
   | .proj _ s => s.atoms
   | .inj _ t => t.atoms
+  | .app f x => f.atoms ++ x.atoms
+  | .limit d => d.atoms
+  | .colimit d => d.atoms
+  | .natComponent n x => n.atoms ++ x.atoms
   | .unit | .terminal | .initial | .var _ => []
 
 /-- Check for duplicate names across all generators -/
 def checkDuplicates (t : Theory) : List ValidationError :=
   let names := t.allNames
-  let rec findDups : List String → List String → List ValidationError
+  let rec findDups : List Name → List Name → List ValidationError
     | [], _ => []
     | n :: ns, seen =>
       if seen.contains n then .duplicateName n :: findDups ns seen
@@ -87,7 +91,7 @@ def checkDoctrine (t : Theory) : List ValidationError :=
     else []
   | .Topos =>
     -- Topoi should have a subobject classifier
-    let hasOmega := t.objects.any fun o => o.id.name == "Ω"
+    let hasOmega := t.objects.any fun o => o.id.name == Name.root "Ω"
     if !hasOmega then [.doctrineViolation "Topos should have subobject classifier Ω"]
     else []
   | _ => []

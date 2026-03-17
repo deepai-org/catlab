@@ -30,14 +30,14 @@ structure Sieve where
     where Match(F, S) is the set of matching families for the sieve S. -/
 def plusConstruction (t : Theory) (topology : GrothendieckTopology) : Theory :=
   let plusObjects := t.objects.map fun c =>
-    { id := ⟨s!"L⁺({c.id.name})", 0⟩
+    { id := gid s!"L⁺({c.id.name})"
       description := s!"Plus construction at {c.id.name}" }
 
   -- The comparison map: F(c) → L⁺F(c) (sending a section to the constant matching family)
   let comparisonMaps := t.objects.map fun c =>
-    { id := ⟨s!"η_{c.id.name}", 0⟩
+    { id := gid s!"η_{c.id.name}"
       domain := .atom c.id
-      codomain := .atom ⟨s!"L⁺({c.id.name})", 0⟩
+      codomain := .atom (gid s!"L⁺({c.id.name})")
       description := s!"Comparison map at {c.id.name}" }
 
   { t with
@@ -58,9 +58,9 @@ def associatedSheaf (t : Theory) (topology : GrothendieckTopology)
     : Theory × List Generator1 :=
   let sheaf := sheafify t topology
   let universalMap := t.objects.map fun c =>
-    { id := ⟨s!"sheafify_η_{c.id.name}", 0⟩
+    { id := gid s!"sheafify_η_{c.id.name}"
       domain := .atom c.id
-      codomain := .atom ⟨s!"Sh({c.id.name})", 0⟩
+      codomain := .atom (gid s!"Sh({c.id.name})")
       description := s!"Universal map to sheafification at {c.id.name}" }
   (sheaf, universalMap)
 

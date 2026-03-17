@@ -33,16 +33,16 @@ def grothendieck (ic : IndexedCategory) : Theory :=
   let totalObjects := ic.base.objects.flatMap fun c =>
     let fib := ic.fiber c.id
     fib.objects.map fun x =>
-      { id := ⟨s!"({c.id.name},{x.id.name})", 0⟩
+      { id := { name := .root s!"({c.id.name},{x.id.name})", index := 0 }
         description := s!"Total object: {x.id.name} over {c.id.name}" }
 
   -- Morphisms: pairs of (base morphism, fiber morphism)
   let totalMorphisms := ic.base.morphisms.flatMap fun f =>
     let reindexMaps := ic.reindex f.id
     reindexMaps.map fun g =>
-      { id := ⟨s!"({f.id.name},{g.id.name})", 0⟩
-        domain := .atom ⟨s!"({repr f.domain},{repr g.domain})", 0⟩
-        codomain := .atom ⟨s!"({repr f.codomain},{repr g.codomain})", 0⟩
+      { id := { name := .root s!"({f.id.name},{g.id.name})", index := 0 }
+        domain := .atom { name := .root s!"({repr f.domain},{repr g.domain})", index := 0 }
+        codomain := .atom { name := .root s!"({repr f.codomain},{repr g.codomain})", index := 0 }
         description := s!"Total morphism: ({f.id.name},{g.id.name})" }
 
   -- The projection functor ∫F → C is implicit in the naming
@@ -56,9 +56,9 @@ def grothendieck (ic : IndexedCategory) : Theory :=
 def grothendieckProjection (ic : IndexedCategory) (total : Theory) : List Generator1 :=
   total.objects.map fun obj =>
     -- Extract base component from the pair name (simplified)
-    { id := ⟨s!"π_{obj.id.name}", 0⟩
+    { id := { name := .root s!"π_{obj.id.name}", index := 0 }
       domain := .atom obj.id
-      codomain := .atom ⟨"base", 0⟩  -- simplified
+      codomain := .atom (gid "base")
       description := s!"Projection of {obj.id.name} to base" }
 
 end CatLab
