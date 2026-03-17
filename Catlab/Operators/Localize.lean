@@ -56,11 +56,16 @@ def simplicialLocalize (we : WeakEquivalences) : Theory :=
     axioms := we.theory.axioms ++ leftInvAxioms ++ rightInvAxioms }
 
 /-- A homology theory E, used for Bousfield localization.
-    An E-equivalence is a morphism f such that E(f) is an isomorphism. -/
+    An E-equivalence is a morphism f such that E(f) is an isomorphism.
+    Equivalences are stored as an explicit list (not a closure) so they can
+    be inspected, serialized, and combined without black-box evaluation. -/
 structure HomologyTheory where
   name : String
   /-- Which morphisms are E-equivalences -/
-  equivalences : Theory → List GeneratorId
+  equivalences : List GeneratorId
+  /-- Optional classifier: given a theory, compute its equivalences dynamically.
+      Prefer populating `equivalences` directly when possible. -/
+  computeEquivalences : Option (Theory → List GeneratorId) := none
 
 /-- Bousfield localization L_E: localize with respect to a homology theory.
 
@@ -69,7 +74,10 @@ structure HomologyTheory where
 
     L_E(X) is the universal E-local approximation of X. -/
 def bousfieldLocalize (t : Theory) (e : HomologyTheory) : Theory :=
-  let eEquivs := e.equivalences t
+  -- Use dynamic computation if provided, otherwise use the stored list
+  let eEquivs := match e.computeEquivalences with
+    | some f => f t
+    | none => e.equivalences
   let we := WeakEquivalences.mk eEquivs t
   let localized := simplicialLocalize we
 

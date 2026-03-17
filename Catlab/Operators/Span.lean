@@ -10,6 +10,7 @@
 
 import Catlab.Core.Theory
 import Catlab.Core.Equality
+import Batteries.Data.HashMap
 
 namespace CatLab
 
@@ -39,20 +40,19 @@ def spanCategory (t : Theory) : Theory :=
 
   -- Morphisms: for each triple (A, S, B) with l : S → A and r : S → B,
   -- generate a span morphism A → B
-  let spanMorphisms := t.morphisms.flatMap fun l =>
-    t.morphisms.filterMap fun r =>
-      -- Check that l and r share the same domain (the apex S)
-      if l.domain == r.domain then
-        let apexName := l.domain
-        let srcName := l.codomain
-        let tgtName := r.codomain
-        let spanName : Name := .pair l.id.name r.id.name
-        some { id := { name := spanName, index := 0, kind := .morphism }
-               domain := srcName
-               codomain := tgtName
-               description := s!"Span via {l.id.name}, {r.id.name}" : Generator1 }
-      else
-        none
+  -- Group morphisms by domain using an index for O(N) instead of O(N²)
+  let domIndex := t.outEdgeIndex
+  let spanMorphisms := t.objects.flatMap fun s =>
+    let outgoing := domIndex[s.id.name]? |>.getD []
+    outgoing.flatMap fun l =>
+      outgoing.filterMap fun r =>
+        if l.id == r.id then none
+        else
+          let spanName : Name := .pair l.id.name r.id.name
+          some { id := { name := spanName, index := 0, kind := .morphism }
+                 domain := l.codomain
+                 codomain := r.codomain
+                 description := s!"Span via {l.id.name}, {r.id.name}" : Generator1 }
 
   -- Axioms: identity spans (when l = r = id) and associativity would require
   -- pullback structure; we record the generators here.
@@ -71,19 +71,19 @@ def spanCategory (t : Theory) : Theory :=
 def cospanCategory (t : Theory) : Theory :=
   let cospanObjects := t.objects
 
-  let cospanMorphisms := t.morphisms.flatMap fun l =>
-    t.morphisms.filterMap fun r =>
-      -- Check that l and r share the same codomain (the nadir S)
-      if l.codomain == r.codomain then
-        let srcName := l.domain
-        let tgtName := r.domain
-        let cospanName : Name := .pair l.id.name r.id.name
-        some { id := { name := cospanName, index := 0, kind := .morphism }
-               domain := srcName
-               codomain := tgtName
-               description := s!"Cospan via {l.id.name}, {r.id.name}" : Generator1 }
-      else
-        none
+  -- Group morphisms by codomain using an index for O(N) instead of O(N²)
+  let codIndex := t.inEdgeIndex
+  let cospanMorphisms := t.objects.flatMap fun s =>
+    let incoming := codIndex[s.id.name]? |>.getD []
+    incoming.flatMap fun l =>
+      incoming.filterMap fun r =>
+        if l.id == r.id then none
+        else
+          let cospanName : Name := .pair l.id.name r.id.name
+          some { id := { name := cospanName, index := 0, kind := .morphism }
+                 domain := l.domain
+                 codomain := r.domain
+                 description := s!"Cospan via {l.id.name}, {r.id.name}" : Generator1 }
 
   { name := s!"Cospan({t.name})"
     doctrine := t.doctrine

@@ -7,6 +7,7 @@
 -/
 
 import Catlab.Core.Theory
+import Batteries.Data.HashMap
 
 namespace CatLab
 
@@ -77,25 +78,46 @@ partial def Expr.alphaEquiv (e1 e2 : Expr)
   | .natComponent n1 x1, .natComponent n2 x2 => n1.alphaEquiv n2 mapping && x1.alphaEquiv x2 mapping
   | _, _ => false
 
-/-- A theory morphism: a mapping between theories preserving structure -/
+-- ============================================================
+-- HashMap-based indexes (require BEq instances above)
+-- ============================================================
+
+namespace Theory
+
+/-- Build a HashMap rewrite index: atom name → axioms mentioning it -/
+def rewriteIndexMap (t : Theory) : Std.HashMap Name (List Generator2) :=
+  t.axioms.foldl (fun acc ax =>
+    let names := ax.leftPath.atoms ++ ax.rightPath.atoms
+    names.foldl (fun acc' n =>
+      let existing := acc'[n]? |>.getD []
+      if existing.any (· == ax) then acc'
+      else acc'.insert n (ax :: existing)) acc) {}
+
+/-- Check if two expressions are equivalent under this theory's equivalences -/
+def areEquivalent (t : Theory) (a b : Expr) : Bool :=
+  a == b || t.equivalences.any fun (l, r) => (l == a && r == b) || (r == a && l == b)
+
+end Theory
+
+/-- A theory morphism: a mapping between theories preserving structure.
+    Uses explicit GeneratorMaps instead of opaque closures so mappings
+    are inspectable, serializable, and invertible. -/
 structure TheoryMorphism where
   name : String
   source : Theory
   target : Theory
   /-- How source objects map to target expressions -/
-  onObjects : GeneratorId → Expr
+  onObjects : GeneratorMap
   /-- How source morphisms map to target expressions -/
-  onMorphisms : GeneratorId → Expr
+  onMorphisms : GeneratorMap
 
 /-- Check if a theory morphism preserves domains and codomains.
     For each morphism f : A → B in source, we need
     onMorphisms(f) : onObjects(A) → onObjects(B) in target. -/
 def TheoryMorphism.preservesTyping (tm : TheoryMorphism) : Bool :=
   tm.source.morphisms.all fun m =>
-    -- Check that target has a morphism with matching domain/codomain
-    -- (simplified: just check the mapped expressions are well-formed atoms)
-    let mappedDom := tm.onObjects (gid s!"{repr m.domain}")
-    let mappedCod := tm.onObjects (gid s!"{repr m.codomain}")
+    let mappedDom := tm.onObjects.liftExpr m.domain
+    let mappedCod := tm.onObjects.liftExpr m.codomain
     -- At minimum, the mapped objects should exist
     mappedDom != .unit || mappedCod != .unit  -- placeholder
 

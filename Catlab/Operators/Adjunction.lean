@@ -33,8 +33,8 @@ structure Adjunction where
     For each object a of C, η_a : a → G(F(a)). -/
 def adjunctionUnit (adj : Adjunction) : List Generator1 :=
   adj.source.objects.map fun a =>
-    let fa := adj.leftAdjoint.onObjects a.id
-    let gfa := adj.rightAdjoint.liftExpr fa  -- G applied to F(a)
+    let fa := adj.leftAdjoint.onObjects.apply a.id
+    let gfa := adj.rightAdjoint.onObjects.liftExpr fa  -- G applied to F(a)
     { id := gid s!"η_{a.id.name}"
       domain := .atom a.id
       codomain := gfa
@@ -44,8 +44,8 @@ def adjunctionUnit (adj : Adjunction) : List Generator1 :=
     For each object b of D, ε_b : F(G(b)) → b. -/
 def adjunctionCounit (adj : Adjunction) : List Generator1 :=
   adj.target.objects.map fun b =>
-    let gb := adj.rightAdjoint.onObjects b.id
-    let fgb := adj.leftAdjoint.liftExpr gb  -- F applied to G(b)
+    let gb := adj.rightAdjoint.onObjects.apply b.id
+    let fgb := adj.leftAdjoint.onObjects.liftExpr gb  -- F applied to G(b)
     { id := gid s!"ε_{b.id.name}"
       domain := fgb
       codomain := .atom b.id
@@ -58,20 +58,20 @@ def triangleIdentities (adj : Adjunction) : List Generator2 :=
     { id := gid s!"triangle_left_{a.id.name}"
       leftPath := .comp (.atom (gid s!"η_{a.id.name}"))
                         (.atom (gid s!"ε_F({a.id.name})"))
-      rightPath := .id (adj.leftAdjoint.onObjects a.id)
+      rightPath := .id (adj.leftAdjoint.onObjects.apply a.id)
       description := s!"Left triangle: (εF) ∘ (Fη) = id at {a.id.name}" }
   let rightTriangle := adj.target.objects.map fun b =>
     { id := gid s!"triangle_right_{b.id.name}"
       leftPath := .comp (.atom (gid s!"ε_{b.id.name}"))
                         (.atom (gid s!"η_G({b.id.name})"))
-      rightPath := .id (adj.rightAdjoint.onObjects b.id)
+      rightPath := .id (adj.rightAdjoint.onObjects.apply b.id)
       description := s!"Right triangle: (Gε) ∘ (ηG) = id at {b.id.name}" }
   leftTriangle ++ rightTriangle
 
 /-- Extract the monad T = GF from an adjunction F ⊣ G.
     This gives the monad on the source category C. -/
 def adjunctionToMonad (adj : Adjunction) : MonadData :=
-  { functor := fun e => adj.rightAdjoint.liftExpr (adj.leftAdjoint.liftExpr e)
+  { functor := fun e => adj.rightAdjoint.onObjects.liftExpr (adj.leftAdjoint.onObjects.liftExpr e)
     unit := gid s!"{adj.name}_η"
     mult := gid s!"{adj.name}_μ"
     base := adj.source }
@@ -79,7 +79,7 @@ def adjunctionToMonad (adj : Adjunction) : MonadData :=
 /-- Extract the comonad W = FG from an adjunction F ⊣ G.
     This gives the comonad on the target category D. -/
 def adjunctionToComonad (adj : Adjunction) : ComonadData :=
-  { functor := fun e => adj.leftAdjoint.liftExpr (adj.rightAdjoint.liftExpr e)
+  { functor := fun e => adj.leftAdjoint.onObjects.liftExpr (adj.rightAdjoint.onObjects.liftExpr e)
     counit := gid s!"{adj.name}_ε"
     comult := gid s!"{adj.name}_δ"
     base := adj.target }
@@ -90,8 +90,8 @@ def homAdjunction (adj : Adjunction) : List Generator2 :=
   adj.source.objects.flatMap fun a =>
     adj.target.objects.map fun b =>
       { id := gid s!"hom_adj_{a.id.name}_{b.id.name}"
-        leftPath := .hom (adj.leftAdjoint.onObjects a.id) (.atom b.id)
-        rightPath := .hom (.atom a.id) (adj.rightAdjoint.onObjects b.id)
+        leftPath := .hom (adj.leftAdjoint.onObjects.apply a.id) (.atom b.id)
+        rightPath := .hom (.atom a.id) (adj.rightAdjoint.onObjects.apply b.id)
         description := s!"Hom(F({a.id.name}), {b.id.name}) ≅ Hom({a.id.name}, G({b.id.name}))" }
 
 /-- Construct the free-forgetful adjunction between a Lawvere theory and Set.
@@ -110,18 +110,23 @@ def freeForgetfulAdjunction (t : Theory) : Adjunction :=
       objects := [{ id := gid "S", description := "A set" }]
       morphisms := []
       axioms := [] }
+  -- Identity maps: each generator maps to its own atom
+  let idObjMap := GeneratorMap.ofList (setTheory.objects.map fun o => (o.id, .atom o.id))
+  let idMorphMap := GeneratorMap.ofList (setTheory.morphisms.map fun m => (m.id, .atom m.id))
+  let idAlgObjMap := GeneratorMap.ofList (tAlg.objects.map fun o => (o.id, .atom o.id))
+  let idAlgMorphMap := GeneratorMap.ofList (tAlg.morphisms.map fun m => (m.id, .atom m.id))
   let freeF : TheoryFunctor :=
     { name := s!"F_{t.name}"
       source := setTheory
       target := tAlg
-      onObjects := fun x => .atom x
-      onMorphisms := fun f => .atom f }
+      onObjects := idObjMap
+      onMorphisms := idMorphMap }
   let forgetU : TheoryFunctor :=
     { name := s!"U_{t.name}"
       source := tAlg
       target := setTheory
-      onObjects := fun x => .atom x
-      onMorphisms := fun f => .atom f }
+      onObjects := idAlgObjMap
+      onMorphisms := idAlgMorphMap }
   { name := s!"Free_{t.name}"
     source := setTheory
     target := tAlg

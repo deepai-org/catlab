@@ -24,8 +24,8 @@ namespace CatLab
 def commaCategory
     (fSource fTarget : Theory)
     (gSource : Theory)
-    (fOnObj : GeneratorId → Expr)
-    (gOnObj : GeneratorId → Expr)
+    (fOnObj : GeneratorMap)
+    (gOnObj : GeneratorMap)
     (fName : String := "F")
     (gName : String := "G") : Theory :=
   -- Objects: for each (a, b), an object representing the hom F(a) → G(b)
@@ -38,8 +38,8 @@ def commaCategory
   let structureMaps := fSource.objects.flatMap fun a =>
     gSource.objects.map fun b =>
       { id := { name := .nested (.arrow a.id.name b.id.name (.root "h")) "struct", index := 0, kind := .sort }
-        domain := fOnObj a.id
-        codomain := gOnObj b.id
+        domain := fOnObj.apply a.id
+        codomain := gOnObj.apply b.id
         description := s!"Structure map: {fName}({a.id.name}) → {gName}({b.id.name})" }
 
   { name := s!"({fName} ↓ {gName})"

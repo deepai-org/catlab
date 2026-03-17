@@ -16,37 +16,16 @@ import Catlab.Core.Theory
 
 namespace CatLab
 
-/-- A functor between theories, mapping generators to generators -/
+/-- A functor between theories, mapping generators to generators.
+    Uses explicit GeneratorMaps instead of opaque closures. -/
 structure TheoryFunctor where
   name : String
   source : Theory
   target : Theory
   /-- How objects map -/
-  onObjects : GeneratorId → Expr
+  onObjects : GeneratorMap
   /-- How morphisms map -/
-  onMorphisms : GeneratorId → Expr
-
-/-- Lift a TheoryFunctor's object-mapping over the full Expr AST.
-    This allows composing functors: G.liftExpr (F.liftExpr e). -/
-partial def TheoryFunctor.liftExpr (tf : TheoryFunctor) (e : Expr) : Expr :=
-  match e with
-  | .atom gid => tf.onObjects gid
-  | .id obj => .id (tf.liftExpr obj)
-  | .comp f g => .comp (tf.liftExpr f) (tf.liftExpr g)
-  | .prod a b => .prod (tf.liftExpr a) (tf.liftExpr b)
-  | .coprod a b => .coprod (tf.liftExpr a) (tf.liftExpr b)
-  | .hom a b => .hom (tf.liftExpr a) (tf.liftExpr b)
-  | .tensor a b => .tensor (tf.liftExpr a) (tf.liftExpr b)
-  | .sigma v base fam => .sigma v (tf.liftExpr base) (tf.liftExpr fam)
-  | .pi v base fam => .pi v (tf.liftExpr base) (tf.liftExpr fam)
-  | .fiber m p => .fiber (tf.liftExpr m) (tf.liftExpr p)
-  | .proj i s => .proj i (tf.liftExpr s)
-  | .inj i t => .inj i (tf.liftExpr t)
-  | .app f x => .app (tf.liftExpr f) (tf.liftExpr x)
-  | .limit d => .limit (tf.liftExpr d)
-  | .colimit d => .colimit (tf.liftExpr d)
-  | .natComponent n x => .natComponent (tf.liftExpr n) (tf.liftExpr x)
-  | .unit | .terminal | .initial | .var _ => e
+  onMorphisms : GeneratorMap
 
 /-- Compute the left Kan extension Lan_K F.
 
@@ -63,8 +42,8 @@ def leftKan (k : TheoryFunctor) (f : TheoryFunctor) : Theory :=
   let lanMorphisms := k.target.objects.flatMap fun b =>
     k.source.objects.map fun a =>
       { id := { name := .root s!"lan_component_{a.id.name}_{b.id.name}", index := 0 }
-        domain := .prod (.hom (k.onObjects a.id) (.atom b.id))
-                        (f.onObjects a.id)
+        domain := .prod (.hom (k.onObjects.apply a.id) (.atom b.id))
+                        (f.onObjects.apply a.id)
         codomain := .atom { name := .root s!"Lan({b.id.name})", index := 0 }
         description := s!"Lan cocone component at ({a.id.name},{b.id.name})" }
 
@@ -94,8 +73,8 @@ def rightKan (k : TheoryFunctor) (f : TheoryFunctor) : Theory :=
     k.source.objects.map fun a =>
       { id := { name := .root s!"ran_component_{a.id.name}_{b.id.name}", index := 0 }
         domain := .atom { name := .root s!"Ran({b.id.name})", index := 0 }
-        codomain := .hom (.hom (.atom b.id) (k.onObjects a.id))
-                         (f.onObjects a.id)
+        codomain := .hom (.hom (.atom b.id) (k.onObjects.apply a.id))
+                         (f.onObjects.apply a.id)
         description := s!"Ran cone component at ({a.id.name},{b.id.name})" }
 
   { name := s!"Ran_{k.name}({f.name})"

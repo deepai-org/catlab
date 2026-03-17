@@ -14,6 +14,7 @@
 
 import Catlab.Core.Theory
 import Catlab.Core.Equality
+import Batteries.Data.HashMap
 
 namespace CatLab
 
@@ -25,12 +26,17 @@ namespace CatLab
 def regCompletion (t : Theory) (namePrefix : String := "reg") : Theory :=
   -- For each pair of morphisms with the same domain and codomain,
   -- treat them as a potential kernel pair and adjoin the coequalizer.
-  let kernelPairs := t.morphisms.flatMap fun f =>
-    t.morphisms.filterMap fun g =>
-      if f.id == g.id then none
-      else if f.domain == g.domain && f.codomain == g.codomain then
-        some (f, g)
-      else none
+  -- Group morphisms by (domain, codomain) for O(N) instead of O(N²)
+  let byEndpoints : Std.HashMap (Name × Name) (List Generator1) :=
+    t.morphisms.foldl (fun acc m =>
+      let key := (m.domain.toName, m.codomain.toName)
+      let existing := acc[key]? |>.getD []
+      acc.insert key (m :: existing)) {}
+  let kernelPairs := byEndpoints.toList.flatMap fun (_, ms) =>
+    ms.flatMap fun f =>
+      ms.filterMap fun g =>
+        if f.id == g.id then none
+        else some (f, g)
 
   let coequalizerObjects := kernelPairs.map fun (f, g) =>
     ({ id := gid s!"{namePrefix}_coeq_{f.id.name}_{g.id.name}"

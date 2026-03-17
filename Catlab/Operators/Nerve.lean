@@ -28,6 +28,7 @@ def nerve (t : Theory) (maxDim : Nat := 3) : Theory :=
   let simplexObjects := List.range (maxDim + 1) |>.map fun n =>
     { id := simplexName n
       description := s!"{n}-simplices of the nerve of {t.name}"
+      tags := [("degree", s!"{n}"), ("simplicial", "true")]
         : Generator0 }
 
   -- Face map GeneratorId using structured Name
@@ -136,7 +137,9 @@ def nerve (t : Theory) (maxDim : Nat := 3) : Theory :=
     - Composition from 2-simplex face relations -/
 def realize (t : Theory) : Theory :=
   -- 0-simplex objects become category objects
-  let dim0 := t.objects.filter fun o => o.id.name.degree? == some 0
+  -- Use tags when available (from nerve output), falling back to Name.degree? for compatibility
+  let dim0 := t.objects.filter fun o =>
+    lookupTagNat o.tags "degree" == some 0 || o.id.name.degree? == some 0
   let realObjects : List Generator0 := dim0.map fun o =>
     { id := gid s!"π({o.id.name})"
       description := s!"Realization of 0-simplex {o.id.name}" }
@@ -159,7 +162,8 @@ def realize (t : Theory) : Theory :=
       description := s!"Degenerate 1-simplex at {o.id.name} is the identity" }
 
   -- 2-simplex composition: d₁(τ) = d₀(τ) ∘ d₂(τ)
-  let dim2 := t.objects.filter fun o => o.id.name.degree? == some 2
+  let dim2 := t.objects.filter fun o =>
+    lookupTagNat o.tags "degree" == some 2 || o.id.name.degree? == some 2
   let compositionAxioms : List Generator2 := dim2.map fun tau =>
     { id := gid s!"composition_{tau.id.name}"
       leftPath := .comp (.atom { name := .simplexFace 2 2, kind := .morphism })

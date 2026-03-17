@@ -11,22 +11,24 @@
 
 import Catlab.Core.Theory
 import Catlab.Core.Equality
+import Std.Data.HashMap
 
 namespace CatLab
 
-/-- A purely functional Union-Find structure over categorical Names. -/
+/-- A purely functional Union-Find structure over categorical Names.
+    Uses HashMap for O(1) amortized lookups instead of List.lookup. -/
 structure UnionFind where
-  parent : List (Name × Name)
-  rank : List (Name × Nat)
-  deriving Repr, Inhabited
+  parent : Std.HashMap Name Name := {}
+  rank : Std.HashMap Name Nat := {}
+  deriving Inhabited
 
 namespace UnionFind
 
-def empty : UnionFind := ⟨[], []⟩
+def empty : UnionFind := ⟨{}, {}⟩
 
 /-- Find the representative of a Name. -/
 partial def find (uf : UnionFind) (x : Name) : Name :=
-  match uf.parent.lookup x with
+  match uf.parent[x]? with
   | some p =>
     if p == x then x
     else uf.find p
@@ -38,15 +40,15 @@ def union (uf : UnionFind) (x y : Name) : UnionFind :=
   let rootY := uf.find y
   if rootX == rootY then uf
   else
-    let rankX := uf.rank.lookup rootX |>.getD 0
-    let rankY := uf.rank.lookup rootY |>.getD 0
+    let rankX := uf.rank[rootX]? |>.getD 0
+    let rankY := uf.rank[rootY]? |>.getD 0
     if rankX < rankY then
-      { uf with parent := (rootX, rootY) :: uf.parent }
+      { uf with parent := uf.parent.insert rootX rootY }
     else if rankX > rankY then
-      { uf with parent := (rootY, rootX) :: uf.parent }
+      { uf with parent := uf.parent.insert rootY rootX }
     else
-      { parent := (rootY, rootX) :: uf.parent,
-        rank := (rootX, rankX + 1) :: uf.rank }
+      { parent := uf.parent.insert rootY rootX,
+        rank := uf.rank.insert rootX (rankX + 1) }
 
 end UnionFind
 
@@ -111,10 +113,17 @@ def quotientCategory (t : Theory) (cong : Congruence) : Theory :=
       leftPath := rewriteExpr ax.leftPath
       rightPath := rewriteExpr ax.rightPath }
 
+  -- Populate first-class equivalences from the congruence
+  let equivPairs := cong.equations.filterMap fun (lName, rName) =>
+    match t.findMorphism lName, t.findMorphism rName with
+    | some l, some r => some (.atom l.id, .atom r.id)
+    | _, _ => none
+
   { name := s!"{t.name}/~"
     doctrine := t.doctrine
     objects := t.objects
     morphisms := representatives
-    axioms := rewrittenAxioms ++ congAxioms }
+    axioms := rewrittenAxioms ++ congAxioms
+    equivalences := equivPairs }
 
 end CatLab

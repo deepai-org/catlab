@@ -15,6 +15,7 @@
 import Catlab.Core.Theory
 import Catlab.Core.Validate
 import Catlab.Core.Equality
+import Batteries.Data.HashMap
 
 namespace CatLab
 
@@ -42,12 +43,13 @@ def decategorify (t : Theory) (strategy : DecatStrategy := .isoClasses) : Theory
       { id := gid s!"[{a.id.name}]"
         description := s!"Isomorphism class of {a.id.name}" }
     -- Only keep axioms whose atoms all refer to objects (not morphisms)
-    -- since morphisms are collapsed away. Uses kind-aware atomIds to
-    -- resolve references via the theory's symbol table.
+    -- since morphisms are collapsed away. Use a prebuilt index for O(1)
+    -- per-atom lookup instead of O(N) per-atom linear scan.
+    let genIdx := t.generatorIndex
     let decatAxioms := t.axioms.filterMap fun ax =>
       let atomIds := ax.leftPath.atomIds ++ ax.rightPath.atomIds
       let referencesMorphism := atomIds.any fun a =>
-        t.isMorphismName a.name || a.kind == .morphism
+        genIdx[a.name]? == some .morphism || a.kind == .morphism
       if referencesMorphism then none
       else some { id := gid s!"decat_{ax.id.name}"
                   leftPath := ax.leftPath

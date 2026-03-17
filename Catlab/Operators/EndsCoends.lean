@@ -12,19 +12,36 @@
 -/
 
 import Catlab.Core.Theory
+import Std.Data.HashMap
 
 namespace CatLab
 
+/-- An explicit mapping from pairs of GeneratorIds to Exprs (for profunctors). -/
+structure GeneratorMap2 where
+  entries : Std.HashMap (GeneratorId × GeneratorId) Expr := {}
+  deriving Inhabited
+
+namespace GeneratorMap2
+
+def apply (m : GeneratorMap2) (a b : GeneratorId) : Expr :=
+  m.entries[(a, b)]? |>.getD (.prod (.atom a) (.atom b))
+
+def ofList (pairs : List ((GeneratorId × GeneratorId) × Expr)) : GeneratorMap2 :=
+  ⟨pairs.foldl (fun acc (k, v) => acc.insert k v) {}⟩
+
+end GeneratorMap2
+
 /-- A profunctor / bifunctor F : Cᵒᵖ × C → D,
-    specified by its action on pairs of objects and morphisms. -/
+    specified by its action on pairs of objects and morphisms.
+    Uses explicit maps instead of closures. -/
 structure Profunctor where
   name : String
   source : Theory  -- C
   target : Theory  -- D
   /-- F(a,b) for objects a, b of C -/
-  onObjects : GeneratorId → GeneratorId → Expr
+  onObjects : GeneratorMap2
   /-- F(f,g) for morphisms f, g — contravariant in first, covariant in second -/
-  onMorphisms : GeneratorId → GeneratorId → Expr
+  onMorphisms : GeneratorMap2
 
 /-- A wedge for a profunctor F: a family of morphisms w_a : X → F(a,a)
     compatible with all morphisms in C. -/
@@ -50,15 +67,15 @@ def computeEnd (p : Profunctor) : Theory :=
   let projections := p.source.objects.map fun a =>
     { id := gid s!"π^end_{a.id.name}"
       domain := .atom (gid s!"∫_{p.name}")
-      codomain := p.onObjects a.id a.id
+      codomain := p.onObjects.apply a.id a.id
       description := s!"End projection at {a.id.name}" }
 
   -- Wedge condition: for each f : a → b,
   -- F(f, id) ∘ π_b = F(id, f) ∘ π_a
   let wedgeAxioms := p.source.morphisms.map fun f =>
     { id := gid s!"wedge_{f.id.name}"
-      leftPath := .comp (.atom (gid s!"π^end_{repr f.codomain}")) (p.onMorphisms f.id (gid "id"))
-      rightPath := .comp (.atom (gid s!"π^end_{repr f.domain}")) (p.onMorphisms (gid "id") f.id)
+      leftPath := .comp (.atom (gid s!"π^end_{repr f.codomain}")) (p.onMorphisms.apply f.id (gid "id"))
+      rightPath := .comp (.atom (gid s!"π^end_{repr f.domain}")) (p.onMorphisms.apply (gid "id") f.id)
       description := s!"Wedge condition for {f.id.name}" }
 
   { name := s!"∫({p.name})"
@@ -79,15 +96,15 @@ def computeCoend (p : Profunctor) : Theory :=
   -- Injection morphisms: ι_a : F(a,a) → ∫^F
   let injections := p.source.objects.map fun a =>
     { id := gid s!"ι^coend_{a.id.name}"
-      domain := p.onObjects a.id a.id
+      domain := p.onObjects.apply a.id a.id
       codomain := .atom (gid s!"∫^{p.name}")
       description := s!"Coend injection at {a.id.name}" }
 
   -- Cowedge condition (dual of wedge)
   let cowedgeAxioms := p.source.morphisms.map fun f =>
     { id := gid s!"cowedge_{f.id.name}"
-      leftPath := .comp (p.onMorphisms (gid "id") f.id) (.atom (gid s!"ι^coend_{repr f.domain}"))
-      rightPath := .comp (p.onMorphisms f.id (gid "id")) (.atom (gid s!"ι^coend_{repr f.codomain}"))
+      leftPath := .comp (p.onMorphisms.apply (gid "id") f.id) (.atom (gid s!"ι^coend_{repr f.domain}"))
+      rightPath := .comp (p.onMorphisms.apply f.id (gid "id")) (.atom (gid s!"ι^coend_{repr f.codomain}"))
       description := s!"Cowedge condition for {f.id.name}" }
 
   { name := s!"∫^({p.name})"
@@ -101,7 +118,7 @@ def computeCoend (p : Profunctor) : Theory :=
 def ninjaYoneda (p : Profunctor) (b : GeneratorId) : Generator2 :=
   { id := gid s!"ninja_yoneda_{b.name}"
     leftPath := .atom (gid s!"∫_{p.name}_at_{b.name}")
-    rightPath := p.onObjects b b
+    rightPath := p.onObjects.apply b b
     description := s!"Ninja Yoneda: end over Hom(-, {b.name}) ⊗ F ≅ F({b.name})" }
 
 end CatLab

@@ -9,6 +9,7 @@
 -/
 
 import Catlab.Core.Theory
+import Batteries.Data.HashMap
 
 namespace CatLab
 
@@ -89,14 +90,21 @@ def internalCategoryCategory (t : Theory) : Theory :=
           description := s!"Identity map" : Generator1 } ]
 
   -- Internal functors: for each pair of internal categories, a functor is
-  -- a pair of morphisms (F₀, F₁) in the ambient category
+  -- a pair of morphisms (F₀, F₁) in the ambient category.
+  -- Index morphisms by (domain, codomain) for efficient lookup.
+  let morphByEndpoints : Std.HashMap (Name × Name) (List Generator1) :=
+    t.morphisms.foldl (fun acc m =>
+      let key := (m.domain.toName, m.codomain.toName)
+      let existing := acc[key]? |>.getD []
+      acc.insert key (m :: existing)) {}
   let internalFunctors := t.objects.flatMap fun c0 =>
     t.objects.flatMap fun c1 =>
       t.objects.flatMap fun d0 =>
         t.objects.flatMap fun d1 =>
-          t.morphisms.flatMap fun f0 =>
-            t.morphisms.flatMap fun f1 =>
-              -- Only include if f0 : c0 → d0 and f1 : c1 → d1
+          let f0s := morphByEndpoints[(c0.id.name, d0.id.name)]? |>.getD []
+          let f1s := morphByEndpoints[(c1.id.name, d1.id.name)]? |>.getD []
+          f0s.flatMap fun f0 =>
+            f1s.map fun f1 =>
               let srcName := Name.pair c0.id.name c1.id.name
               let tgtName := Name.pair d0.id.name d1.id.name
               let funName := .arrow
@@ -106,11 +114,11 @@ def internalCategoryCategory (t : Theory) : Theory :=
               let funId : GeneratorId := { name := funName, kind := .morphism }
               let domExpr := Expr.atom { name := .app (.root "IntCat") srcName, kind := .sort }
               let codExpr := Expr.atom { name := .app (.root "IntCat") tgtName, kind := .sort }
-              [{ id := funId
-                 domain := domExpr
-                 codomain := codExpr
-                 description := s!"Internal functor ({f0.id.name},{f1.id.name})"
-                 : Generator1 }]
+              { id := funId
+                domain := domExpr
+                codomain := codExpr
+                description := s!"Internal functor ({f0.id.name},{f1.id.name})"
+                : Generator1 }
 
   -- Axioms: source and target commute with identity (s ∘ i = id, t ∘ i = id)
   let unitAxioms := t.objects.flatMap fun c0 =>

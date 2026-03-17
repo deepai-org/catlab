@@ -70,20 +70,20 @@ def evalFunctor (source target : Theory) : List Generator1 :=
     for two specific functors F, G : C → D.
     This is the hom-set in [C, D], made into an object of D. -/
 def natTransformations (source : Theory)
-    (fOnObj gOnObj : GeneratorId → Expr) : Theory :=
+    (fOnObj gOnObj : GeneratorMap) : Theory :=
   let natObj := { id := gid "Nat(F,G)"
                   description := "Natural transformations F ⟹ G" }
 
   let components := source.objects.map fun a =>
     { id := gid s!"α_{a.id.name}"
-      domain := fOnObj a.id
-      codomain := gOnObj a.id
+      domain := fOnObj.apply a.id
+      codomain := gOnObj.apply a.id
       description := s!"Component at {a.id.name}" }
 
   let naturality := source.morphisms.map fun f =>
     { id := gid s!"nat_{f.id.name}"
-      leftPath := .comp (.atom (gid s!"α_{repr f.domain}")) (gOnObj f.id)
-      rightPath := .comp (fOnObj f.id) (.atom (gid s!"α_{repr f.codomain}"))
+      leftPath := .comp (.atom (gid s!"α_{repr f.domain}")) (gOnObj.apply f.id)
+      rightPath := .comp (fOnObj.apply f.id) (.atom (gid s!"α_{repr f.codomain}"))
       description := s!"Naturality square for {f.id.name}" }
 
   { name := "Nat(F,G)"

@@ -23,7 +23,7 @@ namespace CatLab
 def artinGluing
     (base : Theory)
     (topos : Theory)
-    (gammaOnObj : GeneratorId → Expr)
+    (gammaOnObj : GeneratorMap)
     (namePrefix : String := "gl") : Theory :=
   -- Objects: triples (s, e, α : s → Γ(e)) for each s ∈ base, e ∈ topos
   let gluingObjects := base.objects.flatMap fun s =>
@@ -37,7 +37,7 @@ def artinGluing
     topos.objects.map fun e =>
       ({ id := gid s!"{namePrefix}_α_{s.id.name}_{e.id.name}"
          domain := .atom s.id
-         codomain := gammaOnObj e.id
+         codomain := gammaOnObj.apply e.id
          description := s!"Structure map α : {s.id.name} → Γ({e.id.name})" }
         : Generator1)
 
@@ -79,7 +79,7 @@ def artinGluing
     for a topos with a terminal object serving as the base. -/
 def freydCover
     (topos : Theory)
-    (gammaOnObj : GeneratorId → Expr)
+    (gammaOnObj : GeneratorMap)
     (namePrefix : String := "fc") : Theory :=
   let baseTheory : Theory :=
     { name := "Set"

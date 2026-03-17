@@ -6,6 +6,7 @@
 
 import Catlab.Core.Expr
 import Catlab.Core.Doctrine
+import Batteries.Data.HashMap
 
 namespace CatLab
 
@@ -17,6 +18,8 @@ namespace CatLab
 structure Generator0 where
   id : GeneratorId
   description : String := ""
+  /-- Extensible metadata: e.g., ("degree", "2"), ("finite", "true") -/
+  tags : List (String × String) := []
   deriving Repr, Inhabited
 
 /-- A 1-generator: a morphism / operation -/
@@ -25,6 +28,8 @@ structure Generator1 where
   domain : Expr
   codomain : Expr
   description : String := ""
+  /-- Extensible metadata -/
+  tags : List (String × String) := []
   deriving Repr, Inhabited
 
 /-- A binding variable for universally-quantified axiom schemas -/
@@ -45,7 +50,74 @@ structure Generator2 where
   rightPath : Expr
   proofName : Option Lean.Name := none
   description : String := ""
+  /-- Extensible metadata -/
+  tags : List (String × String) := []
   deriving Repr, Inhabited
+
+-- ============================================================
+-- Tag Queries
+-- ============================================================
+
+/-- Look up a tag value by key -/
+def lookupTag (tags : List (String × String)) (key : String) : Option String :=
+  tags.find? (fun (k, _) => k == key) |>.map (·.2)
+
+/-- Look up a tag as a Nat -/
+def lookupTagNat (tags : List (String × String)) (key : String) : Option Nat :=
+  lookupTag tags key |>.bind (·.toNat?)
+
+-- ============================================================
+-- Explicit Mapping (replaces closures for functors/morphisms)
+-- ============================================================
+
+/-- An explicit, inspectable mapping from GeneratorIds to Exprs.
+    Unlike closures, this can be iterated, serialized, and inverted. -/
+structure GeneratorMap where
+  entries : Std.HashMap GeneratorId Expr := {}
+  deriving Inhabited
+
+namespace GeneratorMap
+
+def empty : GeneratorMap := ⟨{}⟩
+
+def insert (m : GeneratorMap) (k : GeneratorId) (v : Expr) : GeneratorMap :=
+  ⟨m.entries.insert k v⟩
+
+def find? (m : GeneratorMap) (k : GeneratorId) : Option Expr :=
+  m.entries[k]?
+
+/-- Apply the mapping; returns the atom unchanged if not in the map -/
+def apply (m : GeneratorMap) (k : GeneratorId) : Expr :=
+  m.entries[k]? |>.getD (.atom k)
+
+def ofList (pairs : List (GeneratorId × Expr)) : GeneratorMap :=
+  ⟨pairs.foldl (fun acc (k, v) => acc.insert k v) {}⟩
+
+def toList (m : GeneratorMap) : List (GeneratorId × Expr) :=
+  m.entries.toList
+
+/-- Lift this mapping over a full Expr AST, replacing atoms -/
+partial def liftExpr (m : GeneratorMap) (e : Expr) : Expr :=
+  match e with
+  | .atom gid => m.apply gid
+  | .id obj => .id (m.liftExpr obj)
+  | .comp f g => .comp (m.liftExpr f) (m.liftExpr g)
+  | .prod a b => .prod (m.liftExpr a) (m.liftExpr b)
+  | .coprod a b => .coprod (m.liftExpr a) (m.liftExpr b)
+  | .hom a b => .hom (m.liftExpr a) (m.liftExpr b)
+  | .tensor a b => .tensor (m.liftExpr a) (m.liftExpr b)
+  | .sigma v base fam => .sigma v (m.liftExpr base) (m.liftExpr fam)
+  | .pi v base fam => .pi v (m.liftExpr base) (m.liftExpr fam)
+  | .fiber mf p => .fiber (m.liftExpr mf) (m.liftExpr p)
+  | .proj i s => .proj i (m.liftExpr s)
+  | .inj i t => .inj i (m.liftExpr t)
+  | .app f x => .app (m.liftExpr f) (m.liftExpr x)
+  | .limit d => .limit (m.liftExpr d)
+  | .colimit d => .colimit (m.liftExpr d)
+  | .natComponent n x => .natComponent (m.liftExpr n) (m.liftExpr x)
+  | .unit | .terminal | .initial | .var _ => e
+
+end GeneratorMap
 
 -- ============================================================
 -- First-class Functors and Natural Transformations
@@ -123,6 +195,9 @@ structure Theory where
   axioms : List Generator2
   functors : List FunctorDecl := []
   natTrans : List NatTransDecl := []
+  /-- First-class equivalences: pairs of expressions identified in this theory.
+      Formalizes quotienting without encoding equivalences as 2-cells. -/
+  equivalences : List (Expr × Expr) := []
   deriving Repr, Inhabited
 
 namespace Theory
@@ -135,6 +210,15 @@ def findMorphism (t : Theory) (name : Name) : Option Generator1 :=
 
 def findAxiom (t : Theory) (name : Name) : Option Generator2 :=
   t.axioms.find? (fun g => g.id.name == name)
+
+/-- Build a HashMap index of morphisms by name, for O(1) single lookups when
+    many lookups are needed (e.g., typechecking). -/
+def morphismIndex (t : Theory) : Std.HashMap Name Generator1 :=
+  t.morphisms.foldl (fun acc m => acc.insert m.id.name m) {}
+
+/-- Build a HashMap index of objects by name, for O(1) single lookups. -/
+def objectIndex (t : Theory) : Std.HashMap Name Generator0 :=
+  t.objects.foldl (fun acc o => acc.insert o.id.name o) {}
 
 def allNames (t : Theory) : List Name :=
   (t.objects.map (·.id.name)) ++
@@ -200,6 +284,26 @@ def rewriteIndex (t : Theory) : List (Name × List Generator2) :=
     if acc.any (· == n) then acc else n :: acc) []
   uniqueNames.map fun n => (n, t.rewritesFor n)
 
+/-- Build a HashMap index of morphisms by domain expression (for O(1) edge lookups) -/
+def outEdgeIndex (t : Theory) : Std.HashMap Name (List Generator1) :=
+  t.morphisms.foldl (fun acc m =>
+    let key := m.domain.toName
+    let existing := acc[key]? |>.getD []
+    acc.insert key (m :: existing)) {}
+
+/-- Build a HashMap index of morphisms by codomain expression (for O(1) edge lookups) -/
+def inEdgeIndex (t : Theory) : Std.HashMap Name (List Generator1) :=
+  t.morphisms.foldl (fun acc m =>
+    let key := m.codomain.toName
+    let existing := acc[key]? |>.getD []
+    acc.insert key (m :: existing)) {}
+
+/-- Build a HashMap index mapping names to generator kinds (for O(1) resolution) -/
+def generatorIndex (t : Theory) : Std.HashMap Name GeneratorKind :=
+  let m := t.objects.foldl (fun acc o => acc.insert o.id.name .sort) ({} : Std.HashMap Name GeneratorKind)
+  let m := t.morphisms.foldl (fun acc f => acc.insert f.id.name .morphism) m
+  t.axioms.foldl (fun acc a => acc.insert a.id.name .twoCell) m
+
 def summary (t : Theory) : String :=
   s!"Theory '{t.name}' [{repr t.doctrine.doctrine}]\n" ++
   s!"  Objects:   {t.objects.length}\n" ++
@@ -223,8 +327,9 @@ def mk' (name : String) (doctrine : DoctrineContext)
     (objects : List Generator0) (morphisms : List Generator1)
     (axioms : List Generator2)
     (functors : List FunctorDecl := [])
-    (natTrans : List NatTransDecl := []) : Theory :=
-  { name, doctrine, objects, morphisms, axioms, functors, natTrans }
+    (natTrans : List NatTransDecl := [])
+    (equivalences : List (Expr × Expr) := []) : Theory :=
+  { name, doctrine, objects, morphisms, axioms, functors, natTrans, equivalences }
 
 end Theory
 
