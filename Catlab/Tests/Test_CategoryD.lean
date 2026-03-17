@@ -168,7 +168,7 @@ open CatLab CatLab.Tests CatLab.Library
   let gBad : TheoryMorphism :=
     { name := "bad_g", source := TheoryOfGroups, target := TheoryOfGroups,
       onObjects := GeneratorMap.empty, onMorphisms := GeneratorMap.empty }
-  check "pushout(mismatch) = none" (pushout fBad gBad == none)
+  check "pushout(mismatch) = none" (pushout fBad gBad).isNone
 
 -- ============================================================
 -- Self-pushout (id ⊔_T id): all 34 theories
