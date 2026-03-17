@@ -1,6 +1,10 @@
 import Catlab.Core.Expr
 import Catlab.Core.Theory
 import Catlab.Core.Doctrine
+import Catlab.Core.Equality
+import Catlab.Core.Validate
+import Catlab.Core.PrettyPrint
+import Catlab.Core.Pipeline
 import Catlab.Operators.Mirror
 import Catlab.Operators.Limits
 import Catlab.Operators.Slice
@@ -21,6 +25,7 @@ import Catlab.Library.Monoid
 import Catlab.Library.Group
 import Catlab.Library.Ring
 import Catlab.Library.BooleanAlgebra
+import Catlab.Library.Basic
 import Catlab.Repl.Protocol
 import Catlab.Repl.Server
 import Catlab.Demo

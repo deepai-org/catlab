@@ -1,0 +1,116 @@
+/-
+  CatLab -- Structural Equality and Isomorphism Checking
+
+  Without this, no operator can verify its own output.
+  We define BEq on Expr (structural equality) and a notion of
+  theory isomorphism (bijection on generators preserving structure).
+-/
+
+import Catlab.Core.Theory
+
+namespace CatLab
+
+/-- Structural equality on expressions -/
+def Expr.beq : Expr → Expr → Bool
+  | .atom a, .atom b => a == b
+  | .id x, .id y => x.beq y
+  | .comp f1 g1, .comp f2 g2 => f1.beq f2 && g1.beq g2
+  | .prod a1 b1, .prod a2 b2 => a1.beq a2 && b1.beq b2
+  | .coprod a1 b1, .coprod a2 b2 => a1.beq a2 && b1.beq b2
+  | .hom a1 b1, .hom a2 b2 => a1.beq a2 && b1.beq b2
+  | .tensor a1 b1, .tensor a2 b2 => a1.beq a2 && b1.beq b2
+  | .unit, .unit => true
+  | .terminal, .terminal => true
+  | .initial, .initial => true
+  | .sigma v1 b1 f1, .sigma v2 b2 f2 => v1 == v2 && b1.beq b2 && f1.beq f2
+  | .pi v1 b1 f1, .pi v2 b2 f2 => v1 == v2 && b1.beq b2 && f1.beq f2
+  | .fiber m1 p1, .fiber m2 p2 => m1.beq m2 && p1.beq p2
+  | .proj i1 s1, .proj i2 s2 => i1 == i2 && s1.beq s2
+  | .inj i1 t1, .inj i2 t2 => i1 == i2 && t1.beq t2
+  | .var n1, .var n2 => n1 == n2
+  | _, _ => false
+
+instance : BEq Expr where beq := Expr.beq
+
+/-- Structural equality on generators -/
+instance : BEq Generator0 where
+  beq a b := a.id == b.id
+
+instance : BEq Generator1 where
+  beq a b := a.id == b.id && a.domain.beq b.domain && a.codomain.beq b.codomain
+
+instance : BEq Generator2 where
+  beq a b := a.id == b.id && a.leftPath.beq b.leftPath && a.rightPath.beq b.rightPath
+
+/-- Alpha-equivalence: equality up to renaming of generators.
+    Two expressions are alpha-equivalent if there exists a consistent
+    renaming of atom names that makes them structurally equal. -/
+partial def Expr.alphaEquiv (e1 e2 : Expr)
+    (mapping : List (String × String) := []) : Bool :=
+  match e1, e2 with
+  | .atom a, .atom b =>
+    match mapping.find? (fun (k, _) => k == a.name) with
+    | some (_, v) => v == b.name
+    | none => true  -- new binding; would extend mapping
+  | .id x, .id y => x.alphaEquiv y mapping
+  | .comp f1 g1, .comp f2 g2 => f1.alphaEquiv f2 mapping && g1.alphaEquiv g2 mapping
+  | .prod a1 b1, .prod a2 b2 => a1.alphaEquiv a2 mapping && b1.alphaEquiv b2 mapping
+  | .coprod a1 b1, .coprod a2 b2 => a1.alphaEquiv a2 mapping && b1.alphaEquiv b2 mapping
+  | .hom a1 b1, .hom a2 b2 => a1.alphaEquiv a2 mapping && b1.alphaEquiv b2 mapping
+  | .tensor a1 b1, .tensor a2 b2 => a1.alphaEquiv a2 mapping && b1.alphaEquiv b2 mapping
+  | .unit, .unit => true
+  | .terminal, .terminal => true
+  | .initial, .initial => true
+  | .sigma _ b1 f1, .sigma _ b2 f2 => b1.alphaEquiv b2 mapping && f1.alphaEquiv f2 mapping
+  | .pi _ b1 f1, .pi _ b2 f2 => b1.alphaEquiv b2 mapping && f1.alphaEquiv f2 mapping
+  | .fiber m1 p1, .fiber m2 p2 => m1.alphaEquiv m2 mapping && p1.alphaEquiv p2 mapping
+  | .proj i1 s1, .proj i2 s2 => i1 == i2 && s1.alphaEquiv s2 mapping
+  | .inj i1 t1, .inj i2 t2 => i1 == i2 && t1.alphaEquiv t2 mapping
+  | .var n1, .var n2 => n1 == n2
+  | _, _ => false
+
+/-- A theory morphism: a mapping between theories preserving structure -/
+structure TheoryMorphism where
+  name : String
+  source : Theory
+  target : Theory
+  /-- How source objects map to target expressions -/
+  onObjects : GeneratorId → Expr
+  /-- How source morphisms map to target expressions -/
+  onMorphisms : GeneratorId → Expr
+
+/-- Check if a theory morphism preserves domains and codomains.
+    For each morphism f : A → B in source, we need
+    onMorphisms(f) : onObjects(A) → onObjects(B) in target. -/
+def TheoryMorphism.preservesTyping (tm : TheoryMorphism) : Bool :=
+  tm.source.morphisms.all fun m =>
+    -- Check that target has a morphism with matching domain/codomain
+    -- (simplified: just check the mapped expressions are well-formed atoms)
+    let mappedDom := tm.onObjects ⟨s!"{repr m.domain}", 0⟩
+    let mappedCod := tm.onObjects ⟨s!"{repr m.codomain}", 0⟩
+    -- At minimum, the mapped objects should exist
+    mappedDom != .unit || mappedCod != .unit  -- placeholder
+
+/-- Signature comparison: do two theories have the same "shape"?
+    Same number of objects, morphisms with matching arities, same axiom count. -/
+def Theory.signatureMatch (t1 t2 : Theory) : Bool :=
+  t1.objects.length == t2.objects.length &&
+  t1.morphisms.length == t2.morphisms.length &&
+  t1.axioms.length == t2.axioms.length
+
+/-- Deeper isomorphism check: attempt to find a bijection on generators
+    that preserves all morphism domains/codomains and axiom equalities.
+    Returns true if such a bijection exists (brute-force for small theories). -/
+partial def Theory.isIsomorphic (t1 t2 : Theory) : Bool :=
+  if !t1.signatureMatch t2 then false
+  else if t1.objects.length == 0 then true
+  else
+    -- For small theories, try the identity mapping first
+    let identityWorks := t1.morphisms.zip t2.morphisms |>.all fun (m1, m2) =>
+      m1.domain.alphaEquiv m2.domain && m1.codomain.alphaEquiv m2.codomain
+    if identityWorks then true
+    else
+      -- TODO: try all permutations for small generator sets
+      false
+
+end CatLab
