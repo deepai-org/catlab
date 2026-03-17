@@ -291,4 +291,28 @@ partial def Expr.mapNames (e : Expr) (f : Name → Name) : Expr :=
   | .colimit d => .colimit (d.mapNames f)
   | .natComponent n x => .natComponent (n.mapNames f) (x.mapNames f)
 
+/-- Collect all atom GeneratorIds referenced in an expression -/
+def Expr.atomIds : Expr → List GeneratorId
+  | .atom gid => [gid]
+  | Expr.id obj => obj.atomIds
+  | .comp f g => f.atomIds ++ g.atomIds
+  | .prod a b => a.atomIds ++ b.atomIds
+  | .coprod a b => a.atomIds ++ b.atomIds
+  | .hom a b => a.atomIds ++ b.atomIds
+  | .tensor a b => a.atomIds ++ b.atomIds
+  | .sigma _ base fam => base.atomIds ++ fam.atomIds
+  | .pi _ base fam => base.atomIds ++ fam.atomIds
+  | .fiber m p => m.atomIds ++ p.atomIds
+  | .proj _ s => s.atomIds
+  | .inj _ t => t.atomIds
+  | .app f x => f.atomIds ++ x.atomIds
+  | .limit d => d.atomIds
+  | .colimit d => d.atomIds
+  | .natComponent n x => n.atomIds ++ x.atomIds
+  | .unit | .terminal | .initial | .var _ => []
+
+/-- Collect all atom names referenced in an expression -/
+def Expr.atoms (e : Expr) : List Name :=
+  e.atomIds.map (·.name)
+
 end CatLab

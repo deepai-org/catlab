@@ -9,6 +9,7 @@
 -/
 
 import Catlab.Core.Theory
+import Catlab.Core.Equality
 
 namespace CatLab
 
@@ -18,6 +19,7 @@ inductive ValidationError where
   | undeclaredObject (referencedIn : String) (name : Name)
   | undeclaredMorphism (referencedIn : String) (name : Name)
   | doctrineViolation (message : String)
+  | boundaryMismatch (morphismName : String) (expected : String) (got : String)
   deriving Repr, Inhabited
 
 instance : ToString ValidationError where
@@ -26,30 +28,7 @@ instance : ToString ValidationError where
     | .undeclaredObject ctx n => s!"Undeclared object '{n}' referenced in {ctx}"
     | .undeclaredMorphism ctx n => s!"Undeclared morphism '{n}' referenced in {ctx}"
     | .doctrineViolation msg => s!"Doctrine violation: {msg}"
-
-/-- Collect all atom GeneratorIds referenced in an expression (preserving kind info) -/
-def Expr.atomIds : Expr → List GeneratorId
-  | .atom gid => [gid]
-  | Expr.id obj => obj.atomIds
-  | .comp f g => f.atomIds ++ g.atomIds
-  | .prod a b => a.atomIds ++ b.atomIds
-  | .coprod a b => a.atomIds ++ b.atomIds
-  | .hom a b => a.atomIds ++ b.atomIds
-  | .tensor a b => a.atomIds ++ b.atomIds
-  | .sigma _ base fam => base.atomIds ++ fam.atomIds
-  | .pi _ base fam => base.atomIds ++ fam.atomIds
-  | .fiber m p => m.atomIds ++ p.atomIds
-  | .proj _ s => s.atomIds
-  | .inj _ t => t.atomIds
-  | .app f x => f.atomIds ++ x.atomIds
-  | .limit d => d.atomIds
-  | .colimit d => d.atomIds
-  | .natComponent n x => n.atomIds ++ x.atomIds
-  | .unit | .terminal | .initial | .var _ => []
-
-/-- Collect all atom names referenced in an expression (convenience wrapper) -/
-def Expr.atoms (e : Expr) : List Name :=
-  e.atomIds.map (·.name)
+    | .boundaryMismatch m e g => s!"Boundary mismatch in '{m}': expected codomain {e}, got domain {g}"
 
 /-- Check for duplicate names across all generators -/
 def checkDuplicates (t : Theory) : List ValidationError :=
@@ -100,12 +79,62 @@ def checkDoctrine (t : Theory) : List ValidationError :=
     else []
   | _ => []
 
+/-- Infer the codomain of an expression, given the theory's morphism table.
+    For atoms, looks up the morphism's codomain. For compositions, returns
+    the codomain of the second factor. Returns none for non-morphism exprs. -/
+private partial def inferCodomain (t : Theory) (e : Expr) : Option Expr :=
+  match e with
+  | .atom gid => (t.findMorphism gid.name).map (·.codomain)
+  | .comp _ g => inferCodomain t g
+  | .id obj => some obj
+  | _ => none
+
+/-- Infer the domain of an expression. -/
+private partial def inferDomain (t : Theory) (e : Expr) : Option Expr :=
+  match e with
+  | .atom gid => (t.findMorphism gid.name).map (·.domain)
+  | .comp f _ => inferDomain t f
+  | .id obj => some obj
+  | _ => none
+
+/-- Check that all Expr.comp nodes have matching boundaries:
+    in `comp f g`, the codomain of f must match the domain of g. -/
+private partial def checkCompBoundaries (t : Theory) (context : String) (e : Expr) : List ValidationError :=
+  match e with
+  | .comp f g =>
+    let innerErrors := checkCompBoundaries t context f ++ checkCompBoundaries t context g
+    let boundaryError := match inferCodomain t f, inferDomain t g with
+      | some cod, some dom =>
+        if cod.beq dom then []
+        else [ValidationError.boundaryMismatch context s!"{cod.toName}" s!"{dom.toName}"]
+      | _, _ => []  -- can't infer; skip
+    innerErrors ++ boundaryError
+  | .prod a b | .coprod a b | .hom a b | .tensor a b =>
+    checkCompBoundaries t context a ++ checkCompBoundaries t context b
+  | .id obj => checkCompBoundaries t context obj
+  | .sigma _ base fam | .pi _ base fam =>
+    checkCompBoundaries t context base ++ checkCompBoundaries t context fam
+  | .fiber m p => checkCompBoundaries t context m ++ checkCompBoundaries t context p
+  | .proj _ s => checkCompBoundaries t context s
+  | .inj _ s => checkCompBoundaries t context s
+  | .app f x => checkCompBoundaries t context f ++ checkCompBoundaries t context x
+  | .limit d | .colimit d => checkCompBoundaries t context d
+  | .natComponent n x => checkCompBoundaries t context n ++ checkCompBoundaries t context x
+  | _ => []
+
+/-- Check composition boundaries across all axioms in a theory -/
+def checkCompositionBoundaries (t : Theory) : List ValidationError :=
+  t.axioms.flatMap fun ax =>
+    checkCompBoundaries t s!"axiom '{ax.id.name}' LHS" ax.leftPath ++
+    checkCompBoundaries t s!"axiom '{ax.id.name}' RHS" ax.rightPath
+
 /-- Run all validation checks on a theory -/
 def validate (t : Theory) : List ValidationError :=
   checkDuplicates t ++
   checkMorphismReferences t ++
   checkAxiomReferences t ++
-  checkDoctrine t
+  checkDoctrine t ++
+  checkCompositionBoundaries t
 
 /-- Is a theory well-formed? -/
 def Theory.isValid (t : Theory) : Bool :=
@@ -118,5 +147,48 @@ def validationReport (t : Theory) : String :=
   else
     let errorLines := errors.map toString |> String.intercalate "\n  "
     s!"✗ Theory '{t.name}' has {errors.length} error(s):\n  {errorLines}"
+
+-- ============================================================
+-- Categorical Typechecker
+-- ============================================================
+
+/-- Infer the domain and codomain of a categorical expression.
+    Returns `Except.ok (domain, codomain)` if well-formed, or an error string. -/
+partial def inferType (t : Theory) (e : Expr) : Except String (Expr × Expr) :=
+  match e with
+  | .atom gid =>
+    match t.findMorphism gid.name with
+    | some m => Except.ok (m.domain, m.codomain)
+    | none =>
+      if t.isObjectName gid.name then Except.error s!"{gid.name} is an object, not a morphism"
+      else Except.error s!"Unknown generator: {gid.name}"
+  | .id obj => Except.ok (obj, obj)
+  | .comp f g => do
+    let (domF, codF) ← inferType t f
+    let (domG, codG) ← inferType t g
+    if !codF.alphaEquiv domG then
+      Except.error s!"Composition boundary mismatch: cod({f.toName}) = {codF.toName} ≠ dom({g.toName}) = {domG.toName}"
+    Except.ok (domF, codG)
+  | .prod a b => do
+    let (domA, codA) ← inferType t a
+    let (domB, codB) ← inferType t b
+    Except.ok (.prod domA domB, .prod codA codB)
+  | .tensor f g => do
+    let (domF, codF) ← inferType t f
+    let (domG, codG) ← inferType t g
+    Except.ok (.tensor domF domG, .tensor codF codG)
+  | _ => Except.error s!"Type inference not implemented for {e.toName}"
+
+/-- Typecheck an entire theory: verify all axioms equate parallel morphisms
+    (same domain and codomain on left and right paths). -/
+def typecheckTheory (t : Theory) : List String :=
+  t.axioms.filterMap fun ax =>
+    match inferType t ax.leftPath, inferType t ax.rightPath with
+    | .ok (domL, codL), .ok (domR, codR) =>
+      if !domL.alphaEquiv domR || !codL.alphaEquiv codR then
+        some s!"Axiom '{ax.id.name}' is ill-typed: LHS ({domL.toName} → {codL.toName}) vs RHS ({domR.toName} → {codR.toName})"
+      else none
+    | .error e, _ => some s!"Axiom '{ax.id.name}' LHS: {e}"
+    | _, .error e => some s!"Axiom '{ax.id.name}' RHS: {e}"
 
 end CatLab

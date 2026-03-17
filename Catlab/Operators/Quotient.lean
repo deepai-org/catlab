@@ -14,6 +14,42 @@ import Catlab.Core.Equality
 
 namespace CatLab
 
+/-- A purely functional Union-Find structure over categorical Names. -/
+structure UnionFind where
+  parent : List (Name × Name)
+  rank : List (Name × Nat)
+  deriving Repr, Inhabited
+
+namespace UnionFind
+
+def empty : UnionFind := ⟨[], []⟩
+
+/-- Find the representative of a Name. -/
+partial def find (uf : UnionFind) (x : Name) : Name :=
+  match uf.parent.lookup x with
+  | some p =>
+    if p == x then x
+    else uf.find p
+  | none => x
+
+/-- Union two equivalence classes, using union-by-rank. -/
+def union (uf : UnionFind) (x y : Name) : UnionFind :=
+  let rootX := uf.find x
+  let rootY := uf.find y
+  if rootX == rootY then uf
+  else
+    let rankX := uf.rank.lookup rootX |>.getD 0
+    let rankY := uf.rank.lookup rootY |>.getD 0
+    if rankX < rankY then
+      { uf with parent := (rootX, rootY) :: uf.parent }
+    else if rankX > rankY then
+      { uf with parent := (rootY, rootX) :: uf.parent }
+    else
+      { parent := (rootY, rootX) :: uf.parent,
+        rank := (rootX, rankX + 1) :: uf.rank }
+
+end UnionFind
+
 /-- A congruence on a theory: a list of pairs of morphism names that
     should be identified in the quotient. Each pair (f, g) asserts f ~ g,
     and the relation is extended to a congruence (reflexive, symmetric,
@@ -31,25 +67,13 @@ namespace Congruence
 def relates (c : Congruence) (a b : Name) : Bool :=
   c.equations.any fun (l, r) => (l == a && r == b) || (r == a && l == b)
 
-/-- Compute the equivalence class representative for a name.
-    Uses a simple union-find style: pick the lexicographically first
-    name in the equivalence class. -/
-private def representative (c : Congruence) (n : Name) : Name :=
-  -- Collect all names equivalent to n (transitive closure, bounded)
-  let rec collect (frontier : List Name) (seen : List Name) (fuel : Nat) : List Name :=
-    match fuel with
-    | 0 => seen
-    | fuel + 1 =>
-      let newNeighbors := frontier.flatMap fun x =>
-        c.equations.filterMap fun (l, r) =>
-          if l == x && !seen.any (· == r) then some r
-          else if r == x && !seen.any (· == l) then some l
-          else none
-      if newNeighbors.isEmpty then seen
-      else collect newNeighbors (seen ++ newNeighbors) fuel
-  let cls := collect [n] [n] c.equations.length
-  -- Pick the first in the class (stable representative)
-  cls.head!
+/-- Compile the list of equations into a Union-Find structure. -/
+def compile (c : Congruence) : UnionFind :=
+  c.equations.foldl (fun uf (lhs, rhs) => uf.union lhs rhs) UnionFind.empty
+
+/-- Get the stable equivalence class representative for a name. -/
+def representative (c : Congruence) (n : Name) : Name :=
+  c.compile.find n
 
 end Congruence
 
@@ -60,9 +84,13 @@ end Congruence
       We keep one representative per class and drop the rest.
     Axioms: original axioms plus the new equations from the congruence. -/
 def quotientCategory (t : Theory) (cong : Congruence) : Theory :=
+  -- Build the Union-Find once, then use it for all lookups
+  let uf := cong.compile
+  let rep (n : Name) : Name := uf.find n
+
   -- Determine which morphisms to keep (representatives of their class)
   let representatives := t.morphisms.filter fun m =>
-    cong.representative m.id.name == m.id.name
+    rep m.id.name == m.id.name
 
   -- Generate new axioms from the congruence equations
   let congAxioms := cong.equations.zipIdx.filterMap fun ((lName, rName), i) =>
@@ -76,7 +104,7 @@ def quotientCategory (t : Theory) (cong : Congruence) : Theory :=
 
   -- Rewrite axioms: replace identified morphism names with representatives
   let rewriteExpr (e : Expr) : Expr :=
-    e.mapNames fun n => cong.representative n
+    e.mapNames fun n => rep n
 
   let rewrittenAxioms := t.axioms.map fun ax =>
     { ax with

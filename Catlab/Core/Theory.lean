@@ -184,6 +184,22 @@ def commutingTrianglesOver (t : Theory) (xName : Name) : List (Generator1 × Gen
       t.morphisms.find? (fun h => h.domain.toName == f.domain.toName && h.codomain.toName == g.domain.toName)
       |>.map fun h => (f, g, h)
 
+/-- Find all axioms whose left or right path mentions a given name.
+    This is the axiom index: given a Name, quickly find rewrite rules
+    that could apply to expressions involving that name. -/
+def rewritesFor (t : Theory) (name : Name) : List Generator2 :=
+  t.axioms.filter fun ax =>
+    ax.leftPath.atoms.any (· == name) || ax.rightPath.atoms.any (· == name)
+
+/-- Build a rewrite index: maps each atom name to the axioms that mention it.
+    Returns a list of (Name, List Generator2) pairs for efficient lookup. -/
+def rewriteIndex (t : Theory) : List (Name × List Generator2) :=
+  let allAtomNames := t.axioms.flatMap fun ax =>
+    ax.leftPath.atoms ++ ax.rightPath.atoms
+  let uniqueNames := allAtomNames.foldl (fun acc n =>
+    if acc.any (· == n) then acc else n :: acc) []
+  uniqueNames.map fun n => (n, t.rewritesFor n)
+
 def summary (t : Theory) : String :=
   s!"Theory '{t.name}' [{repr t.doctrine.doctrine}]\n" ++
   s!"  Objects:   {t.objects.length}\n" ++
@@ -197,6 +213,18 @@ def instantiateSchema (ax : Generator2) (bindings : List (String × Expr)) : Gen
     quantifiers := []
     leftPath := applyBindings ax.leftPath
     rightPath := applyBindings ax.rightPath }
+
+/-- Smart constructor for Theory. Identical to the struct literal but serves
+    as the canonical entry point for operator code. This is where we would
+    compile cached indices (outEdgesCache, rewriteIndex) once, if/when
+    Theory is extended with cached fields. For now it validates the inputs
+    and returns a plain Theory. -/
+def mk' (name : String) (doctrine : DoctrineContext)
+    (objects : List Generator0) (morphisms : List Generator1)
+    (axioms : List Generator2)
+    (functors : List FunctorDecl := [])
+    (natTrans : List NatTransDecl := []) : Theory :=
+  { name, doctrine, objects, morphisms, axioms, functors, natTrans }
 
 end Theory
 
