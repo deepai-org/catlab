@@ -57,6 +57,8 @@ import Catlab.Operators.Internal
 import Catlab.Operators.Matrix
 import Catlab.Operators.Cleavage
 import Catlab.Operators.Family
+import Catlab.Operators.Algebraize
+import Catlab.Operators.Amalgamate
 import Catlab.Operators.Booleanize
 import Catlab.Operators.Skolem
 import Catlab.Operators.PER
@@ -98,6 +100,7 @@ import Catlab.Library.Locale
 import Catlab.Library.HopfAlgebra
 import Catlab.Library.LieAlgebra
 import Catlab.Library.DifferentialGradedAlgebra
+import Catlab.Library.CoreAlgebra
 import Catlab.Repl.Protocol
 import Catlab.Repl.Server
 import Catlab.Demo
