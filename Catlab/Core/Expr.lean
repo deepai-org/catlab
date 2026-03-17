@@ -11,7 +11,9 @@ namespace CatLab
 -- Structured Names
 -- ============================================================
 
-/-- Structured name for generators, replacing ad-hoc string prefixing. -/
+/-- Structured name for generators — an AST that preserves provenance.
+    Instead of flattening structured data into strings, names carry
+    their construction history so operators can decompose them. -/
 inductive Name where
   | root (name : String)
   | nested (parent : Name) (child : String)
@@ -19,6 +21,14 @@ inductive Name where
   | inr (inner : Name)
   | op (inner : Name)
   | app (functor : Name) (arg : Name)
+  /-- Graded name: base name at a specific degree (e.g., N(C)_2 for 2-simplices) -/
+  | graded (base : Name) (degree : Nat)
+  /-- Pair of names: for comma objects (a, b, h), product objects, etc. -/
+  | pair (left : Name) (right : Name)
+  /-- Arrow between names: for objects that are morphisms (arrow category, comma) -/
+  | arrow (src : Name) (tgt : Name) (label : Name)
+  /-- Tensor product of names: for Eckmann-Hilton and Day convolution -/
+  | tensor (left : Name) (right : Name)
   deriving Repr, Hashable, Inhabited
 
 partial def Name.toString : Name → String
@@ -28,6 +38,10 @@ partial def Name.toString : Name → String
   | .inr inner => s!"inr({inner.toString})"
   | .op inner => s!"{inner.toString}ᵒᵖ"
   | .app f x => s!"{f.toString}({x.toString})"
+  | .graded base n => s!"{base.toString}_{n}"
+  | .pair l r => s!"({l.toString},{r.toString})"
+  | .arrow s t l => s!"({s.toString}→{t.toString}:{l.toString})"
+  | .tensor l r => s!"{l.toString}⊗{r.toString}"
 
 partial def Name.beq : Name → Name → Bool
   | .root a, .root b => a == b
@@ -36,7 +50,28 @@ partial def Name.beq : Name → Name → Bool
   | .inr a, .inr b => a.beq b
   | .op a, .op b => a.beq b
   | .app f1 x1, .app f2 x2 => f1.beq f2 && x1.beq x2
+  | .graded b1 n1, .graded b2 n2 => b1.beq b2 && n1 == n2
+  | .pair l1 r1, .pair l2 r2 => l1.beq l2 && r1.beq r2
+  | .arrow s1 t1 l1, .arrow s2 t2 l2 => s1.beq s2 && t1.beq t2 && l1.beq l2
+  | .tensor l1 r1, .tensor l2 r2 => l1.beq l2 && r1.beq r2
   | _, _ => false
+
+/-- Extract the graded degree from a Name, if it is graded -/
+def Name.degree? : Name → Option Nat
+  | .graded _ n => some n
+  | _ => none
+
+/-- Extract the left component of a pair or tensor Name -/
+def Name.left? : Name → Option Name
+  | .pair l _ => some l
+  | .tensor l _ => some l
+  | _ => none
+
+/-- Extract the right component of a pair or tensor Name -/
+def Name.right? : Name → Option Name
+  | .pair _ r => some r
+  | .tensor _ r => some r
+  | _ => none
 
 instance : BEq Name where beq := Name.beq
 instance : ToString Name where toString := Name.toString

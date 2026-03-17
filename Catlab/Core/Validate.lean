@@ -27,25 +27,29 @@ instance : ToString ValidationError where
     | .undeclaredMorphism ctx n => s!"Undeclared morphism '{n}' referenced in {ctx}"
     | .doctrineViolation msg => s!"Doctrine violation: {msg}"
 
-/-- Collect all atom names referenced in an expression -/
-def Expr.atoms : Expr → List Name
-  | .atom gid => [gid.name]
-  | Expr.id obj => obj.atoms
-  | .comp f g => f.atoms ++ g.atoms
-  | .prod a b => a.atoms ++ b.atoms
-  | .coprod a b => a.atoms ++ b.atoms
-  | .hom a b => a.atoms ++ b.atoms
-  | .tensor a b => a.atoms ++ b.atoms
-  | .sigma _ base fam => base.atoms ++ fam.atoms
-  | .pi _ base fam => base.atoms ++ fam.atoms
-  | .fiber m p => m.atoms ++ p.atoms
-  | .proj _ s => s.atoms
-  | .inj _ t => t.atoms
-  | .app f x => f.atoms ++ x.atoms
-  | .limit d => d.atoms
-  | .colimit d => d.atoms
-  | .natComponent n x => n.atoms ++ x.atoms
+/-- Collect all atom GeneratorIds referenced in an expression (preserving kind info) -/
+def Expr.atomIds : Expr → List GeneratorId
+  | .atom gid => [gid]
+  | Expr.id obj => obj.atomIds
+  | .comp f g => f.atomIds ++ g.atomIds
+  | .prod a b => a.atomIds ++ b.atomIds
+  | .coprod a b => a.atomIds ++ b.atomIds
+  | .hom a b => a.atomIds ++ b.atomIds
+  | .tensor a b => a.atomIds ++ b.atomIds
+  | .sigma _ base fam => base.atomIds ++ fam.atomIds
+  | .pi _ base fam => base.atomIds ++ fam.atomIds
+  | .fiber m p => m.atomIds ++ p.atomIds
+  | .proj _ s => s.atomIds
+  | .inj _ t => t.atomIds
+  | .app f x => f.atomIds ++ x.atomIds
+  | .limit d => d.atomIds
+  | .colimit d => d.atomIds
+  | .natComponent n x => n.atomIds ++ x.atomIds
   | .unit | .terminal | .initial | .var _ => []
+
+/-- Collect all atom names referenced in an expression (convenience wrapper) -/
+def Expr.atoms (e : Expr) : List Name :=
+  e.atomIds.map (·.name)
 
 /-- Check for duplicate names across all generators -/
 def checkDuplicates (t : Theory) : List ValidationError :=

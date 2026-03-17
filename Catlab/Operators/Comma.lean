@@ -31,13 +31,13 @@ def commaCategory
   -- Objects: for each (a, b), an object representing the hom F(a) → G(b)
   let commaObjects := fSource.objects.flatMap fun a =>
     gSource.objects.map fun b =>
-      { id := gid s!"({a.id.name},{b.id.name},h)"
+      { id := { name := .arrow a.id.name b.id.name (.root "h"), index := 0, kind := .sort }
         description := s!"Comma object: {fName}({a.id.name}) → {gName}({b.id.name})" }
 
   -- The structural morphism h for each comma object
   let structureMaps := fSource.objects.flatMap fun a =>
     gSource.objects.map fun b =>
-      { id := gid s!"h_{a.id.name}_{b.id.name}"
+      { id := { name := .nested (.arrow a.id.name b.id.name (.root "h")) "struct", index := 0, kind := .sort }
         domain := fOnObj a.id
         codomain := gOnObj b.id
         description := s!"Structure map: {fName}({a.id.name}) → {gName}({b.id.name})" }
@@ -52,19 +52,19 @@ def commaCategory
     Objects are morphisms of C. Morphisms are commuting squares. -/
 def arrowCategory (t : Theory) : Theory :=
   let arrObjects := t.morphisms.map fun f =>
-    { id := gid s!"arr({f.id.name})"
+    { id := { name := .app (.root "arr") f.id.name, index := 0, kind := .sort }
       description := s!"Arrow: {f.id.name}" }
 
   -- Source and target projections
   let sourceMaps := t.morphisms.map fun f =>
-    { id := gid s!"src_{f.id.name}"
-      domain := .atom (gid s!"arr({f.id.name})")
+    { id := { name := .nested (.app (.root "arr") f.id.name) "src", index := 0, kind := .sort }
+      domain := .atom { name := .app (.root "arr") f.id.name, index := 0, kind := .sort }
       codomain := f.domain
       description := s!"Source of arrow {f.id.name}" }
 
   let targetMaps := t.morphisms.map fun f =>
-    { id := gid s!"tgt_{f.id.name}"
-      domain := .atom (gid s!"arr({f.id.name})")
+    { id := { name := .nested (.app (.root "arr") f.id.name) "tgt", index := 0, kind := .sort }
+      domain := .atom { name := .app (.root "arr") f.id.name, index := 0, kind := .sort }
       codomain := f.codomain
       description := s!"Target of arrow {f.id.name}" }
 

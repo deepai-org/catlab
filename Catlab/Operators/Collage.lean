@@ -44,42 +44,42 @@ def collage
     (name : String := "Collage") : Theory :=
   -- Prefix C and D objects/morphisms to avoid name clashes
   let cObjects : List Generator0 := c.objects.map fun obj =>
-    { obj with id := gid s!"C.{obj.id.name}" }
+    { obj with id := { obj.id with name := .inl obj.id.name } }
 
   let dObjects : List Generator0 := d.objects.map fun obj =>
-    { obj with id := gid s!"D.{obj.id.name}" }
+    { obj with id := { obj.id with name := .inr obj.id.name } }
 
   let cMorphisms : List Generator1 := c.morphisms.map fun m =>
     { m with
-      id := gid s!"C.{m.id.name}"
-      domain := m.domain.mapNames (fun n => .root s!"C.{n}")
-      codomain := m.codomain.mapNames (fun n => .root s!"C.{n}") }
+      id := { m.id with name := .inl m.id.name }
+      domain := m.domain.mapNames Name.inl
+      codomain := m.codomain.mapNames Name.inl }
 
   let dMorphisms : List Generator1 := d.morphisms.map fun m =>
     { m with
-      id := gid s!"D.{m.id.name}"
-      domain := m.domain.mapNames (fun n => .root s!"D.{n}")
-      codomain := m.codomain.mapNames (fun n => .root s!"D.{n}") }
+      id := { m.id with name := .inr m.id.name }
+      domain := m.domain.mapNames Name.inr
+      codomain := m.codomain.mapNames Name.inr }
 
   -- Heteromorphisms go from C-objects to D-objects
   let heteroMorphisms : List Generator1 := hetero.map fun h =>
     { id := h.id
-      domain := h.source.mapNames (fun n => .root s!"C.{n}")
-      codomain := h.target.mapNames (fun n => .root s!"D.{n}")
+      domain := h.source.mapNames Name.inl
+      codomain := h.target.mapNames Name.inr
       description := h.description }
 
   -- Axioms from C and D, with prefixed names
   let cAxioms : List Generator2 := c.axioms.map fun ax =>
     { ax with
-      id := gid s!"C.{ax.id.name}"
-      leftPath := ax.leftPath.mapNames (fun n => .root s!"C.{n}")
-      rightPath := ax.rightPath.mapNames (fun n => .root s!"C.{n}") }
+      id := { ax.id with name := .inl ax.id.name }
+      leftPath := ax.leftPath.mapNames Name.inl
+      rightPath := ax.rightPath.mapNames Name.inl }
 
   let dAxioms : List Generator2 := d.axioms.map fun ax =>
     { ax with
-      id := gid s!"D.{ax.id.name}"
-      leftPath := ax.leftPath.mapNames (fun n => .root s!"D.{n}")
-      rightPath := ax.rightPath.mapNames (fun n => .root s!"D.{n}") }
+      id := { ax.id with name := .inr ax.id.name }
+      leftPath := ax.leftPath.mapNames Name.inr
+      rightPath := ax.rightPath.mapNames Name.inr }
 
   -- Composition axioms: for f : c → c' in C and h : c' → d in hetero,
   -- h ∘ f should be a heteromorphism (profunctor left action).

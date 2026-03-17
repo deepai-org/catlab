@@ -23,8 +23,10 @@ namespace CatLab
     - Simplicial identities as axioms -/
 def nerve (t : Theory) (maxDim : Nat := 3) : Theory :=
   -- n-simplices as objects: N(C)_n
+  let simplexName (n : Nat) : GeneratorId :=
+    { name := .graded (.root s!"N({t.name})") n, index := 0, kind := .sort }
   let simplexObjects := List.range (maxDim + 1) |>.map fun n =>
-    { id := gid s!"N({t.name})_{n}"
+    { id := simplexName n
       description := s!"{n}-simplices of the nerve of {t.name}"
         : Generator0 }
 
@@ -33,8 +35,8 @@ def nerve (t : Theory) (maxDim : Nat := 3) : Theory :=
     if n == 0 then []
     else List.range (n + 1) |>.map fun i =>
       { id := gid s!"d_{i}^{n}"
-        domain := .atom (gid s!"N({t.name})_{n}")
-        codomain := .atom (gid s!"N({t.name})_{n - 1}")
+        domain := .atom (simplexName n)
+        codomain := .atom (simplexName (n - 1))
         description := s!"Face map d_{i} : N(C)_{n} → N(C)_{n-1}"
           : Generator1 }
 
@@ -42,8 +44,8 @@ def nerve (t : Theory) (maxDim : Nat := 3) : Theory :=
   let degeneracyMaps := List.range maxDim |>.flatMap fun n =>
     List.range (n + 1) |>.map fun i =>
       { id := gid s!"s_{i}^{n}"
-        domain := .atom (gid s!"N({t.name})_{n}")
-        codomain := .atom (gid s!"N({t.name})_{n + 1}")
+        domain := .atom (simplexName n)
+        codomain := .atom (simplexName (n + 1))
         description := s!"Degeneracy map s_{i} : N(C)_{n} → N(C)_{n+1}"
           : Generator1 }
 
@@ -97,7 +99,7 @@ def nerve (t : Theory) (maxDim : Nat := 3) : Theory :=
                  leftPath := .comp
                    (.atom (gid s!"s_{j}^{n}"))
                    (.atom (gid s!"d_{i}^{n + 1}"))
-                 rightPath := Expr.id (.atom (gid s!"N({t.name})_{n}"))
+                 rightPath := Expr.id (.atom (simplexName n))
                  description := s!"Mixed identity: d_{i} ∘ s_{j} = id (i = j or i = j+1)"
                    : Generator2 }
         else if i > j + 1 then
@@ -118,16 +120,6 @@ def nerve (t : Theory) (maxDim : Nat := 3) : Theory :=
     morphisms := faceMaps ++ degeneracyMaps
     axioms := faceAxioms ++ degAxioms ++ mixedAxioms }
 
-/-- Compute the fundamental category (realization) of a simplicial theory.
-
-    Given a "simplicial theory" (graded with face/degeneracy structure):
-    - Objects: 0-simplices
-    - Morphisms: 1-simplices
-    - Relations: degenerate 1-simplices (s₀ applied to a 0-simplex) become identities,
-      and 2-simplices give composition: if τ is a 2-simplex, then d₁(τ) = d₀(τ) ∘ d₂(τ). -/
-private def nameEndsWith (n : Name) (suffix : String) : Bool :=
-  n.toString.endsWith suffix
-
 /-- Compute the fundamental category (realization) of a simplicial nerve.
 
     Takes the output of `nerve` and extracts:
@@ -136,7 +128,7 @@ private def nameEndsWith (n : Name) (suffix : String) : Bool :=
     - Composition from 2-simplex face relations -/
 def realize (t : Theory) : Theory :=
   -- 0-simplex objects become category objects
-  let dim0 := t.objects.filter fun o => nameEndsWith o.id.name "_0"
+  let dim0 := t.objects.filter fun o => o.id.name.degree? == some 0
   let realObjects : List Generator0 := dim0.map fun o =>
     { id := gid s!"π({o.id.name})"
       description := s!"Realization of 0-simplex {o.id.name}" }
@@ -158,7 +150,7 @@ def realize (t : Theory) : Theory :=
       description := s!"Degenerate 1-simplex at {o.id.name} is the identity" }
 
   -- 2-simplex composition: d₁(τ) = d₀(τ) ∘ d₂(τ)
-  let dim2 := t.objects.filter fun o => nameEndsWith o.id.name "_2"
+  let dim2 := t.objects.filter fun o => o.id.name.degree? == some 2
   let compositionAxioms : List Generator2 := dim2.map fun tau =>
     { id := gid s!"composition_{tau.id.name}"
       leftPath := .comp (.atom (gid "d_2^2")) (.atom (gid "d_0^2"))

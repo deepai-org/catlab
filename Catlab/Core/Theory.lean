@@ -71,6 +71,46 @@ structure NatTransDecl where
   deriving Repr, Inhabited
 
 -- ============================================================
+-- Structured Families (Natural Transformations, Cones, Cocones)
+-- ============================================================
+
+/-- A family of morphisms indexed by objects — the explicit representation
+    of a natural transformation. Instead of flattening components into the
+    morphism list (losing the family structure), this preserves the indexing. -/
+structure NatTransFamily where
+  /-- Name of this natural transformation -/
+  name : GeneratorId
+  /-- Source functor (or identity) -/
+  source : GeneratorId
+  /-- Target functor (or identity) -/
+  target : GeneratorId
+  /-- Components indexed by object: (object_id, component_morphism) -/
+  components : List (GeneratorId × Generator1)
+  description : String := ""
+  deriving Repr, Inhabited
+
+/-- A cone over a diagram: an apex with projection morphisms to each node.
+    The projections are indexed by diagram node, not flattened. -/
+structure ConeData where
+  /-- The apex object of the cone -/
+  apex : Generator0
+  /-- Projections indexed by diagram node: (node_id, projection_morphism) -/
+  projections : List (GeneratorId × Generator1)
+  /-- Commutativity axioms: for each edge in the diagram -/
+  commutativity : List Generator2
+  deriving Repr, Inhabited
+
+/-- A cocone: dual of a cone, with injections from diagram nodes. -/
+structure CoconeData where
+  /-- The nadir object of the cocone -/
+  nadir : Generator0
+  /-- Injections indexed by diagram node: (node_id, injection_morphism) -/
+  injections : List (GeneratorId × Generator1)
+  /-- Commutativity axioms -/
+  commutativity : List Generator2
+  deriving Repr, Inhabited
+
+-- ============================================================
 -- Theory
 -- ============================================================
 
@@ -100,6 +140,30 @@ def allNames (t : Theory) : List Name :=
   (t.objects.map (·.id.name)) ++
   (t.morphisms.map (·.id.name)) ++
   (t.axioms.map (·.id.name))
+
+/-- All generator IDs with their kinds, providing a symbol table for the theory -/
+def allGeneratorIds (t : Theory) : List GeneratorId :=
+  (t.objects.map (·.id)) ++
+  (t.morphisms.map (·.id)) ++
+  (t.axioms.map (·.id))
+
+/-- Look up a GeneratorId by name, resolving its kind from the theory -/
+def resolveAtom (t : Theory) (name : Name) : Option GeneratorId :=
+  if t.objects.any (fun o => o.id.name == name) then
+    some { name, kind := .sort }
+  else if t.morphisms.any (fun m => m.id.name == name) then
+    some { name, kind := .morphism }
+  else if t.axioms.any (fun a => a.id.name == name) then
+    some { name, kind := .twoCell }
+  else none
+
+/-- Check if a name refers to a morphism in this theory -/
+def isMorphismName (t : Theory) (name : Name) : Bool :=
+  t.morphisms.any (fun m => m.id.name == name)
+
+/-- Check if a name refers to an object in this theory -/
+def isObjectName (t : Theory) (name : Name) : Bool :=
+  t.objects.any (fun o => o.id.name == name)
 
 def summary (t : Theory) : String :=
   s!"Theory '{t.name}' [{repr t.doctrine.doctrine}]\n" ++

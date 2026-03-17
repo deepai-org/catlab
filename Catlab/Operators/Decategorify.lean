@@ -41,11 +41,12 @@ def decategorify (t : Theory) (strategy : DecatStrategy := .isoClasses) : Theory
       { id := gid s!"[{a.id.name}]"
         description := s!"Isomorphism class of {a.id.name}" }
     -- Only keep axioms whose atoms all refer to objects (not morphisms)
-    -- since morphisms are collapsed away
-    let morNames := t.morphisms.map (·.id.name)
+    -- since morphisms are collapsed away. Uses kind-aware atomIds to
+    -- resolve references via the theory's symbol table.
     let decatAxioms := t.axioms.filterMap fun ax =>
-      let atoms := ax.leftPath.atoms ++ ax.rightPath.atoms
-      let referencesMorphism := atoms.any (fun a => morNames.contains a)
+      let atomIds := ax.leftPath.atomIds ++ ax.rightPath.atomIds
+      let referencesMorphism := atomIds.any fun a =>
+        t.isMorphismName a.name || a.kind == .morphism
       if referencesMorphism then none
       else some { id := gid s!"decat_{ax.id.name}"
                   leftPath := ax.leftPath
