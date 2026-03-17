@@ -24,6 +24,9 @@ inductive Doctrine where
   | GrothendieckTopos
   | LawvereTheory
   | StableCategory
+  | ElementaryTopos
+  | MartinLofTypeTheory
+  | PresentableInfinityCategory
   deriving Repr, Inhabited, BEq
 
 def Doctrine.hasProducts : Doctrine → Bool

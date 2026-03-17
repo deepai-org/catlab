@@ -14,6 +14,9 @@ import Catlab.Library.Lattice
 import Catlab.Library.Semiring
 import Catlab.Library.Module
 import Catlab.Library.Category
+import Catlab.Library.ElementaryTopos
+import Catlab.Library.HoTT
+import Catlab.Library.InfinityTopos
 
 namespace CatLab.Tests
 
@@ -71,6 +74,9 @@ def allLibTheories : List (String × Theory) :=
   , ("HeytingAlgebra", TheoryOfHeytingAlgebra)
   , ("Semiring",       TheoryOfSemirings)
   , ("Module",         TheoryOfModules "R")
+  , ("ElementaryTopos", TheoryOfElementaryTopos)
+  , ("HoTT",           TheoryOfHoTT)
+  , ("InfinityTopos",  TheoryOfInfinityTopos)
   ]
 
 end CatLab.Tests

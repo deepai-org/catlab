@@ -78,6 +78,9 @@ import Catlab.Library.Semiring
 import Catlab.Library.Module
 import Catlab.Library.Category
 import Catlab.Library.Basic
+import Catlab.Library.ElementaryTopos
+import Catlab.Library.HoTT
+import Catlab.Library.InfinityTopos
 import Catlab.Repl.Protocol
 import Catlab.Repl.Server
 import Catlab.Demo
