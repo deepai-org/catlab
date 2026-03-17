@@ -27,6 +27,20 @@ inductive Doctrine where
   | ElementaryTopos
   | MartinLofTypeTheory
   | PresentableInfinityCategory
+  | ModelCategory
+  | Derivator
+  | InfinityNCategory
+  | Operad
+  | CubicalTypeTheory
+  | LinearLogic
+  | GeometricLogic
+  | CohesiveHomotopyTypeTheory
+  | EnrichedCategory
+  | TriangulatedCategory
+  | Locale
+  | HopfAlgebra
+  | LieAlgebra
+  | DifferentialGraded
   deriving Repr, Inhabited, BEq
 
 def Doctrine.hasProducts : Doctrine → Bool

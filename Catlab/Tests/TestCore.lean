@@ -17,6 +17,23 @@ import Catlab.Library.Category
 import Catlab.Library.ElementaryTopos
 import Catlab.Library.HoTT
 import Catlab.Library.InfinityTopos
+import Catlab.Library.ModelCategory
+import Catlab.Library.Derivator
+import Catlab.Library.InfinityNCategory
+import Catlab.Library.Operad
+import Catlab.Library.CategoriesWithAttributes
+import Catlab.Library.CubicalTypeTheory
+import Catlab.Library.LinearLogic
+import Catlab.Library.GeometricLogic
+import Catlab.Library.CohesiveHoTT
+import Catlab.Library.SymmetricMonoidalCategory
+import Catlab.Library.EnrichedCategory
+import Catlab.Library.AbelianCategory
+import Catlab.Library.TriangulatedCategory
+import Catlab.Library.Locale
+import Catlab.Library.HopfAlgebra
+import Catlab.Library.LieAlgebra
+import Catlab.Library.DifferentialGradedAlgebra
 
 namespace CatLab.Tests
 
@@ -76,7 +93,25 @@ def allLibTheories : List (String × Theory) :=
   , ("Module",         TheoryOfModules "R")
   , ("ElementaryTopos", TheoryOfElementaryTopos)
   , ("HoTT",           TheoryOfHoTT)
-  , ("InfinityTopos",  TheoryOfInfinityTopos)
+  , ("InfinityTopos",         TheoryOfInfinityTopos)
+  , ("ModelCategory",         TheoryOfModelCategory)
+  , ("Derivator",             TheoryOfDerivator)
+  , ("Infinity2Category",     TheoryOfInfinityTwoCategory)
+  , ("Multicategory",         TheoryOfMulticategory)
+  , ("SymmetricOperad",       TheoryOfSymmetricOperad)
+  , ("CategoriesWithAttrs",   TheoryOfCategoriesWithAttributes)
+  , ("CubicalTypeTheory",     TheoryOfCubicalTypeTheory)
+  , ("LinearLogic",           TheoryOfLinearLogic)
+  , ("GeometricLogic",        TheoryOfGeometricLogic)
+  , ("CohesiveHoTT",          TheoryOfCohesiveHoTT)
+  , ("SymmetricMonoidal",     TheoryOfSymmetricMonoidalCategory)
+  , ("EnrichedCategory",      TheoryOfEnrichedCategory)
+  , ("AbelianCategory",       TheoryOfAbelianCategory)
+  , ("TriangulatedCategory",  TheoryOfTriangulatedCategory)
+  , ("Locale",                TheoryOfLocale)
+  , ("HopfAlgebra",           TheoryOfHopfAlgebra)
+  , ("LieAlgebra",            TheoryOfLieAlgebra)
+  , ("DGA",                   TheoryOfDifferentialGradedAlgebra)
   ]
 
 end CatLab.Tests
