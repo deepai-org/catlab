@@ -20,3 +20,7 @@ import Catlab.Operators.Adjunction
 import Catlab.Library.Monoid
 import Catlab.Library.Group
 import Catlab.Library.Ring
+import Catlab.Library.BooleanAlgebra
+import Catlab.Repl.Protocol
+import Catlab.Repl.Server
+import Catlab.Demo
