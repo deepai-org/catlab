@@ -81,3 +81,9 @@ import Catlab.Library.Basic
 import Catlab.Repl.Protocol
 import Catlab.Repl.Server
 import Catlab.Demo
+import Catlab.Tests.TestCore
+import Catlab.Tests.Fixtures
+import Catlab.Tests.Test_CategoryA
+import Catlab.Tests.Test_CategoryB
+import Catlab.Tests.Test_CategoryC
+import Catlab.Tests.Test_Properties
