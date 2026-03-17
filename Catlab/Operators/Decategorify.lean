@@ -14,6 +14,7 @@
 
 import Catlab.Core.Theory
 import Catlab.Core.Validate
+import Catlab.Core.Equality
 
 namespace CatLab
 
@@ -90,12 +91,19 @@ def decategorify (t : Theory) (strategy : DecatStrategy := .isoClasses) : Theory
       axioms := [] }
 
 /-- Check if a proposed categorification is valid:
-    does its decategorification match the target? -/
+    does its decategorification match the target?
+    Uses structural comparison (alpha-equivalence on axioms) rather than
+    just counting generators. -/
 def verifyCategorification (candidate : Theory) (target : Theory)
     (strategy : DecatStrategy := .isoClasses) : Bool :=
   let shadow := decategorify candidate strategy
-  -- Compare structural signatures (simplified: check generator counts match)
+  -- Check generator counts match
   shadow.objects.length == target.objects.length &&
-  shadow.axioms.length >= target.axioms.length
+  shadow.axioms.length >= target.axioms.length &&
+  -- Also verify that every target axiom has a corresponding shadow axiom
+  -- (using alpha-equivalence for structural comparison)
+  target.axioms.all fun tAx =>
+    shadow.axioms.any fun sAx =>
+      sAx.leftPath.alphaEquiv tAx.leftPath && sAx.rightPath.alphaEquiv tAx.rightPath
 
 end CatLab

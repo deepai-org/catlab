@@ -24,13 +24,11 @@ def scone (t : Theory) : Theory :=
     { id := { name := Name.pair a.id.name (.root "x"), index := 0, kind := .sort }
       description := s!"Scone object: ({a.id.name}, x ∈ Γ({a.id.name}))" : Generator0 }
 
-  let exprName (e : Expr) : Name := match e with | .atom g => g.name | _ => .root "?"
-
   -- Morphisms: for each morphism f : A → B in C, a scone morphism
   -- (A, x) → (B, y) preserving global sections
   let sconeMorphisms := t.morphisms.map fun f =>
-    let dn := exprName f.domain
-    let cn := exprName f.codomain
+    let dn := f.domain.toName
+    let cn := f.codomain.toName
     let morphName := Name.arrow dn cn f.id.name
     { id := { name := morphName, index := 0, kind := .morphism }
       domain := .atom { name := Name.pair dn (.root "x"), index := 0, kind := .sort }
@@ -39,7 +37,7 @@ def scone (t : Theory) : Theory :=
 
   -- Section-preservation axioms: Γ(f)(x) = y for each scone morphism
   let preservationAxioms := t.morphisms.map fun f =>
-    let cn := exprName f.codomain
+    let cn := f.codomain.toName
     { id := gid s!"section_pres_{f.id.name}" (k := .twoCell)
       leftPath := .app (.atom (gid s!"Γ" (k := .morphism))) (.atom f.id)
       rightPath := .id (.atom { name := Name.pair cn (.root "x"), index := 0, kind := .sort })

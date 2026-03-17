@@ -21,8 +21,8 @@ def productCategory (c d : Theory) : Theory :=
         description := s!"({co.id.name}, {do_.id.name})" : Generator0 }
 
   -- Helper to extract Name from domain/codomain Expr
-  let domName (e : Expr) : Name := match e with | .atom g => g.name | _ => .root "?"
-  let codName (e : Expr) : Name := match e with | .atom g => g.name | _ => .root "?"
+  let domName (e : Expr) : Name := e.toName
+  let codName (e : Expr) : Name := e.toName
 
   let prodMorphisms := c.morphisms.flatMap fun cf =>
     d.morphisms.map fun df =>

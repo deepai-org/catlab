@@ -165,6 +165,25 @@ def isMorphismName (t : Theory) (name : Name) : Bool :=
 def isObjectName (t : Theory) (name : Name) : Bool :=
   t.objects.any (fun o => o.id.name == name)
 
+/-- Get all morphisms from a given object (by name) -/
+def outEdges (t : Theory) (objName : Name) : List Generator1 :=
+  t.morphisms.filter fun m => m.domain.toName == objName
+
+/-- Get all morphisms into a given object (by name) -/
+def inEdges (t : Theory) (objName : Name) : List Generator1 :=
+  t.morphisms.filter fun m => m.codomain.toName == objName
+
+/-- Find all commuting triangles over a target object X:
+    pairs (f : A → X, g : B → X, h : A → B) such that g ∘ h = f
+    could hold. Returns the triple (f, g, h) as candidate triangles. -/
+def commutingTrianglesOver (t : Theory) (xName : Name) : List (Generator1 × Generator1 × Generator1) :=
+  let intoX := t.inEdges xName
+  intoX.flatMap fun f =>
+    intoX.filterMap fun g =>
+      -- Look for h : dom(f) → dom(g)
+      t.morphisms.find? (fun h => h.domain.toName == f.domain.toName && h.codomain.toName == g.domain.toName)
+      |>.map fun h => (f, g, h)
+
 def summary (t : Theory) : String :=
   s!"Theory '{t.name}' [{repr t.doctrine.doctrine}]\n" ++
   s!"  Objects:   {t.objects.length}\n" ++

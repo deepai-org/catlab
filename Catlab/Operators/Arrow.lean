@@ -22,10 +22,8 @@ namespace Arrow
     This generates the structural data; commutativity axioms assert
     that the squares commute. -/
 def arrowCat (t : Theory) : Theory :=
-  let exprName (e : Expr) : Name := match e with | .atom g => g.name | _ => .root "?"
-
   let arrObjName (f : Generator1) : Name :=
-    .arrow (exprName f.domain) (exprName f.codomain) f.id.name
+    .arrow f.domain.toName f.codomain.toName f.id.name
 
   -- Objects: one for each morphism f of C
   let arrObjects := t.morphisms.map fun f =>

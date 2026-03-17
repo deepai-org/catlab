@@ -39,12 +39,8 @@ def eilenbergMooreCategory (m : MonadData) : Theory :=
   -- Algebra homomorphisms: for each base morphism f : A → B,
   -- an algebra homomorphism (A, a) → (B, b) when f ∘ a = b ∘ T(f)
   let homomorphisms := m.base.morphisms.map fun f =>
-    let domAlg := match f.domain with
-      | .atom g => .pair g.name (.arrow (.app (.root "T") g.name) g.name (.root "α"))
-      | _ => .root "?"
-    let codAlg := match f.codomain with
-      | .atom g => .pair g.name (.arrow (.app (.root "T") g.name) g.name (.root "α"))
-      | _ => .root "?"
+    let domAlg := let n := f.domain.toName; .pair n (.arrow (.app (.root "T") n) n (.root "α"))
+    let codAlg := let n := f.codomain.toName; .pair n (.arrow (.app (.root "T") n) n (.root "α"))
     { id := { name := .app (.root "hom") f.id.name, kind := .morphism }
       domain := .atom { name := domAlg, kind := .sort }
       codomain := .atom { name := codAlg, kind := .sort }
@@ -70,12 +66,8 @@ def eilenbergMooreCategory (m : MonadData) : Theory :=
 
   -- Homomorphism axioms: f ∘ α_A = α_B ∘ T(f) for each base morphism
   let homAxioms := m.base.morphisms.map fun f =>
-    let domAlg := match f.domain with
-      | .atom g => .pair g.name (.arrow (.app (.root "T") g.name) g.name (.root "α"))
-      | _ => .root "?"
-    let codAlg := match f.codomain with
-      | .atom g => .pair g.name (.arrow (.app (.root "T") g.name) g.name (.root "α"))
-      | _ => .root "?"
+    let domAlg := let n := f.domain.toName; .pair n (.arrow (.app (.root "T") n) n (.root "α"))
+    let codAlg := let n := f.codomain.toName; .pair n (.arrow (.app (.root "T") n) n (.root "α"))
     let αA := { name := .nested domAlg "α", kind := .morphism }
     let αB := { name := .nested codAlg "α", kind := .morphism }
     let homF := { name := .app (.root "hom") f.id.name, kind := .morphism }

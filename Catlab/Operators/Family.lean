@@ -48,8 +48,8 @@ def familyCategory (t : Theory) : Theory :=
 
   -- Morphisms between singleton families: {A} → {B} is just a morphism A → B
   let singletonMorphisms := t.morphisms.map fun f =>
-    let domObjName := match f.domain with | .atom g => g.name | _ => .root "?"
-    let codObjName := match f.codomain with | .atom g => g.name | _ => .root "?"
+    let domObjName := f.domain.toName
+    let codObjName := f.codomain.toName
     let domId := famGid (.app (.root "Fam") (.graded domObjName 1))
     let codId := famGid (.app (.root "Fam") (.graded codObjName 1))
     { id := famGid (.app (.root "fam") f.id.name) .morphism

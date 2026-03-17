@@ -46,10 +46,8 @@ def matrixCategory (t : Theory) : Theory :=
 
   -- Matrix entries: for singletons, a morphism [A] → [B] is just a morphism A → B
   let singletonMorphisms := t.morphisms.map fun f =>
-    let domName := .app (.graded baseName 1) (match f.domain with
-      | .atom g => g.name | _ => .root "?")
-    let codName := .app (.graded baseName 1) (match f.codomain with
-      | .atom g => g.name | _ => .root "?")
+    let domName := .app (.graded baseName 1) f.domain.toName
+    let codName := .app (.graded baseName 1) f.codomain.toName
     { id := { name := .app (.root "mat") f.id.name, kind := .morphism }
       domain := .atom { name := domName, kind := .sort }
       codomain := .atom { name := codName, kind := .sort }

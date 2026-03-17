@@ -43,7 +43,11 @@ def exampleA : Theory := tensorTheories TheoryOfMonoids TheoryOfAbelianGroups
     IO.println s!"  • {mor.pp}"
   IO.println ""
   IO.println "Interchange axioms (Eckmann-Hilton):"
-  for ax in t.axioms.filter (fun (a : Generator2) => a.id.name.toString.startsWith "interchange") do
+  for ax in t.axioms.filter (fun (a : Generator2) =>
+    match a.id.name with
+    | .root s => s.startsWith "interchange"
+    | .nested (.root "interchange") _ => true
+    | _ => false) do
     IO.println s!"  • {ax.pp}"
 
 -- ============================================================

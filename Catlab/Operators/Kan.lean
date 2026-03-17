@@ -26,6 +26,28 @@ structure TheoryFunctor where
   /-- How morphisms map -/
   onMorphisms : GeneratorId → Expr
 
+/-- Lift a TheoryFunctor's object-mapping over the full Expr AST.
+    This allows composing functors: G.liftExpr (F.liftExpr e). -/
+partial def TheoryFunctor.liftExpr (tf : TheoryFunctor) (e : Expr) : Expr :=
+  match e with
+  | .atom gid => tf.onObjects gid
+  | .id obj => .id (tf.liftExpr obj)
+  | .comp f g => .comp (tf.liftExpr f) (tf.liftExpr g)
+  | .prod a b => .prod (tf.liftExpr a) (tf.liftExpr b)
+  | .coprod a b => .coprod (tf.liftExpr a) (tf.liftExpr b)
+  | .hom a b => .hom (tf.liftExpr a) (tf.liftExpr b)
+  | .tensor a b => .tensor (tf.liftExpr a) (tf.liftExpr b)
+  | .sigma v base fam => .sigma v (tf.liftExpr base) (tf.liftExpr fam)
+  | .pi v base fam => .pi v (tf.liftExpr base) (tf.liftExpr fam)
+  | .fiber m p => .fiber (tf.liftExpr m) (tf.liftExpr p)
+  | .proj i s => .proj i (tf.liftExpr s)
+  | .inj i t => .inj i (tf.liftExpr t)
+  | .app f x => .app (tf.liftExpr f) (tf.liftExpr x)
+  | .limit d => .limit (tf.liftExpr d)
+  | .colimit d => .colimit (tf.liftExpr d)
+  | .natComponent n x => .natComponent (tf.liftExpr n) (tf.liftExpr x)
+  | .unit | .terminal | .initial | .var _ => e
+
 /-- Compute the left Kan extension Lan_K F.
 
     For each object b in B, (Lan_K F)(b) is the colimit (coend)

@@ -74,8 +74,8 @@ def cleavageToIndexed (fib : FibrationData) : Theory :=
 
   -- Morphisms: reindexing functors for each base morphism
   let reindexMorphisms := fib.base.morphisms.flatMap fun f =>
-    let domName := match f.domain with | .atom g => g.name | _ => .root "?"
-    let codName := match f.codomain with | .atom g => g.name | _ => .root "?"
+    let domName := f.domain.toName
+    let codName := f.codomain.toName
     [{ id := { name := .app (.root "reindex") f.id.name, kind := .morphism }
        domain := .atom { name := .app (.root "Fib") codName, kind := .sort }
        codomain := .atom { name := .app (.root "Fib") domName, kind := .sort }

@@ -34,7 +34,7 @@ structure Adjunction where
 def adjunctionUnit (adj : Adjunction) : List Generator1 :=
   adj.source.objects.map fun a =>
     let fa := adj.leftAdjoint.onObjects a.id
-    let gfa := adj.rightAdjoint.onObjects a.id  -- simplified: should be G applied to F(a)
+    let gfa := adj.rightAdjoint.liftExpr fa  -- G applied to F(a)
     { id := gid s!"η_{a.id.name}"
       domain := .atom a.id
       codomain := gfa
@@ -45,7 +45,7 @@ def adjunctionUnit (adj : Adjunction) : List Generator1 :=
 def adjunctionCounit (adj : Adjunction) : List Generator1 :=
   adj.target.objects.map fun b =>
     let gb := adj.rightAdjoint.onObjects b.id
-    let fgb := adj.leftAdjoint.onObjects b.id  -- simplified
+    let fgb := adj.leftAdjoint.liftExpr gb  -- F applied to G(b)
     { id := gid s!"ε_{b.id.name}"
       domain := fgb
       codomain := .atom b.id
@@ -71,7 +71,7 @@ def triangleIdentities (adj : Adjunction) : List Generator2 :=
 /-- Extract the monad T = GF from an adjunction F ⊣ G.
     This gives the monad on the source category C. -/
 def adjunctionToMonad (adj : Adjunction) : MonadData :=
-  { functor := fun e => adj.rightAdjoint.onObjects (adj.leftAdjoint.onObjects (gid s!"{repr e}") |> fun _ => gid "GF")
+  { functor := fun e => adj.rightAdjoint.liftExpr (adj.leftAdjoint.liftExpr e)
     unit := gid s!"{adj.name}_η"
     mult := gid s!"{adj.name}_μ"
     base := adj.source }
@@ -79,7 +79,7 @@ def adjunctionToMonad (adj : Adjunction) : MonadData :=
 /-- Extract the comonad W = FG from an adjunction F ⊣ G.
     This gives the comonad on the target category D. -/
 def adjunctionToComonad (adj : Adjunction) : ComonadData :=
-  { functor := fun e => adj.leftAdjoint.onObjects (adj.rightAdjoint.onObjects (gid s!"{repr e}") |> fun _ => gid "FG")
+  { functor := fun e => adj.leftAdjoint.liftExpr (adj.rightAdjoint.liftExpr e)
     counit := gid s!"{adj.name}_ε"
     comult := gid s!"{adj.name}_δ"
     base := adj.target }

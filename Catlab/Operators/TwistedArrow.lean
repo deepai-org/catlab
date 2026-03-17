@@ -25,8 +25,7 @@ private def Expr.atom? : Expr → Option GeneratorId
       a "twisted square" (α : A' → A, β : B → B') with axiom g = β ∘ f ∘ α.
     Axioms: commutativity of each twisted square. -/
 def twistedArrow (t : Theory) : Theory :=
-  let gidName (e : Expr) : Name :=
-    match e.atom? with | some g => g.name | none => .root "?"
+  let gidName (e : Expr) : Name := e.toName
 
   -- Helper to get the arrow name for a morphism
   let twObjName (f : Generator1) : Name :=

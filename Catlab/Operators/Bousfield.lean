@@ -21,8 +21,6 @@ namespace CatLab
     - Morphisms: inherited from the base, restricted to local objects
     - Axioms: the locality conditions (precomposition isos) -/
 def bousfieldLocalization (t : Theory) (localMorphisms : List GeneratorId) : Theory :=
-  let exprName (e : Expr) : Name := match e with | .atom g => g.name | _ => .root "?"
-
   -- Objects: for each base object X, create L_W(X) — the W-local replacement
   let localObjects := t.objects.map fun x =>
     { id := { name := Name.app (.root "L_W") x.id.name, index := 0, kind := .sort }
@@ -38,8 +36,8 @@ def bousfieldLocalization (t : Theory) (localMorphisms : List GeneratorId) : The
   -- Morphisms between local objects: for each base morphism f : A → B,
   -- an induced L_W(f) : L_W(A) → L_W(B)
   let localMorphisms' := t.morphisms.map fun f =>
-    let dn := exprName f.domain
-    let cn := exprName f.codomain
+    let dn := f.domain.toName
+    let cn := f.codomain.toName
     { id := { name := Name.app (.root "L_W") f.id.name, index := 0, kind := .morphism }
       domain := .atom { name := Name.app (.root "L_W") dn, index := 0, kind := .sort }
       codomain := .atom { name := Name.app (.root "L_W") cn, index := 0, kind := .sort }
@@ -47,8 +45,8 @@ def bousfieldLocalization (t : Theory) (localMorphisms : List GeneratorId) : The
 
   -- Naturality of localization: L_W(f) ∘ η_A = η_B ∘ f
   let naturalityAxioms := t.morphisms.map fun f =>
-    let dn := exprName f.domain
-    let cn := exprName f.codomain
+    let dn := f.domain.toName
+    let cn := f.codomain.toName
     let ηA : GeneratorId := { name := Name.nested (Name.app (.root "L_W") dn) "η", index := 0, kind := .morphism }
     let ηB : GeneratorId := { name := Name.nested (Name.app (.root "L_W") cn) "η", index := 0, kind := .morphism }
     let lwF : GeneratorId := { name := Name.app (.root "L_W") f.id.name, index := 0, kind := .morphism }

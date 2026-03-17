@@ -30,11 +30,19 @@ def nerve (t : Theory) (maxDim : Nat := 3) : Theory :=
       description := s!"{n}-simplices of the nerve of {t.name}"
         : Generator0 }
 
+  -- Face map GeneratorId using structured Name
+  let faceId (i n : Nat) : GeneratorId :=
+    { name := .simplexFace i n, index := 0, kind := .morphism }
+
+  -- Degeneracy map GeneratorId using structured Name
+  let degId (i n : Nat) : GeneratorId :=
+    { name := .simplexDegeneracy i n, index := 0, kind := .morphism }
+
   -- Face maps: dᵢ : N(C)_n → N(C)_{n-1} for 0 ≤ i ≤ n
   let faceMaps := List.range (maxDim + 1) |>.flatMap fun n =>
     if n == 0 then []
     else List.range (n + 1) |>.map fun i =>
-      { id := gid s!"d_{i}^{n}"
+      { id := faceId i n
         domain := .atom (simplexName n)
         codomain := .atom (simplexName (n - 1))
         description := s!"Face map d_{i} : N(C)_{n} → N(C)_{n-1}"
@@ -43,7 +51,7 @@ def nerve (t : Theory) (maxDim : Nat := 3) : Theory :=
   -- Degeneracy maps: sᵢ : N(C)_n → N(C)_{n+1} for 0 ≤ i ≤ n
   let degeneracyMaps := List.range maxDim |>.flatMap fun n =>
     List.range (n + 1) |>.map fun i =>
-      { id := gid s!"s_{i}^{n}"
+      { id := degId i n
         domain := .atom (simplexName n)
         codomain := .atom (simplexName (n + 1))
         description := s!"Degeneracy map s_{i} : N(C)_{n} → N(C)_{n+1}"
@@ -57,11 +65,11 @@ def nerve (t : Theory) (maxDim : Nat := 3) : Theory :=
       List.range j |>.map fun i =>
         { id := gid s!"face_comm_{i}_{j}^{n}"
           leftPath := .comp
-            (.atom (gid s!"d_{j}^{n}"))
-            (.atom (gid s!"d_{i}^{n - 1}"))
+            (.atom (faceId j n))
+            (.atom (faceId i (n - 1)))
           rightPath := .comp
-            (.atom (gid s!"d_{i}^{n}"))
-            (.atom (gid s!"d_{j - 1}^{n - 1}"))
+            (.atom (faceId i n))
+            (.atom (faceId (j - 1) (n - 1)))
           description := s!"Simplicial identity: d_{i} ∘ d_{j} = d_{j-1} ∘ d_{i} for i < j"
             : Generator2 }
 
@@ -72,11 +80,11 @@ def nerve (t : Theory) (maxDim : Nat := 3) : Theory :=
       List.range (j + 1) |>.map fun i =>
         { id := gid s!"deg_comm_{i}_{j}^{n}"
           leftPath := .comp
-            (.atom (gid s!"s_{j}^{n}"))
-            (.atom (gid s!"s_{i}^{n + 1}"))
+            (.atom (degId j n))
+            (.atom (degId i (n + 1)))
           rightPath := .comp
-            (.atom (gid s!"s_{i}^{n}"))
-            (.atom (gid s!"s_{j + 1}^{n + 1}"))
+            (.atom (degId i n))
+            (.atom (degId (j + 1) (n + 1)))
           description := s!"Simplicial identity: s_{i} ∘ s_{j} = s_{j+1} ∘ s_{i} for i ≤ j"
             : Generator2 }
 
@@ -87,29 +95,29 @@ def nerve (t : Theory) (maxDim : Nat := 3) : Theory :=
         if i < j then
           some { id := gid s!"mixed_lt_{i}_{j}^{n}"
                  leftPath := .comp
-                   (.atom (gid s!"s_{j}^{n}"))
-                   (.atom (gid s!"d_{i}^{n + 1}"))
+                   (.atom (degId j n))
+                   (.atom (faceId i (n + 1)))
                  rightPath := .comp
-                   (.atom (gid s!"d_{i}^{n}"))
-                   (.atom (gid s!"s_{j - 1}^{n - 1}"))
+                   (.atom (faceId i n))
+                   (.atom (degId (j - 1) (n - 1)))
                  description := s!"Mixed identity: d_{i} ∘ s_{j} = s_{j-1} ∘ d_{i} (i < j)"
                    : Generator2 }
         else if i == j || i == j + 1 then
           some { id := gid s!"mixed_eq_{i}_{j}^{n}"
                  leftPath := .comp
-                   (.atom (gid s!"s_{j}^{n}"))
-                   (.atom (gid s!"d_{i}^{n + 1}"))
+                   (.atom (degId j n))
+                   (.atom (faceId i (n + 1)))
                  rightPath := Expr.id (.atom (simplexName n))
                  description := s!"Mixed identity: d_{i} ∘ s_{j} = id (i = j or i = j+1)"
                    : Generator2 }
         else if i > j + 1 then
           some { id := gid s!"mixed_gt_{i}_{j}^{n}"
                  leftPath := .comp
-                   (.atom (gid s!"s_{j}^{n}"))
-                   (.atom (gid s!"d_{i}^{n + 1}"))
+                   (.atom (degId j n))
+                   (.atom (faceId i (n + 1)))
                  rightPath := .comp
-                   (.atom (gid s!"d_{i - 1}^{n}"))
-                   (.atom (gid s!"s_{j}^{n - 1}"))
+                   (.atom (faceId (i - 1) n))
+                   (.atom (degId j (n - 1)))
                  description := s!"Mixed identity: d_{i} ∘ s_{j} = s_{j} ∘ d_{i-1} (i > j+1)"
                    : Generator2 }
         else none
@@ -134,8 +142,9 @@ def realize (t : Theory) : Theory :=
       description := s!"Realization of 0-simplex {o.id.name}" }
 
   -- Non-structural morphisms become category morphisms
+  -- Use structured name matching instead of string parsing
   let realMorphisms : List Generator1 := (t.morphisms.filter fun m =>
-    ¬ (m.id.name.toString.startsWith "d_" || m.id.name.toString.startsWith "s_")
+    m.id.name.isSimplexFace?.isNone && m.id.name.isSimplexDegeneracy?.isNone
   ).map fun m =>
     { id := gid s!"π({m.id.name})"
       domain := m.domain
@@ -145,7 +154,7 @@ def realize (t : Theory) : Theory :=
   -- Degeneracy = identity axioms
   let identityAxioms : List Generator2 := dim0.map fun o =>
     { id := gid s!"degen_identity_{o.id.name}"
-      leftPath := .atom (gid "s_0^0")
+      leftPath := .atom { name := .simplexDegeneracy 0 0, kind := .morphism }
       rightPath := Expr.id (.atom (gid s!"π({o.id.name})"))
       description := s!"Degenerate 1-simplex at {o.id.name} is the identity" }
 
@@ -153,8 +162,9 @@ def realize (t : Theory) : Theory :=
   let dim2 := t.objects.filter fun o => o.id.name.degree? == some 2
   let compositionAxioms : List Generator2 := dim2.map fun tau =>
     { id := gid s!"composition_{tau.id.name}"
-      leftPath := .comp (.atom (gid "d_2^2")) (.atom (gid "d_0^2"))
-      rightPath := .atom (gid "d_1^2")
+      leftPath := .comp (.atom { name := .simplexFace 2 2, kind := .morphism })
+                         (.atom { name := .simplexFace 0 2, kind := .morphism })
+      rightPath := .atom { name := .simplexFace 1 2, kind := .morphism }
       description := s!"2-simplex {tau.id.name} gives composition" }
 
   { name := s!"π({t.name})"

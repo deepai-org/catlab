@@ -29,6 +29,12 @@ inductive Name where
   | arrow (src : Name) (tgt : Name) (label : Name)
   /-- Tensor product of names: for Eckmann-Hilton and Day convolution -/
   | tensor (left : Name) (right : Name)
+  /-- Simplicial face map name: dᵢ at dimension n -/
+  | simplexFace (i : Nat) (dim : Nat)
+  /-- Simplicial degeneracy map name: sᵢ at dimension n -/
+  | simplexDegeneracy (i : Nat) (dim : Nat)
+  /-- Negation of a name (for Heyting/Boolean operators) -/
+  | neg (inner : Name)
   deriving Repr, Hashable, Inhabited
 
 partial def Name.toString : Name → String
@@ -42,6 +48,9 @@ partial def Name.toString : Name → String
   | .pair l r => s!"({l.toString},{r.toString})"
   | .arrow s t l => s!"({s.toString}→{t.toString}:{l.toString})"
   | .tensor l r => s!"{l.toString}⊗{r.toString}"
+  | .simplexFace i n => s!"d_{i}^{n}"
+  | .simplexDegeneracy i n => s!"s_{i}^{n}"
+  | .neg inner => s!"¬{inner.toString}"
 
 partial def Name.beq : Name → Name → Bool
   | .root a, .root b => a == b
@@ -54,6 +63,9 @@ partial def Name.beq : Name → Name → Bool
   | .pair l1 r1, .pair l2 r2 => l1.beq l2 && r1.beq r2
   | .arrow s1 t1 l1, .arrow s2 t2 l2 => s1.beq s2 && t1.beq t2 && l1.beq l2
   | .tensor l1 r1, .tensor l2 r2 => l1.beq l2 && r1.beq r2
+  | .simplexFace i1 n1, .simplexFace i2 n2 => i1 == i2 && n1 == n2
+  | .simplexDegeneracy i1 n1, .simplexDegeneracy i2 n2 => i1 == i2 && n1 == n2
+  | .neg a, .neg b => a.beq b
   | _, _ => false
 
 /-- Extract the graded degree from a Name, if it is graded -/
@@ -71,6 +83,21 @@ def Name.left? : Name → Option Name
 def Name.right? : Name → Option Name
   | .pair _ r => some r
   | .tensor _ r => some r
+  | _ => none
+
+/-- Check if a Name is a negation -/
+def Name.isNeg? : Name → Option Name
+  | .neg inner => some inner
+  | _ => none
+
+/-- Check if a Name is a simplex face map -/
+def Name.isSimplexFace? : Name → Option (Nat × Nat)
+  | .simplexFace i n => some (i, n)
+  | _ => none
+
+/-- Check if a Name is a simplex degeneracy map -/
+def Name.isSimplexDegeneracy? : Name → Option (Nat × Nat)
+  | .simplexDegeneracy i n => some (i, n)
   | _ => none
 
 instance : BEq Name where beq := Name.beq
@@ -171,6 +198,31 @@ def tensorList : List Expr → Expr
   | a :: as => .tensor a (tensorList as)
 
 end Expr
+
+/-- Deterministically flatten an Expr into a Name, preserving structure.
+    Unlike the old `exprName` hack, this handles all Expr constructors
+    instead of silently degrading to `"?"`. -/
+partial def Expr.toName : Expr → Name
+  | .atom g => g.name
+  | .id obj => .app (.root "id") obj.toName
+  | .comp f g => .app (.app (.root "∘") f.toName) g.toName
+  | .prod a b => .pair a.toName b.toName
+  | .coprod a b => .app (.app (.root "⊔") a.toName) b.toName
+  | .hom a b => .arrow a.toName b.toName (.root "hom")
+  | .tensor a b => .tensor a.toName b.toName
+  | .unit => .root "𝟙"
+  | .terminal => .root "⊤"
+  | .initial => .root "⊥"
+  | .sigma v base fam => .app (.app (.root s!"Σ_{v}") base.toName) fam.toName
+  | .pi v base fam => .app (.app (.root s!"Π_{v}") base.toName) fam.toName
+  | .fiber m p => .app (.app (.root "fib") m.toName) p.toName
+  | .proj i src => .app (.root s!"π_{i}") src.toName
+  | .inj i tgt => .app (.root s!"ι_{i}") tgt.toName
+  | .var n => .root n
+  | .app f x => .app f.toName x.toName
+  | .limit d => .app (.root "lim") d.toName
+  | .colimit d => .app (.root "colim") d.toName
+  | .natComponent n x => .app n.toName x.toName
 
 /-- Substitution: replace free occurrences of var name with replacement -/
 def Expr.subst (e : Expr) (name : String) (replacement : Expr) : Expr :=

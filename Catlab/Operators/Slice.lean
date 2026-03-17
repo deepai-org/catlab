@@ -10,6 +10,7 @@
 -/
 
 import Catlab.Core.Theory
+import Catlab.Core.Equality
 
 namespace CatLab
 
@@ -18,23 +19,45 @@ namespace CatLab
     Objects of C/X are morphisms into X.
     Morphisms of C/X are commuting triangles. -/
 def slice (t : Theory) (x : Expr) : Theory :=
-  -- Objects of C/X: each morphism f : A → X in the original theory
-  -- whose codomain matches x becomes an object
-  let sliceObjects := t.morphisms.filterMap fun g =>
-    -- In a full implementation, we'd check codomain == x structurally
-    some { id := { name := .root s!"({g.id.name} → X)", index := 0 }
-           description := s!"Slice object: {g.id.name} over X" }
+  -- Objects of C/X: each morphism f : A → X whose codomain matches x
+  let morphismsIntoX := t.morphisms.filter fun g => g.codomain == x
+  let sliceObjects := morphismsIntoX.map fun g =>
+    { id := { name := .arrow g.domain.toName x.toName g.id.name, index := 0 }
+      description := s!"Slice object: {g.id.name} over X" : Generator0 }
 
-  -- Morphisms of C/X: for each pair of slice objects (f : A → X, g : B → X),
-  -- a morphism h : A → B such that g ∘ h = f
-  -- This is a placeholder; full implementation would enumerate commuting triangles
-  let sliceMorphisms : List Generator1 := []
+  -- Morphisms of C/X: for each pair (f : A → X, g : B → X),
+  -- look for h : A → B in C such that g ∘ h could equal f (commuting triangle)
+  let sliceMorphisms := morphismsIntoX.flatMap fun f =>
+    morphismsIntoX.filterMap fun g =>
+      -- Find h : dom(f) → dom(g) in C
+      t.morphisms.find? (fun h => h.domain == f.domain && h.codomain == g.domain)
+      |>.map fun h =>
+        let fSlice : GeneratorId := { name := .arrow f.domain.toName x.toName f.id.name }
+        let gSlice : GeneratorId := { name := .arrow g.domain.toName x.toName g.id.name }
+        { id := { name := .nested (.pair fSlice.name gSlice.name) h.id.name.toString,
+                  index := 0, kind := .morphism }
+          domain := .atom fSlice
+          codomain := .atom gSlice
+          description := s!"Slice morphism {h.id.name}: {f.id.name} → {g.id.name} over X" : Generator1 }
+
+  -- Commutativity axioms: g ∘ h = f for each slice morphism
+  let commuteAxioms := morphismsIntoX.flatMap fun f =>
+    morphismsIntoX.filterMap fun g =>
+      t.morphisms.find? (fun h => h.domain == f.domain && h.codomain == g.domain)
+      |>.map fun h =>
+        let sliceMorphName := Name.nested (.pair (.arrow f.domain.toName x.toName f.id.name)
+                                                  (.arrow g.domain.toName x.toName g.id.name))
+                                          h.id.name.toString
+        { id := { name := .nested sliceMorphName "comm", index := 0, kind := .twoCell }
+          leftPath := .comp (.atom h.id) (.atom g.id)
+          rightPath := .atom f.id
+          description := s!"Commutativity: {g.id.name} ∘ {h.id.name} = {f.id.name}" : Generator2 }
 
   { name := s!"{t.name}/X"
     doctrine := t.doctrine
     objects := sliceObjects
     morphisms := sliceMorphisms
-    axioms := [] }
+    axioms := commuteAxioms }
 
 /-- The forgetful functor C/X → C: sends (f : A → X) ↦ A -/
 def sliceForgetful (t : Theory) (x : Expr) : List Generator1 :=

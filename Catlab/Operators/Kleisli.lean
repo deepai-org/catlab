@@ -43,9 +43,7 @@ def kleisliCategory (m : MonadData) : Theory :=
   -- Left unit law: η ⊛ f = f
   let leftUnitAxioms := m.base.morphisms.map fun f =>
     let klF := { name := .app (.root "kl") f.id.name, kind := .morphism }
-    let domName := match f.domain with
-      | .atom g => g.name
-      | _ => .root "?"
+    let domName := f.domain.toName
     let klId := { name := .app (.root "η") domName, kind := .morphism }
     { id := gid s!"kl_left_unit_{f.id.name}"
       leftPath := .comp (.atom klId) (.atom klF)
@@ -55,9 +53,7 @@ def kleisliCategory (m : MonadData) : Theory :=
   -- Right unit law: f ⊛ η = f
   let rightUnitAxioms := m.base.morphisms.map fun f =>
     let klF := { name := .app (.root "kl") f.id.name, kind := .morphism }
-    let codName := match f.codomain with
-      | .atom g => g.name
-      | _ => .root "?"
+    let codName := f.codomain.toName
     let klId := { name := .app (.root "η") codName, kind := .morphism }
     { id := gid s!"kl_right_unit_{f.id.name}"
       leftPath := .comp (.atom klF) (.atom klId)

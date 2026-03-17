@@ -16,14 +16,15 @@ import Catlab.Core.Equality
 namespace CatLab
 
 /-- Signature of a completed theory: counts of objects, morphisms, and axioms,
-    plus a sorted list of morphism arities (domain/codomain pairs as strings).
+    plus a sorted list of morphism arities (domain/codomain pairs as Names).
     Two Cauchy-complete theories are equivalent iff their signatures match. -/
 structure CompletedSignature where
   numObjects : Nat
   numMorphisms : Nat
   numAxioms : Nat
-  arities : List (String × String)
-  deriving Repr, Inhabited, BEq
+  /-- Morphism arities as (domain, codomain) Name pairs, sorted for comparison -/
+  arities : List (Name × Name)
+  deriving Repr, Inhabited
 
 /-- Find all endomorphisms in a theory (morphisms f : A → A). -/
 private def findEndomorphisms (t : Theory) : List Generator1 :=
@@ -89,10 +90,18 @@ def moritaEnvelope (t : Theory) : Theory :=
     morphisms := t.morphisms ++ retractions ++ sections
     axioms := t.axioms ++ factorAxioms ++ retractionAxioms ++ idempotenceAxioms }
 
+instance : BEq CompletedSignature where
+  beq a b := a.numObjects == b.numObjects &&
+             a.numMorphisms == b.numMorphisms &&
+             a.numAxioms == b.numAxioms &&
+             a.arities.length == b.arities.length &&
+             (a.arities.zip b.arities |>.all fun ((d1, c1), (d2, c2)) => d1 == d2 && c1 == c2)
+
 /-- Compute the signature of a completed theory for comparison. -/
 private def completedSignature (t : Theory) : CompletedSignature :=
-  let arities := t.morphisms.map fun m => (s!"{repr m.domain}", s!"{repr m.codomain}")
-  let sortedArities := arities.mergeSort (fun a b => (a.1 ++ a.2) < (b.1 ++ b.2))
+  let arities := t.morphisms.map fun m => (m.domain.toName, m.codomain.toName)
+  let sortedArities := arities.mergeSort (fun a b =>
+    toString a.1 ++ toString a.2 < toString b.1 ++ toString b.2)
   { numObjects := t.objects.length
     numMorphisms := t.morphisms.length
     numAxioms := t.axioms.length
