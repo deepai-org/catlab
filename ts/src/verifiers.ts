@@ -614,6 +614,330 @@ export class OptimizationVerifier implements Verifier {
   }
 }
 
+// ── 9. Pullback complement verifier ─────────────────────────────────────────
+
+/**
+ * find X such that pullback(base, X) ≅ target
+ * Dual of pushout complement.
+ */
+export class PullbackComplementVerifier implements Verifier {
+  constructor(
+    private baseName: string,
+    private targetName: string,
+  ) {}
+
+  async preflight(catlab: CatlabClient, timeoutMs: number): Promise<ProblemSpec> {
+    const [base, target] = await Promise.all([
+      fetchTheorySummary(catlab, this.baseName, timeoutMs),
+      fetchTheorySummary(catlab, this.targetName, timeoutMs),
+    ]);
+
+    return {
+      kind: "pullback_complement",
+      problemDescription:
+        `Find a theory X such that **pullback(${this.baseName}, X) ≅ "${this.targetName}"**.\n\n` +
+        `This is the dual of pushout complement. The pullback (fibered product) of your ` +
+        `candidate with the base over a shared sub-theory must produce the target.`,
+      hint:
+        `**Recipe for pullback complement:**\n` +
+        `1. Study what the target has beyond the base.\n` +
+        `2. Your candidate must contain the base generators (they get identified in the pullback).\n` +
+        `3. Add the "extra" generators that produce the target when pulled back.\n` +
+        `4. This is dual to pushout complement — think of it as working in the opposite category.`,
+      contextJson:
+        `## Base Theory: "${this.baseName}"\n\n\`\`\`json\n${base.json}\n\`\`\`\n\n` +
+        `## Target Theory: "${this.targetName}"\n\n\`\`\`json\n${target.json}\n\`\`\``,
+    };
+  }
+
+  async verify(
+    catlab: CatlabClient,
+    payload: unknown,
+    timeoutMs: number,
+  ): Promise<VerificationResult> {
+    const candidate = payload as TheoryJson;
+    const res = await catlab.request(
+      {
+        command: "evaluate_pullback_complement",
+        base: this.baseName,
+        target: this.targetName,
+        candidate,
+      },
+      timeoutMs,
+    );
+    if (res.status === "error") throw new Error(`Lean error: ${res.message}`);
+    return res.result!;
+  }
+}
+
+// ── 10. Simplification verifier ─────────────────────────────────────────────
+
+/**
+ * find structurally minimal X ≅ T
+ * The candidate must be isomorphic to target but with fewer generators.
+ */
+export class SimplificationVerifier implements Verifier {
+  constructor(private targetName: string) {}
+
+  async preflight(catlab: CatlabClient, timeoutMs: number): Promise<ProblemSpec> {
+    const target = await fetchTheorySummary(catlab, this.targetName, timeoutMs);
+
+    return {
+      kind: "simplification",
+      problemDescription:
+        `Find a theory X that is **structurally equivalent to "${this.targetName}"** ` +
+        `but with **fewer total generators** (objects + morphisms + axioms).\n\n` +
+        `The CAS will verify X ≅ "${this.targetName}" and compare generator counts.`,
+      hint:
+        `**Strategy for simplification:**\n` +
+        `1. Look for redundant axioms (consequences of other axioms).\n` +
+        `2. Look for derivable morphisms (compositions of existing ones).\n` +
+        `3. Look for objects that can be expressed as products/coproducts.\n` +
+        `4. The structural diff must show zero mismatches.`,
+      contextJson:
+        `## Target Theory: "${this.targetName}"\n\n\`\`\`json\n${target.json}\n\`\`\``,
+    };
+  }
+
+  async verify(
+    catlab: CatlabClient,
+    payload: unknown,
+    timeoutMs: number,
+  ): Promise<VerificationResult> {
+    const candidate = payload as TheoryJson;
+    const res = await catlab.request(
+      {
+        command: "evaluate_simplification",
+        target: this.targetName,
+        candidate,
+      },
+      timeoutMs,
+    );
+    if (res.status === "error") throw new Error(`Lean error: ${res.message}`);
+    const result = res.result!;
+    const resOk = res as any;
+    // Add size info to feedback
+    result.feedbackStrings = [
+      `Candidate size: ${resOk.candidate_size ?? "?"} generators`,
+      `Target size: ${resOk.target_size ?? "?"} generators`,
+      ...(result.feedbackStrings ?? []),
+    ];
+    return result;
+  }
+
+  formatFeedback(result: VerificationResult, _payload: unknown): string {
+    const lines: string[] = [];
+    if (result.feedbackStrings) {
+      for (const fb of result.feedbackStrings) lines.push(`• ${fb}`);
+    }
+    lines.push("\n" + formatStructuralDiff(result));
+    return lines.join("\n");
+  }
+}
+
+// ── 11. Model finding verifier ──────────────────────────────────────────────
+
+/**
+ * Generate a concrete, valid instance/algebra for a theory.
+ * The candidate must be a theory with matching structure.
+ */
+export class ModelFindingVerifier implements Verifier {
+  constructor(private theoryName: string) {}
+
+  async preflight(catlab: CatlabClient, timeoutMs: number): Promise<ProblemSpec> {
+    const theory = await fetchTheorySummary(catlab, this.theoryName, timeoutMs);
+
+    return {
+      kind: "model_finding",
+      problemDescription:
+        `Generate a **concrete model (instance)** of the theory "${this.theoryName}".\n\n` +
+        `Your candidate must be a theory with the same structure as "${this.theoryName}" — ` +
+        `same number of objects, morphisms with matching domain/codomain shapes, and axioms ` +
+        `that reduce to the same normal forms. Think of it as providing a concrete interpretation.`,
+      hint:
+        `**Strategy for model finding:**\n` +
+        `1. Study the theory's objects, morphisms, and axioms.\n` +
+        `2. Create a theory with matching structural shape.\n` +
+        `3. You may rename generators — the CAS uses shape matching.\n` +
+        `4. All axioms must hold in your instance.`,
+      contextJson:
+        `## Theory: "${this.theoryName}"\n\n\`\`\`json\n${theory.json}\n\`\`\``,
+    };
+  }
+
+  async verify(
+    catlab: CatlabClient,
+    payload: unknown,
+    timeoutMs: number,
+  ): Promise<VerificationResult> {
+    const candidate = payload as TheoryJson;
+    const res = await catlab.request(
+      {
+        command: "evaluate_model",
+        theory: this.theoryName,
+        candidate,
+      },
+      timeoutMs,
+    );
+    if (res.status === "error") throw new Error(`Lean error: ${res.message}`);
+    return res.result!;
+  }
+}
+
+// ── 12. Sub-object verifier ─────────────────────────────────────────────────
+
+/**
+ * Find a sub-theory of target satisfying property P.
+ * The candidate must be a sub-theory (all generators exist in target).
+ */
+export class SubobjectVerifier implements Verifier {
+  constructor(
+    private targetName: string,
+    private property: string,
+  ) {}
+
+  async preflight(catlab: CatlabClient, timeoutMs: number): Promise<ProblemSpec> {
+    const target = await fetchTheorySummary(catlab, this.targetName, timeoutMs);
+
+    return {
+      kind: "subobject",
+      problemDescription:
+        `Find a **sub-theory** of "${this.targetName}" that satisfies the property **"${this.property}"**.\n\n` +
+        `Your candidate must use ONLY objects and morphisms that exist in the target theory. ` +
+        `It should be a coherent sub-theory (axioms must be consistent) that satisfies the property.`,
+      hint:
+        `**Strategy for sub-object finding:**\n` +
+        `1. Study the target theory's generators.\n` +
+        `2. Select a subset that forms a self-consistent sub-theory.\n` +
+        `3. Include only the axioms that involve your selected generators.\n` +
+        `4. Verify the property "${this.property}" holds for your selection.`,
+      contextJson:
+        `## Target Theory: "${this.targetName}"\n\n\`\`\`json\n${target.json}\n\`\`\`\n\n` +
+        `## Required Property: "${this.property}"`,
+    };
+  }
+
+  async verify(
+    catlab: CatlabClient,
+    payload: unknown,
+    timeoutMs: number,
+  ): Promise<VerificationResult> {
+    const candidate = payload as TheoryJson;
+    const res = await catlab.request(
+      {
+        command: "evaluate_subobject",
+        target: this.targetName,
+        property: this.property,
+        candidate,
+      },
+      timeoutMs,
+    );
+    if (res.status === "error") throw new Error(`Lean error: ${res.message}`);
+
+    const result = res.result!;
+    const isSub = (res as any).is_subtheory === true;
+
+    if (!isSub) {
+      result.verified = false;
+      result.verificationStatus = `✗ Failed: candidate contains generators not in "${this.targetName}"`;
+      const notInTarget = (res as any).not_in_target ?? [];
+      result.feedbackStrings = [
+        `These generators are NOT in the target theory: ${notInTarget.join(", ")}`,
+        `Your candidate must only use generators from "${this.targetName}".`,
+      ];
+    }
+
+    return result;
+  }
+
+  formatFeedback(result: VerificationResult, _payload: unknown): string {
+    const lines: string[] = [];
+    if (result.feedbackStrings) {
+      for (const fb of result.feedbackStrings) lines.push(`• ${fb}`);
+    }
+    lines.push("\n" + formatStructuralDiff(result));
+    return lines.join("\n");
+  }
+}
+
+// ── 13. Synthesis verifier ──────────────────────────────────────────────────
+
+/**
+ * Find a morphism sequence in a theory that composes to a given type.
+ * The candidate extends the base theory with the desired composite morphism.
+ */
+export class SynthesisVerifier implements Verifier {
+  constructor(
+    private theoryName: string,
+    private source: string,
+    private target: string,
+  ) {}
+
+  async preflight(catlab: CatlabClient, timeoutMs: number): Promise<ProblemSpec> {
+    const theory = await fetchTheorySummary(catlab, this.theoryName, timeoutMs);
+
+    return {
+      kind: "synthesis",
+      problemDescription:
+        `Working within the theory "${this.theoryName}", find a **composite morphism** ` +
+        `from "${this.source}" to "${this.target}".\n\n` +
+        `Your candidate must include all generators from "${this.theoryName}" plus a new ` +
+        `morphism that is defined as a composition of existing morphisms, with an axiom ` +
+        `asserting it equals the desired composite.`,
+      hint:
+        `**Strategy for synthesis:**\n` +
+        `1. Include ALL objects and morphisms from "${this.theoryName}" verbatim.\n` +
+        `2. Add a new morphism with domain "${this.source}" and codomain "${this.target}".\n` +
+        `3. Add an axiom stating this morphism equals a comp([...]) of existing morphisms.\n` +
+        `4. The composition must typecheck: domains and codomains must chain correctly.`,
+      contextJson:
+        `## Theory: "${this.theoryName}"\n\n\`\`\`json\n${theory.json}\n\`\`\`\n\n` +
+        `## Desired morphism: ${this.source} → ${this.target}`,
+    };
+  }
+
+  async verify(
+    catlab: CatlabClient,
+    payload: unknown,
+    timeoutMs: number,
+  ): Promise<VerificationResult> {
+    const candidate = payload as TheoryJson;
+    const res = await catlab.request(
+      {
+        command: "evaluate_synthesis",
+        theory: this.theoryName,
+        candidate,
+      },
+      timeoutMs,
+    );
+    if (res.status === "error") throw new Error(`Lean error: ${res.message}`);
+
+    const result = res.result!;
+    const extendsTheory = (res as any).extends_theory === true;
+
+    if (!extendsTheory) {
+      result.verified = false;
+      result.verificationStatus = `✗ Failed: candidate doesn't include all generators from "${this.theoryName}"`;
+      const missing = (res as any).missing_from_theory ?? [];
+      result.feedbackStrings = [
+        `Missing generators from "${this.theoryName}": ${missing.join(", ")}`,
+        `Your candidate must include ALL generators from the base theory.`,
+      ];
+    }
+
+    return result;
+  }
+
+  formatFeedback(result: VerificationResult, _payload: unknown): string {
+    const lines: string[] = [];
+    if (result.feedbackStrings) {
+      for (const fb of result.feedbackStrings) lines.push(`• ${fb}`);
+    }
+    lines.push("\n" + formatStructuralDiff(result));
+    return lines.join("\n");
+  }
+}
+
 // ── Inverse problem descriptions ────────────────────────────────────────────
 
 function describeInverseProblem(

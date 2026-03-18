@@ -28,6 +28,11 @@ import {
   FactorizationVerifier,
   InterpolationVerifier,
   OptimizationVerifier,
+  PullbackComplementVerifier,
+  SimplificationVerifier,
+  ModelFindingVerifier,
+  SubobjectVerifier,
+  SynthesisVerifier,
 } from "./verifiers";
 import type { Verifier, SolverOptions } from "./types";
 
@@ -41,19 +46,25 @@ Usage: catlab-solve <targetTheory> <forwardOp> [options]    (inverse problem sho
 Problem types:
   inverse               find X such that op(X) ≅ target  (default)
   pushout-complement    find X such that pushout(base, X) ≅ target
+  pullback-complement   find X such that pullback(base, X) ≅ target
   extension             find X extending base with property P
   multi                 find X such that op₁(X)≅T₁ ∧ op₂(X)≅T₂
   fixed-point           find X such that op(X) ≅ X
   factorization         find (X,Y) such that X⊗Y ≅ target
   interpolation         find X with base ↪ X → target
   optimization          find X minimizing cost subject to op(X)≅target
+  simplify              find minimal X ≅ target
+  model-finding         generate a concrete instance of a theory
+  subobject             find sub-theory of target satisfying property P
+  synthesis             find morphism composition source → target in theory
 
 Problem arguments:
   --target <name>       Target theory name
   --op <name>           Forward operator (for inverse / fixed-point)
   --base <name>         Base theory (for pushout-complement / extension)
-  --property <name>     Property to check (for extension)
+  --property <name>     Property to check (for extension / subobject)
   --objectives <spec>   Comma-separated target:op pairs (for multi)
+  --source <name>       Source object (for synthesis)
 
 General options:
   --style <str>         Style guidance / hints for the LLM
@@ -118,6 +129,7 @@ function buildVerifier(args: string[]): {
   let base: string | undefined;
   let property: string | undefined;
   let objectivesStr: string | undefined;
+  let source: string | undefined;
   let repoRoot: string | undefined;
   const solverOpts: SolverOptions = {};
 
@@ -129,6 +141,7 @@ function buildVerifier(args: string[]): {
       case "--base":       base = args[++i]; break;
       case "--property":   property = args[++i]; break;
       case "--objectives": objectivesStr = args[++i]; break;
+      case "--source":     source = args[++i]; break;
       case "--style":      solverOpts.stylePrompt = args[++i]; break;
       case "--rounds":     solverOpts.maxRounds = parseInt(args[++i], 10); break;
       case "--timeout":    solverOpts.leanTimeoutMs = parseInt(args[++i], 10); break;
@@ -176,6 +189,26 @@ function buildVerifier(args: string[]): {
     case "optimization":
       if (!target || !op || !property) { console.error("--target, --op, and --property required for optimization"); usage(); }
       verifier = new OptimizationVerifier(op, target, property);
+      break;
+    case "pullback-complement":
+      if (!base || !target) { console.error("--base and --target required for pullback-complement"); usage(); }
+      verifier = new PullbackComplementVerifier(base, target);
+      break;
+    case "simplify":
+      if (!target) { console.error("--target required for simplify"); usage(); }
+      verifier = new SimplificationVerifier(target);
+      break;
+    case "model-finding":
+      if (!target) { console.error("--target required for model-finding"); usage(); }
+      verifier = new ModelFindingVerifier(target);
+      break;
+    case "subobject":
+      if (!target || !property) { console.error("--target and --property required for subobject"); usage(); }
+      verifier = new SubobjectVerifier(target, property);
+      break;
+    case "synthesis":
+      if (!target || !source || !base) { console.error("--base (theory), --source, and --target required for synthesis"); usage(); }
+      verifier = new SynthesisVerifier(base, source, target);
       break;
     default:
       console.error(`Unknown problem type: ${problemType}`);

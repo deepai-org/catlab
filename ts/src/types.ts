@@ -133,6 +133,33 @@ export type CatlabCommand =
       command: "evaluate_generic";
       handler: string;
       payload: unknown;
+    }
+  | {
+      command: "evaluate_pullback_complement";
+      base: string;
+      target: string;
+      candidate: TheoryJson;
+    }
+  | {
+      command: "evaluate_simplification";
+      target: string;
+      candidate: TheoryJson;
+    }
+  | {
+      command: "evaluate_model";
+      theory: string;
+      candidate: TheoryJson;
+    }
+  | {
+      command: "evaluate_subobject";
+      target: string;
+      property: string;
+      candidate: TheoryJson;
+    }
+  | {
+      command: "evaluate_synthesis";
+      theory: string;
+      candidate: TheoryJson;
     };
 
 export type CatlabRequest = CatlabCommand & { id: string };
@@ -155,6 +182,15 @@ export interface CatlabResponseOk {
   errors?: string[];
   count?: number;
   message?: string;
+  // Extra fields from new problem types
+  candidate_size?: number;
+  target_size?: number;
+  is_subtheory?: boolean;
+  not_in_target?: string[];
+  extends_theory?: boolean;
+  extends_base?: boolean;
+  missing_from_theory?: string[];
+  new_morphisms?: number;
 }
 
 export interface CatlabResponseError {
