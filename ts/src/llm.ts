@@ -378,8 +378,9 @@ export function formatStructuralDiff(result: VerificationResult): string {
         lines.push(`    RHS reduced to: ${v.rhsReduced}`);
         lines.push(`    → These must reduce to the SAME normal form`);
         lines.push(
-          `    💡 STRATEGY: You are missing an intermediate axiom. Add a new axiom ` +
-          `that explicitly rewrites '${v.lhsReduced}' into '${v.rhsReduced}'.`,
+          `    💡 STRATEGY: Your theory needs the equation '${v.lhsReduced} = ${v.rhsReduced}'. ` +
+          `Either add this as an axiom, or fix an existing axiom so that it states exactly ` +
+          `'${v.lhsReduced} = ${v.rhsReduced}' (check the order of composition arguments).`,
         );
       } else {
         lines.push(

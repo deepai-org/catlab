@@ -126,7 +126,7 @@ structure GeneratorId where
   deriving Repr, Hashable, Inhabited
 
 def GeneratorId.beq (a b : GeneratorId) : Bool :=
-  a.name == b.name && a.kind == b.kind && a.index == b.index
+  a.name == b.name && a.index == b.index
 
 instance : BEq GeneratorId where beq := GeneratorId.beq
 

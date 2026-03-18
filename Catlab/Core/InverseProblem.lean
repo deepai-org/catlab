@@ -154,6 +154,39 @@ private def normalizeShape (objIdx : Std.HashMap Name Nat) (e : Expr) : Expr :=
 -- Bounded rewriting
 -- ============================================================
 
+/-- Size of an expression (number of AST nodes). Used for orienting rewrite
+    rules so they always reduce toward smaller normal forms. -/
+private def exprSize : Expr → Nat
+  | .atom _      => 1
+  | .unit        => 1
+  | .terminal    => 1
+  | .initial     => 1
+  | .var _       => 1
+  | .comp f g    => 1 + exprSize f + exprSize g
+  | .id e        => 1 + exprSize e
+  | .prod a b    => 1 + exprSize a + exprSize b
+  | .tensor a b  => 1 + exprSize a + exprSize b
+  | .hom a b     => 1 + exprSize a + exprSize b
+  | .coprod a b  => 1 + exprSize a + exprSize b
+  | .sigma _ b f => 1 + exprSize b + exprSize f
+  | .pi _ b f    => 1 + exprSize b + exprSize f
+  | .fiber m p   => 1 + exprSize m + exprSize p
+  | .proj _ s    => 1 + exprSize s
+  | .inj _ t     => 1 + exprSize t
+  | .app f x     => 1 + exprSize f + exprSize x
+  | .limit d     => 1 + exprSize d
+  | .colimit d   => 1 + exprSize d
+  | .natComponent n x => 1 + exprSize n + exprSize x
+
+/-- Orient axioms so the larger side is always on the left (the rewrite target).
+    This prevents expansion loops when operators like `opposite` swap LHS↔RHS,
+    turning reductive rules into expansive ones. Equal-size axioms are left as-is. -/
+private def orientAxioms (axioms : List Generator2) : List Generator2 :=
+  axioms.map fun ax =>
+    if exprSize ax.rightPath > exprSize ax.leftPath then
+      { ax with leftPath := ax.rightPath, rightPath := ax.leftPath }
+    else ax
+
 /-- Try to fire one closed axiom at the root of `e`, left-to-right only.
     Quantified axioms are skipped (word problem).
     We do NOT fire right-to-left: symmetric firing creates ping-pong cycles
@@ -337,9 +370,22 @@ def computeStructuralDiff
     else
       -- Same object count: translate target axioms into produced's naming using
       -- the best-permutation object map (order-independent for ≤ 4 objects).
+      -- Also build a morphism name map by matching structural signatures
+      -- (position-normalized domain/codomain shapes).
+      let morNameMap : Std.HashMap Name Name :=
+        target.morphisms.foldl (fun acc tm =>
+          let tmDom := normTarget tm.domain
+          let tmCod := normTarget tm.codomain
+          match produced.morphisms.find? fun pm =>
+            normProd pm.domain == tmDom && normProd pm.codomain == tmCod with
+          | some pm => acc.insert tm.id.name pm.id.name
+          | none    => acc
+        ) {}
+      let fullNameMap : Std.HashMap Name Name :=
+        morNameMap.fold (fun acc k v => acc.insert k v) objNameMap
       let translate (e : Expr) : Expr :=
         e.mapNames fun n =>
-          match objNameMap[n]? with
+          match fullNameMap[n]? with
           | some n' => n'
           | none    => n
       target.axioms.filterMap fun ax =>
@@ -354,8 +400,9 @@ def computeStructuralDiff
         if directlyPresent then none   -- trivially satisfied as a stated axiom
         else
           -- Slow path: try bounded rewriting (closed axioms only)
-          let (lhsNorm, lhsD) := boundedNormalize produced.axioms lhsTrans maxDepth
-          let (rhsNorm, rhsD) := boundedNormalize produced.axioms rhsTrans maxDepth
+          let oriented := orientAxioms produced.axioms
+          let (lhsNorm, lhsD) := boundedNormalize oriented lhsTrans maxDepth
+          let (rhsNorm, rhsD) := boundedNormalize oriented rhsTrans maxDepth
           if lhsNorm == rhsNorm then none   -- verified by rewriting
           else
             let depth := max lhsD rhsD

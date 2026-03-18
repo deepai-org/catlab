@@ -203,6 +203,52 @@ def applyForwardOp (op : String) (t : Theory) : Except String Theory :=
   | "operad_envelope"                   => .ok (operadicEnvelope t)
   | s => .error s!"Unknown forward_op '{s}'. Use one of: opposite, mirror, identity, decategorify_iso, decategorify_K0, decategorify_chi, arrow, arrow_category, twisted_arrow, karoubi, morita, macneille, reg_completion, ex_completion, ind_completion, pro_completion, presheaf, family, scone, syntactic, chain_complex, homotopy, derived, stabilize, center, drinfeld_center, booleanize, span, cospan, nerve, realize, isbell_spec, isbell_cospec, isbell, matrix, int, internal_cat, path, operad_envelope"
 
+/-- Does this operator reverse composition order (and is an involution)?
+    Such operators require contravariant verification: instead of diffing
+    forwardOp(candidate) against target, we diff candidate against
+    forwardOp(target), which keeps composition direction aligned. -/
+def isCompReversing (op : String) : Bool :=
+  match op with
+  | "opposite" => true
+  | "mirror"   => true   -- mirror also reverses comp (dual to opposite)
+  | _          => false
+
+-- ============================================================
+-- Operator-aware structural diff
+-- Dispatches to contravariant or forward strategy based on operator
+-- ============================================================
+
+/-- Verify forwardOp(candidate) ≅ target using the best strategy for the operator.
+    For comp-reversing involutions (opposite, mirror): contravariant strategy.
+    For all others: standard forward strategy. -/
+def operatorAwareDiff (fwdOp : String) (candidate target : Theory) : Except String VerificationResult :=
+  if isCompReversing fwdOp then
+    -- Contravariant: diff candidate against forwardOp(target)
+    match applyForwardOp fwdOp target with
+    | .ok expected => .ok (computeStructuralDiff candidate candidate expected)
+    | .error _ =>
+      -- Fallback to forward strategy
+      match applyForwardOp fwdOp candidate with
+      | .error e => .error e
+      | .ok produced => .ok (computeStructuralDiff candidate produced target)
+  else
+    -- Standard forward: diff forwardOp(candidate) against target
+    match applyForwardOp fwdOp candidate with
+    | .error e => .error e
+    | .ok produced => .ok (computeStructuralDiff candidate produced target)
+
+/-- Verify forwardOp(candidate) ≅ candidate (fixed-point) using the best strategy. -/
+def operatorAwareFixedPointDiff (fwdOp : String) (candidate : Theory) : Except String VerificationResult :=
+  match applyForwardOp fwdOp candidate with
+  | .error e => .error e
+  | .ok produced =>
+    if isCompReversing fwdOp then
+      -- Contravariant: use produced (= F(X)) as target so its axioms are the reference
+      .ok (computeStructuralDiff candidate candidate produced)
+    else
+      -- Standard: diff produced against candidate
+      .ok (computeStructuralDiff candidate produced candidate)
+
 -- ============================================================
 -- apply_operator command
 -- Applies a single named operator to a theory from the registry
@@ -260,11 +306,9 @@ def handleEvaluateInverse (j : Json) (id : String) : Json :=
     | .error e, _ => errorResponse id e
     | _, .error e => errorResponse id s!"invalid candidate: {e}"
     | .ok target, .ok candidate =>
-      match applyForwardOp fwdOp candidate with
+      match operatorAwareDiff fwdOp candidate target with
       | .error e => errorResponse id e
-      | .ok produced =>
-        let result := computeStructuralDiff candidate produced target
-        okResponse id [("result", verificationToJson result)]
+      | .ok result => okResponse id [("result", verificationToJson result)]
 
 -- ============================================================
 -- solve_inverse command
@@ -395,14 +439,13 @@ def handleEvaluateMultiObjective (j : Json) (id : String) : Json :=
             ("missingSignatures", .arr #[]), ("unmappedObjects", .arr #[]),
             ("axiomViolations", .arr #[])]
         | .ok target =>
-          match applyForwardOp fwdOp candidate with
+          match operatorAwareDiff fwdOp candidate target with
           | .error e =>
             Json.mkObj [("candidateName", .str candidate.name), ("verified", .bool false),
               ("verificationStatus", .str s!"✗ Failed: operator '{fwdOp}' error: {e}"),
               ("missingSignatures", .arr #[]), ("unmappedObjects", .arr #[]),
               ("axiomViolations", .arr #[])]
-          | .ok produced =>
-            verificationToJson (computeStructuralDiff candidate produced target)
+          | .ok result => verificationToJson result
       let allVerified := subResults.all fun r =>
         match r.getObjVal? "verified" with
         | .ok (.bool true) => true | _ => false
@@ -427,12 +470,9 @@ def handleEvaluateFixedPoint (j : Json) (id : String) : Json :=
     match theoryFromJson candJson with
     | .error e => errorResponse id s!"invalid candidate: {e}"
     | .ok candidate =>
-      match applyForwardOp fwdOp candidate with
+      match operatorAwareFixedPointDiff fwdOp candidate with
       | .error e => errorResponse id e
-      | .ok produced =>
-        -- Diff F(candidate) against candidate itself
-        let result := computeStructuralDiff candidate produced candidate
-        okResponse id [("result", verificationToJson result)]
+      | .ok result => okResponse id [("result", verificationToJson result)]
 
 -- ============================================================
 -- summary / validate commands
