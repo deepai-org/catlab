@@ -192,6 +192,11 @@ def axiomFromJson (j : Json) : Except String Generator2 := do
   .ok { id := { name := Name.root name, kind := .twoCell },
         leftPath := lhs, rightPath := rhs, description := desc }
 
+/-- Deserialize a Theory from JSON.
+    Unknown fields (e.g. LLM-generated "notes", "reasoning", "confidence") are
+    silently ignored — only the known keys are extracted via getObjVal?.
+    This is intentional: the LLM occasionally adds helpful but schema-breaking
+    commentary fields, and crashing on them would abort an otherwise valid theory. -/
 def theoryFromJson (j : Json) : Except String Theory := do
   let name     ← getStr j "name"
   let docStr   := match j.getObjVal? "doctrine" with

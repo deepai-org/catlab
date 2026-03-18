@@ -136,16 +136,31 @@ export interface SolverOptions {
   forwardOp: "decategorify_iso" | "decategorify_K0" | "decategorify_chi" | "mirror" | "opposite" | "identity";
   /** Style hint for the LLM (e.g. "prefer cobordisms", "use chain complexes") */
   stylePrompt?: string;
-  /** Max LLM rounds before giving up. Default: 5 */
+  /** Max verification rounds before giving up. Default: 5.
+   *  A "round" is one successful LLM generation + one successful Lean verification.
+   *  Transient retries (rate limits, network blips) do not count as rounds. */
   maxRounds?: number;
+  /** Max retries per round for LLM API errors (rate limits, network, bad JSON). Default: 3 */
+  maxLLMRetries?: number;
+  /** Max retries per round for transient Lean errors (timeout, soft error). Default: 2 */
+  maxLeanRetries?: number;
   /** Timeout per Lean request in ms. Default: 30000 */
   leanTimeoutMs?: number;
 }
 
+/** One entry per *verification attempt* (not per retry). */
+export interface HistoryEntry {
+  round: number;
+  candidate: TheoryJson;
+  result: VerificationResult;
+}
+
 export interface SolverResult {
   success: boolean;
+  /** Number of verification rounds completed (not counting retries) */
   rounds: number;
   winner?: TheoryJson;
   finalResult?: VerificationResult;
-  history: Array<{ round: number; candidate: TheoryJson; result: VerificationResult }>;
+  /** One entry per successful Lean verification attempt, pass or fail */
+  history: HistoryEntry[];
 }

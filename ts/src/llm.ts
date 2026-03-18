@@ -22,9 +22,11 @@ import type { TheoryJson, VerificationResult } from "./types";
 
 // ── System prompt (sent once, cached) ────────────────────────────────────────
 
-const SYSTEM_PROMPT = `You are a world-class category theorist working with a rigorous Computer Algebra System (CAS) for categorical theories.
+const SYSTEM_PROMPT = `You are a mathematical problem solver working with a rigorous Computer Algebra System (CAS) for categorical theories.
 
-Your task is to propose candidate theories in JSON format. The CAS will verify each proposal by applying a forward operator (e.g. decategorification) and checking whether the result matches a target theory. You will receive structured diffs describing exactly what is wrong with your previous proposal.
+Your task is to propose candidate theories in JSON format. The CAS will verify each proposal by applying a forward operator to your candidate and checking whether the result is structurally equivalent to a target theory. The inverse problem you are solving depends on which operator is being inverted — it may be categorification, Stone duality, Morita equivalence, or any other categorical construction.
+
+You will receive structured diffs describing exactly what is wrong with your previous proposal.
 
 ## Theory JSON Format
 
@@ -76,6 +78,110 @@ Valid values: Category, CartesianCategory, MonoidalCategory, BraidedMonoidal, Sy
 4. Axiom LHS and RHS must be Exprs over the theory's own morphism atoms.
 5. When fixing a diff, address EVERY missingSignature and axiomViolation listed.`;
 
+// ── Inverse problem descriptions ─────────────────────────────────────────────
+
+/**
+ * Translate a forwardOp into a human-readable description of what the LLM
+ * needs to find.  This is the key to making the prompts operator-agnostic:
+ * the *same* code path generates correct prompts for categorification,
+ * Stone duality, opposite functors, and any other CAS operator.
+ */
+function describeInverseProblem(
+  forwardOp: string,
+  targetName: string,
+): { problem: string; hint: string } {
+  switch (forwardOp) {
+
+    case "decategorify_iso":
+      return {
+        problem:
+          `Find a theory C such that **decategorify(C, isoClasses) ≅ "${targetName}"**.\n` +
+          `Decategorification (iso classes) maps:\n` +
+          `  • Objects of C       → generators of the target\n` +
+          `  • Isomorphism classes of morphisms → equations of the target\n` +
+          `  • 2-cells / axioms   → discarded`,
+        hint:
+          `Propose a "higher-dimensional" theory whose decategorification (iso classes) ` +
+          `produces the target. This is the categorification problem. ` +
+          `Replace each target generator with an object, and each equation with a morphism class.`,
+      };
+
+    case "decategorify_K0":
+      return {
+        problem:
+          `Find a theory C such that **decategorify(C, grothendieckGroup) ≅ "${targetName}"**.\n` +
+          `The Grothendieck group K₀ decategorification maps:\n` +
+          `  • Objects of C      → one formal generator in the K₀ group\n` +
+          `  • Morphisms         → group relations`,
+        hint:
+          `Propose a theory whose K₀ Grothendieck group is the target. ` +
+          `Think of this as lifting an abelian group structure to a category of representations.`,
+      };
+
+    case "decategorify_chi":
+      return {
+        problem:
+          `Find a theory C such that **decategorify(C, eulerCharacteristic) ≅ "${targetName}"**.\n` +
+          `The Euler characteristic decategorification produces a theory with:\n` +
+          `  • Exactly one object (the "whole space")\n` +
+          `  • Exactly one morphism (the Euler characteristic)`,
+        hint:
+          `Propose a theory whose Euler characteristic matches the target. ` +
+          `The target has exactly 1 object and 1 morphism — focus on the global invariant.`,
+      };
+
+    case "mirror":
+      return {
+        problem:
+          `Find a theory C such that **mirror(C) ≅ "${targetName}"**.\n` +
+          `The Mirror (Stone duality) operator swaps:\n` +
+          `  • Products ↔ Coproducts\n` +
+          `  • Limits ↔ Colimits\n` +
+          `  • Terminal ↔ Initial objects`,
+        hint:
+          `Propose a theory whose Stone dual (mirror) is the target. ` +
+          `Apply mirror duality to the target to recover C: swap all products with coproducts, ` +
+          `limits with colimits, and terminal with initial objects.`,
+      };
+
+    case "opposite":
+      return {
+        problem:
+          `Find a theory C such that **opposite(C) ≅ "${targetName}"**.\n` +
+          `The Opposite functor reverses all morphism directions:\n` +
+          `  • Every morphism f: A → B in C becomes f^op: B → A in C^op`,
+        hint:
+          `Propose a theory whose opposite (C^op) is the target. ` +
+          `Since opposite is an involution, C = opposite(target). ` +
+          `Reverse all morphism directions in the target theory.`,
+      };
+
+    case "identity":
+      return {
+        problem:
+          `Find a theory C such that **C ≅ "${targetName}"** (direct structural match).\n` +
+          `The forward operator is identity — no transformation is applied. ` +
+          `Your candidate must be structurally equivalent to the target as-is.`,
+        hint:
+          `Propose a theory that is structurally isomorphic to the target. ` +
+          `You may rename generators freely — the CAS uses positional/shape matching, ` +
+          `not name matching.`,
+      };
+
+    default:
+      // Unknown operator: give a general description without misleading the LLM
+      return {
+        problem:
+          `Find a theory C such that **${forwardOp}(C) ≅ "${targetName}"**.\n` +
+          `The CAS will apply the "${forwardOp}" operator to your candidate ` +
+          `and check structural equivalence with the target.`,
+        hint:
+          `Propose a theory that, when "${forwardOp}" is applied, produces the target theory. ` +
+          `Study the target structure carefully and reason about what pre-image would be needed.`,
+      };
+  }
+}
+
 // ── LLMClient ─────────────────────────────────────────────────────────────────
 
 export class LLMClient {
@@ -99,16 +205,15 @@ export class LLMClient {
     forwardOp: string,
     stylePrompt?: string,
   ): Promise<TheoryJson> {
+    const { problem, hint } = describeInverseProblem(forwardOp, targetName);
     const style = stylePrompt ? `\n\nStyle guidance: ${stylePrompt}` : "";
 
     const userPrompt =
-      `The target theory is "${targetName}".\n\n` +
-      `Its structure (for reference):\n\`\`\`json\n${targetJson}\n\`\`\`\n\n` +
-      `The verification method is: apply \`${forwardOp}\` to your candidate, ` +
-      `then check whether the result is structurally equivalent to the target above.\n\n` +
-      `Propose a categorification — a "higher-dimensional" theory whose ` +
-      `${forwardOp} equals the target. ` +
-      `Output your proposal as a single JSON code block.${style}`;
+      `## Inverse Problem\n\n${problem}\n\n` +
+      `## Target Theory: "${targetName}"\n\n` +
+      `\`\`\`json\n${targetJson}\n\`\`\`\n\n` +
+      `## What to do\n\n${hint}` +
+      `\n\nOutput your proposal as a single JSON code block.${style}`;
 
     return this.callAndParse(userPrompt);
   }
