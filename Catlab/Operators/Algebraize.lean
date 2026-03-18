@@ -295,4 +295,163 @@ def addAnnihilator (t : Theory) (mulName : String) (zeroName : String) : Theory 
         description := s!"Right annihilation: {mulName}(a, {zeroName}) = {zeroName}" }
     { t with axioms := t.axioms ++ [leftAnn, rightAnn] }
 
+-- ============================================================
+-- addBracket
+-- ============================================================
+
+/-- Add a Lie bracket  [−,−] : A × A → A  to an abelian-group-like theory.
+    Requires that the theory already has:
+      addName  : A × A → A   (addition)
+      negName  : A → A        (negation)
+      swap     : A × A → A × A (from addCommutativity; looked up automatically)
+    Adds:
+      bracketName : A × A → A
+    And three axioms:
+      antisymm : [x,y] = neg([y,x])          (= neg ∘ (swap ∘ bracket))
+      jacobi   : [x,[y,z]] = [[x,y],z] + [y,[x,z]]
+      bilinear : [x, y+z] = [x,y] + [x,z]
+    Used to derive LieAlgebra from AbelianGroup. -/
+def addBracket (t : Theory) (addName negName bracketName : String) : Theory :=
+  match t.findMorphism (.root addName), t.findMorphism (.root negName) with
+  | none, _ | _, none => t
+  | some addOp, some negOp =>
+    let carrier   := addOp.codomain
+    let bracketId := { name := .root bracketName, index := 0, kind := .morphism }
+    let bracketMor : Generator1 :=
+      { id := bracketId, domain := .prod carrier carrier, codomain := carrier
+        description := s!"Lie bracket {bracketName}: A × A → A" }
+    -- Find the swap morphism (added by addCommutativity)
+    let swapId := (t.morphisms.find? (fun m => m.id.name == .root "swap")).map (·.id)
+    -- Antisymmetry: [x,y] = neg([y,x])  i.e.  bracket = neg ∘ (swap ∘ bracket)
+    let antiSymm : Generator2 :=
+      { id        := gid s!"antisymm_{bracketName}"
+        leftPath  := .atom bracketId
+        rightPath := match swapId with
+          | some sw => .comp (.comp (.atom sw) (.atom bracketId)) (.atom negOp.id)
+          | none    => .comp (.atom bracketId) (.atom negOp.id)
+        description := s!"Antisymmetry: {bracketName}(x,y) = neg({bracketName}(y,x))" }
+    -- Jacobi: [x,[y,z]] = [[x,y],z] + [y,[x,z]]
+    let jacobi : Generator2 :=
+      { id        := gid s!"jacobi_{bracketName}"
+        leftPath  := .comp (.prod (.id carrier) (.atom bracketId)) (.atom bracketId)
+        rightPath :=
+          .comp
+            (.prod
+              (.comp (.prod (.atom bracketId) (.id carrier)) (.atom bracketId))
+              (.comp (.prod (.id carrier)    (.atom bracketId)) (.atom bracketId)))
+            (.atom addOp.id)
+        description := s!"Jacobi: {bracketName}(x,{bracketName}(y,z)) = {bracketName}({bracketName}(x,y),z) + {bracketName}(y,{bracketName}(x,z))" }
+    -- Bilinearity: [x, y+z] = [x,y] + [x,z]
+    let bilinear : Generator2 :=
+      { id        := gid s!"bilinear_{bracketName}"
+        leftPath  := .comp (.prod (.id carrier) (.atom addOp.id)) (.atom bracketId)
+        rightPath := .comp (.prod (.atom bracketId) (.atom bracketId)) (.atom addOp.id)
+        description := s!"Bilinearity: {bracketName}(x, y+z) = {bracketName}(x,y) + {bracketName}(x,z)" }
+    { t with
+      morphisms := t.morphisms ++ [bracketMor]
+      axioms    := t.axioms ++ [antiSymm, jacobi, bilinear] }
+
+-- ============================================================
+-- addBialgebraAxioms
+-- ============================================================
+
+/-- Add bialgebra compatibility axioms to a theory that has both an algebra
+    (mulName, unitName) and a coalgebra (comulName, counitName) on the same carrier.
+    The bialgebra axioms say that comultiplication and counit are algebra morphisms:
+      bialg_comul  : Δ(ab) ~ Δ(a)·Δ(b)    (Δ distributes over mul)
+      bialg_counit : ε(ab) ~ ε(a)·ε(b)    (ε distributes over mul)
+      bialg_unit   : Δ(1) ~ 1⊗1           (Δ preserves unit)
+    Used as intermediate step in HopfAlgebra derivation. -/
+def addBialgebraAxioms (t : Theory)
+    (mulName unitName comulName counitName : String) : Theory :=
+  match t.findMorphism (.root mulName),   t.findMorphism (.root unitName),
+        t.findMorphism (.root comulName), t.findMorphism (.root counitName) with
+  | some mulOp, some unitMor, some comulOp, some counitMor =>
+    -- Δ(ab) ~ Δ(a)·Δ(b): mul then comul = comul both then mul
+    let bialgComul : Generator2 :=
+      { id        := gid "bialg_comul"
+        leftPath  := .comp (.atom mulOp.id) (.atom comulOp.id)
+        rightPath := .comp (.prod (.atom comulOp.id) (.atom comulOp.id)) (.atom mulOp.id)
+        description := s!"Bialgebra: Δ({mulName}(a,b)) = {mulName}(Δ(a), Δ(b))" }
+    -- ε(ab) ~ ε(a)·ε(b): mul then counit = counit both then mul
+    let bialgCounit : Generator2 :=
+      { id        := gid "bialg_counit"
+        leftPath  := .comp (.atom mulOp.id) (.atom counitMor.id)
+        rightPath := .comp (.prod (.atom counitMor.id) (.atom counitMor.id)) (.atom mulOp.id)
+        description := s!"Bialgebra counit: ε({mulName}(a,b)) = {mulName}(ε(a), ε(b))" }
+    -- Δ(1) ~ 1⊗1: unit then comul = unit paired with itself
+    let bialgUnit : Generator2 :=
+      { id        := gid "bialg_unit"
+        leftPath  := .comp (.atom unitMor.id) (.atom comulOp.id)
+        rightPath := .prod (.atom unitMor.id) (.atom unitMor.id)
+        description := s!"Bialgebra unit: Δ({unitName}) = {unitName} ⊗ {unitName}" }
+    { t with axioms := t.axioms ++ [bialgComul, bialgCounit, bialgUnit] }
+  | _, _, _, _ => t
+
+-- ============================================================
+-- addAntipode
+-- ============================================================
+
+/-- Add an antipode  S : H → H  with the Hopf axioms:
+      antipode_left  : mul(S(a), a) = unit(counit(a))   i.e. μ∘(S⊗id)∘Δ = η∘ε
+      antipode_right : mul(a, S(a)) = unit(counit(a))   i.e. μ∘(id⊗S)∘Δ = η∘ε
+    These say S is the inverse of the identity in the convolution algebra.
+    Used to derive HopfAlgebra from a bialgebra. -/
+def addAntipode (t : Theory)
+    (mulName unitName comulName counitName : String) : Theory :=
+  match t.findMorphism (.root mulName),   t.findMorphism (.root unitName),
+        t.findMorphism (.root comulName), t.findMorphism (.root counitName) with
+  | some mulOp, some unitMor, some comulOp, some counitMor =>
+    let carrier    := mulOp.codomain
+    let antipodeId := { name := .root "antipode", index := 0, kind := .morphism }
+    let antipodeMor : Generator1 :=
+      { id := antipodeId, domain := carrier, codomain := carrier
+        description := "Antipode S : H → H" }
+    -- μ ∘ (S ⊗ id) ∘ Δ = η ∘ ε
+    let leftAntipode : Generator2 :=
+      { id        := gid "antipode_left"
+        leftPath  := .comp (.atom comulOp.id)
+                      (.comp (.prod (.atom antipodeId) (.id carrier)) (.atom mulOp.id))
+        rightPath := .comp (.atom counitMor.id) (.atom unitMor.id)
+        description := "Left Hopf axiom: μ∘(S⊗id)∘Δ = η∘ε" }
+    -- μ ∘ (id ⊗ S) ∘ Δ = η ∘ ε
+    let rightAntipode : Generator2 :=
+      { id        := gid "antipode_right"
+        leftPath  := .comp (.atom comulOp.id)
+                      (.comp (.prod (.id carrier) (.atom antipodeId)) (.atom mulOp.id))
+        rightPath := .comp (.atom counitMor.id) (.atom unitMor.id)
+        description := "Right Hopf axiom: μ∘(id⊗S)∘Δ = η∘ε" }
+    { t with
+      morphisms := t.morphisms ++ [antipodeMor]
+      axioms    := t.axioms ++ [leftAntipode, rightAntipode] }
+  | _, _, _, _ => t
+
+-- ============================================================
+-- addSymmetryAction
+-- ============================================================
+
+/-- Add a symmetric group action  sym_act : Op → Op  to an operad-like theory,
+    together with an equivariance axiom:
+      sym_equivariance : sym_act ∘ comp = comp ∘ (sym_act ⊗ sym_act)
+    This turns a non-symmetric (plain) operad/multicategory into a symmetric one.
+    Used to derive SymmetricOperad from Multicategory. -/
+def addSymmetryAction (t : Theory) (compName : String) : Theory :=
+  match t.findMorphism (.root compName) with
+  | none => t
+  | some compOp =>
+    let carrier  := compOp.codomain
+    let symActId := { name := .root "sym_act", index := 0, kind := .morphism }
+    let symActMor : Generator1 :=
+      { id := symActId, domain := carrier, codomain := carrier
+        description := "Symmetric group action σ : Op → Op (permutes inputs)" }
+    -- Equivariance: sym_act ∘ comp = comp ∘ (sym_act × sym_act)
+    let equivariance : Generator2 :=
+      { id        := gid "sym_equivariance"
+        leftPath  := .comp (.atom compOp.id) (.atom symActId)
+        rightPath := .comp (.prod (.atom symActId) (.atom symActId)) (.atom compOp.id)
+        description := "Equivariance: σ ∘ ∘ = ∘ ∘ (σ × σ)" }
+    { t with
+      morphisms := t.morphisms ++ [symActMor]
+      axioms    := t.axioms ++ [equivariance] }
+
 end CatLab

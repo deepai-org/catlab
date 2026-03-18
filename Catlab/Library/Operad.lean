@@ -20,6 +20,7 @@
 -/
 
 import Catlab.Core.Theory
+import Catlab.Operators.Algebraize
 
 namespace CatLab.Library
 
@@ -88,24 +89,22 @@ def TheoryOfMulticategory : Theory :=
     ] }
 
 -- ── Symmetric operad (monochromatic) ─────────────────────────────────────
+-- Derived from the plain (non-symmetric) operad by adding the Σₙ-action.
+-- The plain operad is a single-sorted version of Multicategory: just the
+-- operations Op with composition and unit, ignoring colours.
 
-def TheoryOfSymmetricOperad : Theory :=
-  let Op := Expr.atom (gid "Op")   -- operations
-  { name     := "SymmetricOperad"
+private def plainOperad : Theory :=
+  let Op := Expr.atom (gid "Op")
+  { name     := "PlainOperad"
     doctrine := { doctrine := .Operad }
-    objects  := [
-      { id := gid "Op", description := "Operations (all colours identified)" }
-    ]
+    objects  := [{ id := gid "Op", description := "Operations" }]
     morphisms := [
-      { id := gid "arity",    domain := Op, codomain := .terminal,
+      { id := gid "arity",   domain := Op, codomain := .terminal,
         description := "Arity" },
-      { id := gid "unit1",    domain := .terminal, codomain := Op,
+      { id := gid "unit1",   domain := .terminal, codomain := Op,
         description := "Unit operation (arity 1)" },
-      { id := gid "comp_op",  domain := .prod Op Op, codomain := Op,
-        description := "Operadic composition" },
-      -- Symmetric group action
-      { id := gid "sym_act",  domain := Op, codomain := Op,
-        description := "Symmetric group action on Op(n)" }
+      { id := gid "comp_op", domain := .prod Op Op, codomain := Op,
+        description := "Operadic composition" }
     ]
     axioms := [
       { id := gid "unit_left"
@@ -115,11 +114,13 @@ def TheoryOfSymmetricOperad : Theory :=
       { id := gid "assoc_op"
         leftPath  := .comp (.prod (.atom (gid "comp_op")) (.id Op)) (.atom (gid "comp_op"))
         rightPath := .comp (.prod (.id Op) (.atom (gid "comp_op"))) (.atom (gid "comp_op"))
-        description := "Operadic associativity" },
-      { id := gid "sym_equivariance"
-        leftPath  := .comp (.atom (gid "sym_act")) (.atom (gid "comp_op"))
-        rightPath := .comp (.atom (gid "comp_op")) (.atom (gid "sym_act"))
-        description := "Σₙ-equivariance of composition" }
+        description := "Operadic associativity" }
     ] }
+
+/-- Symmetric operad: plain operad + symmetric group action on operations.
+    Derived as  addSymmetryAction(PlainOperad, "comp_op"). -/
+def TheoryOfSymmetricOperad : Theory :=
+  { addSymmetryAction plainOperad "comp_op" with
+    name := "SymmetricOperad" }
 
 end CatLab.Library
