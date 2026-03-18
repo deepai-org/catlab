@@ -1,0 +1,1354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CatLab Studio</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1c2333;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --accent: #58a6ff;
+    --blue: #388bfd;
+    --green: #3fb950;
+    --purple: #bc8cff;
+    --orange: #d29922;
+    --red: #f85149;
+    --cyan: #56d4dd;
+    --pink: #f778ba;
+    --yellow: #e3b341;
+    /* Group colors */
+    --algebra: #388bfd;
+    --logic: #3fb950;
+    --category: #bc8cff;
+    --topology: #56d4dd;
+    --higher: #f778ba;
+    --foundations: #d29922;
+    --mirror: #8b949e;
+    --glue: #d29922;
+    --transformer: #f85149;
+    --constructor: #56d4dd;
+    --enrichment: #f778ba;
+    --completion: #3fb950;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Header ─────────────────────────────────────── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+  header h1 {
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 1px;
+  }
+  header h1 span { color: var(--accent); }
+  .header-controls {
+    display: flex;
+    gap: 8px;
+  }
+  .mode-btn {
+    padding: 5px 14px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.15s;
+  }
+  .mode-btn.active {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+  .mode-btn:hover:not(.active) {
+    border-color: var(--text-dim);
+    color: var(--text);
+  }
+
+  /* ── Split Pane ─────────────────────────────────── */
+  .split-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .top-pane {
+    flex: 1;
+    overflow-y: auto;
+    border-bottom: 3px solid var(--border);
+    position: relative;
+  }
+  .resize-handle {
+    height: 5px;
+    background: var(--border);
+    cursor: row-resize;
+    flex-shrink: 0;
+    transition: background 0.15s;
+  }
+  .resize-handle:hover { background: var(--accent); }
+  .bottom-pane {
+    height: 300px;
+    min-height: 150px;
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+  }
+
+  /* ── Inventory: Periodic Table ──────────────────── */
+  .inventory { padding: 16px 20px; }
+  .section-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    margin: 16px 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-title:first-child { margin-top: 0; }
+  .section-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .element-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .element {
+    width: 110px;
+    height: 64px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    background: var(--surface);
+  }
+  .element:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    z-index: 2;
+  }
+  .element.selected {
+    border-width: 2px;
+    box-shadow: 0 0 12px rgba(88,166,255,0.3);
+  }
+  .element .symbol {
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .element .fullname {
+    font-size: 8px;
+    color: var(--text-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .element .badge {
+    position: absolute;
+    top: 3px;
+    right: 5px;
+    font-size: 7px;
+    color: var(--text-dim);
+    opacity: 0.6;
+  }
+
+  /* Group-specific border colors */
+  .element[data-group="algebra"] { border-color: color-mix(in srgb, var(--algebra) 40%, transparent); }
+  .element[data-group="algebra"]:hover { border-color: var(--algebra); }
+  .element[data-group="algebra"] .symbol { color: var(--algebra); }
+
+  .element[data-group="logic"] { border-color: color-mix(in srgb, var(--logic) 40%, transparent); }
+  .element[data-group="logic"]:hover { border-color: var(--logic); }
+  .element[data-group="logic"] .symbol { color: var(--logic); }
+
+  .element[data-group="category"] { border-color: color-mix(in srgb, var(--category) 40%, transparent); }
+  .element[data-group="category"]:hover { border-color: var(--category); }
+  .element[data-group="category"] .symbol { color: var(--category); }
+
+  .element[data-group="topology"] { border-color: color-mix(in srgb, var(--topology) 40%, transparent); }
+  .element[data-group="topology"]:hover { border-color: var(--topology); }
+  .element[data-group="topology"] .symbol { color: var(--topology); }
+
+  .element[data-group="higher"] { border-color: color-mix(in srgb, var(--higher) 40%, transparent); }
+  .element[data-group="higher"]:hover { border-color: var(--higher); }
+  .element[data-group="higher"] .symbol { color: var(--higher); }
+
+  .element[data-group="foundations"] { border-color: color-mix(in srgb, var(--foundations) 40%, transparent); }
+  .element[data-group="foundations"]:hover { border-color: var(--foundations); }
+  .element[data-group="foundations"] .symbol { color: var(--foundations); }
+
+  /* Operator-specific styles */
+  .element.operator {
+    width: 100px;
+    height: 56px;
+    border-style: dashed;
+  }
+  .element.operator .symbol { font-size: 11px; }
+
+  .element[data-group="mirror"] { border-color: color-mix(in srgb, var(--mirror) 40%, transparent); }
+  .element[data-group="mirror"]:hover { border-color: var(--mirror); }
+  .element[data-group="mirror"] .symbol { color: var(--mirror); }
+
+  .element[data-group="glue"] { border-color: color-mix(in srgb, var(--glue) 40%, transparent); }
+  .element[data-group="glue"]:hover { border-color: var(--glue); }
+  .element[data-group="glue"] .symbol { color: var(--glue); }
+
+  .element[data-group="transformer"] { border-color: color-mix(in srgb, var(--transformer) 40%, transparent); }
+  .element[data-group="transformer"]:hover { border-color: var(--transformer); }
+  .element[data-group="transformer"] .symbol { color: var(--transformer); }
+
+  .element[data-group="constructor"] { border-color: color-mix(in srgb, var(--constructor) 40%, transparent); }
+  .element[data-group="constructor"]:hover { border-color: var(--constructor); }
+  .element[data-group="constructor"] .symbol { color: var(--constructor); }
+
+  .element[data-group="enrichment"] { border-color: color-mix(in srgb, var(--enrichment) 40%, transparent); }
+  .element[data-group="enrichment"]:hover { border-color: var(--enrichment); }
+  .element[data-group="enrichment"] .symbol { color: var(--enrichment); }
+
+  .element[data-group="completion"] { border-color: color-mix(in srgb, var(--completion) 40%, transparent); }
+  .element[data-group="completion"]:hover { border-color: var(--completion); }
+  .element[data-group="completion"] .symbol { color: var(--completion); }
+
+  /* ── Tooltip ────────────────────────────────────── */
+  .tooltip {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    max-width: 320px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    pointer-events: none;
+  }
+  .tooltip.visible { display: block; }
+  .tooltip h3 {
+    font-size: 13px;
+    margin-bottom: 4px;
+  }
+  .tooltip p {
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+  .tooltip .tag {
+    display: inline-block;
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-top: 6px;
+    background: rgba(88,166,255,0.15);
+    color: var(--accent);
+  }
+
+  /* ── Workbench: Graph View ──────────────────────── */
+  .workbench {
+    display: none;
+    width: 100%;
+    height: 100%;
+    position: relative;
+  }
+  .workbench.active { display: block; }
+  .inventory.active { display: block; }
+  .inventory:not(.active) { display: none; }
+
+  .workbench canvas {
+    width: 100%;
+    height: 100%;
+  }
+
+  .workbench-empty {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: var(--text-dim);
+  }
+  .workbench-empty .icon {
+    font-size: 48px;
+    opacity: 0.3;
+    margin-bottom: 12px;
+  }
+  .workbench-empty p { font-size: 13px; }
+
+  /* ── Graph Nodes ────────────────────────────────── */
+  .graph-container {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+  }
+  .graph-node {
+    position: absolute;
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: 2px solid;
+    background: var(--surface);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: grab;
+    user-select: none;
+    transition: box-shadow 0.15s;
+    z-index: 2;
+  }
+  .graph-node:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  }
+  .graph-node .node-label {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+  svg.graph-edges {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* ── Chat Pane ──────────────────────────────────── */
+  .chat-header {
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    flex-shrink: 0;
+  }
+  .chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 16px;
+  }
+  .chat-msg {
+    margin-bottom: 12px;
+    font-size: 13px;
+    line-height: 1.6;
+    animation: fadeIn 0.2s ease;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .chat-msg.system {
+    color: var(--text-dim);
+    font-style: italic;
+  }
+  .chat-msg.user {
+    color: var(--accent);
+  }
+  .chat-msg.user::before {
+    content: '> ';
+    opacity: 0.5;
+  }
+  .chat-msg.assistant .typing {
+    display: inline-block;
+    animation: blink 1s steps(2) infinite;
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+  .chat-msg .code {
+    background: var(--surface2);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+  }
+  .chat-msg .highlight {
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .chat-msg .status-bar {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 10px;
+    margin: 6px 0;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .chat-msg .status-bar .spinner {
+    width: 10px; height: 10px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  .chat-msg .success {
+    color: var(--green);
+    font-weight: 600;
+  }
+
+  .chat-input-wrap {
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .chat-input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .chat-input:focus { border-color: var(--accent); }
+  .chat-input::placeholder { color: var(--text-dim); }
+  .send-btn {
+    padding: 8px 16px;
+    background: var(--accent);
+    border: none;
+    border-radius: 6px;
+    color: #000;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .send-btn:hover { opacity: 0.85; }
+
+  /* ── Selection slots ────────────────────────────── */
+  .selection-bar {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  .selection-bar.active { display: flex; }
+  .slot {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border: 1px dashed var(--border);
+    border-radius: 4px;
+    min-width: 80px;
+    min-height: 28px;
+    font-size: 11px;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .slot.filled {
+    border-style: solid;
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(88,166,255,0.08);
+  }
+  .slot.active-slot {
+    border-color: var(--yellow);
+    color: var(--yellow);
+    animation: pulse 1.5s ease infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(227,179,65,0.3); }
+    50% { box-shadow: 0 0 0 4px rgba(227,179,65,0); }
+  }
+  .selection-bar .go-btn {
+    margin-left: auto;
+    padding: 5px 14px;
+    background: var(--green);
+    border: none;
+    border-radius: 6px;
+    color: #000;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    opacity: 0.4;
+    pointer-events: none;
+    transition: all 0.15s;
+  }
+  .selection-bar .go-btn.ready {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .selection-bar .cancel-btn {
+    padding: 5px 10px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-dim);
+    font-family: inherit;
+    font-size: 11px;
+    cursor: pointer;
+  }
+
+  /* ── Legend ──────────────────────────────────────── */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+  .legend-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span>Cat</span>Lab <span>Studio</span></h1>
+  <div class="header-controls">
+    <button class="mode-btn active" data-mode="inventory">Inventory</button>
+    <button class="mode-btn" data-mode="workbench">Workbench</button>
+  </div>
+</header>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-swatch" style="background:var(--algebra)"></div> Algebra</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:var(--logic)"></div> Logic &amp; Order</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:var(--category)"></div> Category</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:var(--topology)"></div> Topology &amp; Spaces</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:var(--higher)"></div> Higher Structures</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:var(--foundations)"></div> Foundations</div>
+  <div style="width:1px;background:var(--border)"></div>
+  <div class="legend-item"><div class="legend-swatch" style="background:var(--mirror);border-radius:50%"></div> Mirrors</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:var(--glue);border-radius:50%"></div> Glue</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:var(--transformer);border-radius:50%"></div> Transformers</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:var(--constructor);border-radius:50%"></div> Constructors</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:var(--completion);border-radius:50%"></div> Completions</div>
+</div>
+
+<div class="split-container">
+  <div class="top-pane">
+    <!-- INVENTORY MODE -->
+    <div class="inventory active" id="inventory"></div>
+
+    <!-- WORKBENCH MODE -->
+    <div class="workbench" id="workbench">
+      <svg class="graph-edges" id="graphEdges"></svg>
+      <div class="graph-container" id="graphContainer">
+        <div class="workbench-empty" id="workbenchEmpty">
+          <div class="icon">&#x2693;</div>
+          <p>Ask the chat to combine theories or apply operators.<br>The result graph will appear here.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="resize-handle" id="resizeHandle"></div>
+
+  <div class="bottom-pane">
+    <div class="chat-header">Intent Engine</div>
+    <div class="selection-bar" id="selectionBar">
+      <span>Select theories:</span>
+      <div class="slot active-slot" id="slotA" data-slot="A">Theory A</div>
+      <span style="color:var(--text-dim)">+</span>
+      <div class="slot" id="slotB" data-slot="B">Theory B</div>
+      <span style="color:var(--text-dim)">via</span>
+      <div class="slot" id="slotOp" data-slot="Op" style="display:none">Operator</div>
+      <button class="go-btn" id="goBtn">Run</button>
+      <button class="cancel-btn" id="cancelBtn">Cancel</button>
+    </div>
+    <div class="chat-messages" id="chatMessages">
+      <div class="chat-msg system">Welcome to CatLab Studio. Click any element to explore, or type a question below.</div>
+    </div>
+    <div class="chat-input-wrap">
+      <input class="chat-input" id="chatInput" placeholder="What happens if I make a Monoid commutative?" autocomplete="off">
+      <button class="send-btn" id="sendBtn">Send</button>
+    </div>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+// ── DATA ──────────────────────────────────────────────────────────────────────
+
+const theories = [
+  // Algebra (blue)
+  { name: "Monoid", symbol: "Mon", group: "algebra", desc: "A system where items can be combined associatively, with a neutral element that does nothing." },
+  { name: "Group", symbol: "Grp", group: "algebra", desc: "A Monoid where every combination can be reversed. Every element has an inverse." },
+  { name: "Ring", symbol: "Rng", group: "algebra", desc: "Two operations\u2014addition (a Group) and multiplication (a Monoid)\u2014linked by distributivity." },
+  { name: "Semiring", symbol: "SRn", group: "algebra", desc: "Like a Ring, but addition only needs to be a commutative Monoid\u2014no negation required." },
+  { name: "Module", symbol: "Mod", group: "algebra", desc: "A generalization of vector spaces: scalars from a Ring acting on an abelian Group." },
+  { name: "LieAlgebra", symbol: "Lie", group: "algebra", desc: "An algebra with a bracket operation satisfying the Jacobi identity. Models infinitesimal symmetry." },
+  { name: "HopfAlgebra", symbol: "Hpf", group: "algebra", desc: "Simultaneously an algebra and a coalgebra, with a compatible antipode map." },
+  { name: "DifferentialGradedAlgebra", symbol: "DGA", group: "algebra", desc: "A graded algebra with a differential (boundary operator) that squares to zero." },
+
+  // Logic & Order (green)
+  { name: "Poset", symbol: "Pos", group: "logic", desc: "A set with a partial order: some pairs are comparable, some are not." },
+  { name: "Lattice", symbol: "Lat", group: "logic", desc: "A Poset where every pair has a join (least upper bound) and a meet (greatest lower bound)." },
+  { name: "BooleanAlgebra", symbol: "Bool", group: "logic", desc: "A Lattice with complements, modeling classical propositional logic." },
+  { name: "GeometricLogic", symbol: "Geo", group: "logic", desc: "Logic preserved by geometric morphisms\u2014allows infinite disjunctions but only finite conjunctions." },
+  { name: "LinearLogic", symbol: "Lin", group: "logic", desc: "Resource-sensitive logic: hypotheses are consumed when used. Models computation and concurrency." },
+  { name: "Locale", symbol: "Loc", group: "logic", desc: "A pointless topology: a frame of open sets without requiring underlying points." },
+
+  // Category (purple)
+  { name: "Category", symbol: "Cat", group: "category", desc: "Objects and morphisms with associative composition and identity arrows. The foundation of it all." },
+  { name: "SymmetricMonoidalCategory", symbol: "SMC", group: "category", desc: "A Category with a tensor product that is associative, unital, and symmetric up to isomorphism." },
+  { name: "AbelianCategory", symbol: "Abel", group: "category", desc: "An additive Category where every morphism has a kernel and cokernel. Home of homological algebra." },
+  { name: "TriangulatedCategory", symbol: "Tri", group: "category", desc: "A Category with a shift functor and distinguished triangles. Models derived categories." },
+  { name: "ModelCategory", symbol: "Mdl", group: "category", desc: "A Category with three classes of maps (weak equivalences, fibrations, cofibrations) for homotopy theory." },
+  { name: "EnrichedCategory", symbol: "Enr", group: "category", desc: "A Category where hom-sets are replaced by objects of another monoidal category." },
+  { name: "Derivator", symbol: "Der", group: "category", desc: "An enhancement of triangulated categories that remembers homotopy (co)limits." },
+
+  // Topology & Spaces (cyan)
+  { name: "ElementaryTopos", symbol: "ETop", group: "topology", desc: "A Category with finite limits and power objects. An alternative foundation for mathematics." },
+  { name: "InfinityTopos", symbol: "\u221ETop", group: "topology", desc: "The \u221E-categorical version of a topos. The arena for derived algebraic geometry." },
+  { name: "CohesiveHoTT", symbol: "Coh", group: "topology", desc: "Homotopy Type Theory extended with modalities for cohesion, modeling smooth and continuous spaces." },
+  { name: "CategoriesWithAttributes", symbol: "CwA", group: "topology", desc: "A category-theoretic framework for dependent type theories." },
+
+  // Higher Structures (pink)
+  { name: "InfinityNCategory", symbol: "\u221EnCat", group: "higher", desc: "Categories with morphisms between morphisms, all the way up. The spine of higher category theory." },
+  { name: "Operad", symbol: "Opd", group: "higher", desc: "Encodes operations with multiple inputs and one output, with composition rules." },
+  { name: "HoTT", symbol: "HoTT", group: "higher", desc: "Homotopy Type Theory: types are spaces, equalities are paths, higher equalities are homotopies." },
+  { name: "CubicalTypeTheory", symbol: "Cub", group: "higher", desc: "A computational interpretation of HoTT using cubes instead of simplices." },
+
+  // Foundations (orange)
+  { name: "Basic", symbol: "Bas", group: "foundations", desc: "The simplest theory: just objects and morphisms with no extra structure." },
+];
+
+const operators = [
+  // Mirrors (unary, structural reflection)
+  { name: "Opposite", symbol: "Op", group: "mirror", desc: "Reverse all arrows. What was domain becomes codomain.", arity: 1 },
+  { name: "Mirror", symbol: "Mir", group: "mirror", desc: "Reflect the theory structure, swapping symmetric operations.", arity: 1 },
+  { name: "Core", symbol: "Core", group: "mirror", desc: "Keep only the isomorphisms\u2014throw away non-invertible morphisms.", arity: 1 },
+
+  // Glue (binary, combining)
+  { name: "Pushout", symbol: "Push", group: "glue", desc: "Glue two theories along a shared base. The categorical union.", arity: 2 },
+  { name: "Product", symbol: "Prod", group: "glue", desc: "Pair up two theories: objects are pairs, morphisms act componentwise.", arity: 2 },
+  { name: "Coproduct", symbol: "Coprod", group: "glue", desc: "Disjoint union of two theories: everything stays separate.", arity: 2 },
+  { name: "Amalgamate", symbol: "Amal", group: "glue", desc: "Merge theories by identifying shared structure.", arity: 2 },
+  { name: "Collage", symbol: "Coll", group: "glue", desc: "Place two categories side by side, connected by a profunctor.", arity: 2 },
+  { name: "Comma", symbol: "Com", group: "glue", desc: "Objects are arrows between two functors\u2014the universal comma construction.", arity: 2 },
+  { name: "Span", symbol: "Spn", group: "glue", desc: "Build the category of spans (roofs) over the theory.", arity: 1 },
+  { name: "DayConvolution", symbol: "Day", group: "glue", desc: "Lift the monoidal structure of a category to its presheaf category.", arity: 1 },
+
+  // Transformers (change dimension/structure)
+  { name: "Decategorify", symbol: "Decat", group: "transformer", desc: "Drop one categorical level: identify isomorphic objects.", arity: 1 },
+  { name: "Grothendieck", symbol: "Groth", group: "transformer", desc: "Flatten an indexed family of categories into a single fibered category.", arity: 1 },
+  { name: "Nerve", symbol: "Nrv", group: "transformer", desc: "Turn a category into a simplicial set\u2014its combinatorial skeleton.", arity: 1 },
+  { name: "Stabilize", symbol: "Stab", group: "transformer", desc: "Pass to the stable category: force the suspension functor to be an equivalence.", arity: 1 },
+  { name: "Derived", symbol: "Der", group: "transformer", desc: "Localize at quasi-isomorphisms to get the derived category.", arity: 1 },
+  { name: "Algebraize", symbol: "Alg", group: "transformer", desc: "Extract the algebraic structure from a categorical context.", arity: 1 },
+  { name: "Bousfield", symbol: "Bous", group: "transformer", desc: "Localize a model category at a chosen homology theory.", arity: 1 },
+  { name: "Factorization", symbol: "Fact", group: "transformer", desc: "Decompose morphisms into a composition of two special classes.", arity: 1 },
+  { name: "DrinfeldCenter", symbol: "DrnC", group: "transformer", desc: "The braided monoidal center: objects that commute with everything.", arity: 1 },
+  { name: "Center", symbol: "Cen", group: "transformer", desc: "Extract the center\u2014elements that commute with all others.", arity: 1 },
+
+  // Constructors (build new from old)
+  { name: "Free", symbol: "Free", group: "constructor", desc: "Freely generate structure from generators. No extra equations.", arity: 1 },
+  { name: "Kleisli", symbol: "Kl", group: "constructor", desc: "Build the Kleisli category from a monad: morphisms are effectful computations.", arity: 1 },
+  { name: "EilenbergMoore", symbol: "EM", group: "constructor", desc: "Build the Eilenberg-Moore category: algebras over a monad.", arity: 1 },
+  { name: "Monad", symbol: "Mnd", group: "constructor", desc: "Extract or construct the monad associated to an adjunction.", arity: 1 },
+  { name: "FunctorCategory", symbol: "Fun", group: "constructor", desc: "The category of functors between two categories, with natural transformations.", arity: 2 },
+  { name: "Adjunction", symbol: "Adj", group: "constructor", desc: "Find or construct a pair of adjoint functors between theories.", arity: 2 },
+  { name: "Kan", symbol: "Kan", group: "constructor", desc: "Compute left or right Kan extensions along a functor.", arity: 1 },
+  { name: "Yoneda", symbol: "Yon", group: "constructor", desc: "Embed a category into its presheaf category via the Yoneda embedding.", arity: 1 },
+  { name: "Slice", symbol: "Sl", group: "constructor", desc: "The slice (over) category: objects are morphisms into a fixed target.", arity: 1 },
+  { name: "Arrow", symbol: "Arr", group: "constructor", desc: "The arrow category: objects are morphisms, morphisms are commutative squares.", arity: 1 },
+  { name: "TwistedArrow", symbol: "TwA", group: "constructor", desc: "Like Arrow, but with domain and codomain swapped on one side.", arity: 1 },
+  { name: "Internal", symbol: "Int", group: "constructor", desc: "Internalize a structure: define it inside another category.", arity: 1 },
+  { name: "Family", symbol: "Fam", group: "constructor", desc: "Build the category of set-indexed families of objects.", arity: 1 },
+  { name: "Matrix", symbol: "Mat", group: "constructor", desc: "Build the matrix category: morphisms are matrices of hom-set elements.", arity: 1 },
+  { name: "Lawvere", symbol: "Law", group: "constructor", desc: "Construct the Lawvere theory\u2014the categorical encoding of an algebraic theory.", arity: 1 },
+  { name: "Syntactic", symbol: "Syn", group: "constructor", desc: "Build the syntactic category from a logical theory.", arity: 1 },
+  { name: "OperadEnvelope", symbol: "OpE", group: "constructor", desc: "The monoidal envelope of an operad\u2014turning multi-input into tensor.", arity: 1 },
+  { name: "Freyd", symbol: "Frd", group: "constructor", desc: "The Freyd category for modeling effectful computation.", arity: 1 },
+  { name: "Int", symbol: "Int\u2124", group: "constructor", desc: "The Int construction: formally adjoin inverses to make a compact closed category.", arity: 1 },
+  { name: "Chu", symbol: "Chu", group: "constructor", desc: "The Chu construction: a *-autonomous category from a closed monoidal one.", arity: 1 },
+
+  // Completions (add missing structure)
+  { name: "ExactCompletion", symbol: "ExCp", group: "completion", desc: "Freely add finite colimits to make the category exact.", arity: 1 },
+  { name: "Karoubi", symbol: "Kar", group: "completion", desc: "Idempotent completion: formally split all idempotent morphisms.", arity: 1 },
+  { name: "Sheafify", symbol: "Shf", group: "completion", desc: "Turn presheaves into sheaves by forcing the gluing axiom.", arity: 1 },
+  { name: "Localize", symbol: "Loc", group: "completion", desc: "Formally invert a chosen class of morphisms.", arity: 1 },
+  { name: "Booleanize", symbol: "Bool", group: "completion", desc: "Force the logic to be Boolean\u2014every proposition gets a complement.", arity: 1 },
+  { name: "MacNeille", symbol: "MacN", group: "completion", desc: "The MacNeille completion: embed a poset into a complete lattice.", arity: 1 },
+  { name: "IndPro", symbol: "IndP", group: "completion", desc: "Adjoin formal filtered colimits (Ind) or cofiltered limits (Pro).", arity: 1 },
+  { name: "Limits", symbol: "Lim", group: "completion", desc: "Freely adjoin all limits to the category.", arity: 1 },
+  { name: "Fractions", symbol: "Frac", group: "completion", desc: "Calculus of fractions: a structured way to localize a category.", arity: 1 },
+  { name: "Quotient", symbol: "Quot", group: "completion", desc: "Form the quotient by a congruence relation on morphisms.", arity: 1 },
+  { name: "Subcategory", symbol: "Sub", group: "completion", desc: "Restrict to a chosen sub-collection of objects and morphisms.", arity: 1 },
+  { name: "Ultrapower", symbol: "Ultr", group: "completion", desc: "Build the ultrapower\u2014ultraproduct along a single structure.", arity: 1 },
+
+  // Enrichment & Logic
+  { name: "ChangeOfBase", symbol: "ChBs", group: "enrichment", desc: "Re-enrich a category over a different monoidal base.", arity: 1 },
+  { name: "Cleavage", symbol: "Clvg", group: "enrichment", desc: "Choose a cleavage for a fibration\u2014pick canonical lifts of morphisms.", arity: 1 },
+  { name: "Dialectica", symbol: "Dial", group: "enrichment", desc: "G\u00f6del's Dialectica interpretation: transform proofs into witnessing data.", arity: 1 },
+  { name: "Realizability", symbol: "Real", group: "enrichment", desc: "Build a realizability topos: truth is witnessable computation.", arity: 1 },
+  { name: "Assembly", symbol: "Asm", group: "enrichment", desc: "The category of assemblies\u2014sets with realizability structure.", arity: 1 },
+  { name: "PER", symbol: "PER", group: "enrichment", desc: "Partial equivalence relations: a model of types as quotients of computable functions.", arity: 1 },
+  { name: "TriposToTopos", symbol: "T\u2192T", group: "enrichment", desc: "Turn a tripos (categorical model of logic) into a topos.", arity: 1 },
+  { name: "Morita", symbol: "Mor", group: "enrichment", desc: "Pass to the Morita equivalence class\u2014theories with the same models.", arity: 1 },
+  { name: "ArtinGluing", symbol: "AGlu", group: "enrichment", desc: "Glue two toposes along a geometric morphism\u2014Artin's gluing construction.", arity: 2 },
+  { name: "Isbell", symbol: "Isb", group: "enrichment", desc: "Isbell duality: adjunction between presheaves and copresheaves.", arity: 1 },
+  { name: "Skolem", symbol: "Sk", group: "enrichment", desc: "Skolemization: replace existential quantifiers with witness functions.", arity: 1 },
+  { name: "CwF", symbol: "CwF", group: "enrichment", desc: "Category with Families\u2014the categorical semantics of dependent type theory.", arity: 1 },
+  { name: "EndsCoends", symbol: "E/C", group: "enrichment", desc: "Compute ends and coends\u2014the categorical trace and cotrace.", arity: 1 },
+];
+
+// ── RENDER INVENTORY ──────────────────────────────────────────────────────────
+
+const theoryGroups = [
+  { key: "algebra", label: "The Builders \u2014 Algebra" },
+  { key: "logic", label: "The Deciders \u2014 Logic & Order" },
+  { key: "category", label: "The Spaces \u2014 Category" },
+  { key: "topology", label: "The Spaces \u2014 Topology" },
+  { key: "higher", label: "The Ascenders \u2014 Higher Structures" },
+  { key: "foundations", label: "Foundations" },
+];
+
+const operatorGroups = [
+  { key: "mirror", label: "The Mirrors \u2014 Structural Reflection" },
+  { key: "glue", label: "The Glue \u2014 Combining" },
+  { key: "transformer", label: "The Transformers \u2014 Change Dimension" },
+  { key: "constructor", label: "The Constructors \u2014 Build New From Old" },
+  { key: "completion", label: "The Completions \u2014 Add Missing Structure" },
+  { key: "enrichment", label: "The Enrichments \u2014 Logic & Structure" },
+];
+
+function renderInventory() {
+  const inv = document.getElementById('inventory');
+  let html = '';
+
+  // Theories
+  html += '<div class="section-title">Elements (Theories)<div class="section-line"></div></div>';
+  for (const g of theoryGroups) {
+    const items = theories.filter(t => t.group === g.key);
+    if (!items.length) continue;
+    html += `<div class="section-title" style="font-size:10px;color:var(--${g.key})">${g.label}</div>`;
+    html += '<div class="element-grid">';
+    for (const t of items) {
+      html += `<div class="element" data-group="${t.group}" data-name="${t.name}" data-type="theory" data-desc="${escHtml(t.desc)}">
+        <div class="symbol">${t.symbol}</div>
+        <div class="fullname">${t.name}</div>
+        <div class="badge">Th</div>
+      </div>`;
+    }
+    html += '</div>';
+  }
+
+  // Operators
+  html += '<div class="section-title" style="margin-top:24px">Reactions (Operators)<div class="section-line"></div></div>';
+  for (const g of operatorGroups) {
+    const items = operators.filter(o => o.group === g.key);
+    if (!items.length) continue;
+    html += `<div class="section-title" style="font-size:10px;color:var(--${g.key})">${g.label}</div>`;
+    html += '<div class="element-grid">';
+    for (const o of items) {
+      html += `<div class="element operator" data-group="${o.group}" data-name="${o.name}" data-type="operator" data-arity="${o.arity}" data-desc="${escHtml(o.desc)}">
+        <div class="symbol">${o.symbol}</div>
+        <div class="fullname">${o.name}</div>
+        <div class="badge">${o.arity === 2 ? '\u2297' : '\u2192'}</div>
+      </div>`;
+    }
+    html += '</div>';
+  }
+
+  inv.innerHTML = html;
+
+  // Attach click + hover
+  inv.querySelectorAll('.element').forEach(el => {
+    el.addEventListener('click', () => handleElementClick(el));
+    el.addEventListener('mouseenter', e => showTooltip(e, el));
+    el.addEventListener('mousemove', e => moveTooltip(e));
+    el.addEventListener('mouseleave', hideTooltip);
+  });
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+}
+
+// ── TOOLTIP ───────────────────────────────────────────────────────────────────
+
+const tooltip = document.getElementById('tooltip');
+
+function showTooltip(e, el) {
+  const name = el.dataset.name;
+  const desc = el.dataset.desc;
+  const type = el.dataset.type;
+  const group = el.dataset.group;
+  tooltip.innerHTML = `<h3>${name}</h3><p>${desc}</p><span class="tag">${type === 'theory' ? 'Theory' : 'Operator'} \u00b7 ${group}</span>`;
+  tooltip.classList.add('visible');
+  moveTooltip(e);
+}
+function moveTooltip(e) {
+  const pad = 12;
+  let x = e.clientX + pad;
+  let y = e.clientY + pad;
+  if (x + 320 > window.innerWidth) x = e.clientX - 320 - pad;
+  if (y + 150 > window.innerHeight) y = e.clientY - 150 - pad;
+  tooltip.style.left = x + 'px';
+  tooltip.style.top = y + 'px';
+}
+function hideTooltip() {
+  tooltip.classList.remove('visible');
+}
+
+// ── MODE SWITCHING ────────────────────────────────────────────────────────────
+
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const mode = btn.dataset.mode;
+    document.getElementById('inventory').classList.toggle('active', mode === 'inventory');
+    document.getElementById('workbench').classList.toggle('active', mode === 'workbench');
+  });
+});
+
+// ── RESIZE HANDLE ─────────────────────────────────────────────────────────────
+
+const resizeHandle = document.getElementById('resizeHandle');
+const topPane = document.querySelector('.top-pane');
+const bottomPane = document.querySelector('.bottom-pane');
+let isResizing = false;
+
+resizeHandle.addEventListener('mousedown', e => {
+  isResizing = true;
+  document.body.style.cursor = 'row-resize';
+  e.preventDefault();
+});
+document.addEventListener('mousemove', e => {
+  if (!isResizing) return;
+  const container = document.querySelector('.split-container');
+  const rect = container.getBoundingClientRect();
+  const y = e.clientY - rect.top;
+  const total = rect.height;
+  const topH = Math.max(150, Math.min(total - 200, y));
+  topPane.style.flex = 'none';
+  topPane.style.height = topH + 'px';
+  bottomPane.style.height = (total - topH - 5) + 'px';
+});
+document.addEventListener('mouseup', () => {
+  isResizing = false;
+  document.body.style.cursor = '';
+});
+
+// ── CLICK-TO-CHAT INTERACTION ─────────────────────────────────────────────────
+
+let selectionMode = null; // null | { type: 'operator', op, slotA, slotB, activeSlot }
+let selectedElements = [];
+
+function handleElementClick(el) {
+  const type = el.dataset.type;
+  const name = el.dataset.name;
+
+  if (selectionMode) {
+    // Fill the active slot
+    fillSlot(name, type);
+    return;
+  }
+
+  if (type === 'operator') {
+    const arity = parseInt(el.dataset.arity);
+    if (arity === 2) {
+      startBinarySelection(name);
+    } else {
+      startUnarySelection(name);
+    }
+  } else {
+    // Theory clicked: fetch real summary from CAS
+    addChat('user', `Tell me about <span class="highlight">${name}</span>`);
+    const t = theories.find(t => t.name === name);
+    const msgId = addChat('assistant', `<div class="status-bar"><div class="spinner"></div> Fetching ${name} from CAS...</div>`);
+
+    fetchTheorySummary(name, t, msgId);
+  }
+}
+
+function startBinarySelection(opName) {
+  selectionMode = { type: 'binary', op: opName, slotA: null, slotB: null, activeSlot: 'A' };
+  const bar = document.getElementById('selectionBar');
+  bar.classList.add('active');
+  document.getElementById('slotOp').style.display = 'inline-flex';
+  document.getElementById('slotOp').textContent = opName;
+  document.getElementById('slotOp').classList.add('filled');
+  document.getElementById('slotA').textContent = 'Theory A';
+  document.getElementById('slotA').classList.remove('filled');
+  document.getElementById('slotA').classList.add('active-slot');
+  document.getElementById('slotB').textContent = 'Theory B';
+  document.getElementById('slotB').classList.remove('filled');
+  document.getElementById('slotB').classList.remove('active-slot');
+  document.getElementById('goBtn').classList.remove('ready');
+  addChat('system', `Selected operator <span class="highlight">${opName}</span>. Now click two theories to fill the slots.`);
+}
+
+function startUnarySelection(opName) {
+  selectionMode = { type: 'unary', op: opName, slotA: null, activeSlot: 'A' };
+  const bar = document.getElementById('selectionBar');
+  bar.classList.add('active');
+  document.getElementById('slotOp').style.display = 'inline-flex';
+  document.getElementById('slotOp').textContent = opName;
+  document.getElementById('slotOp').classList.add('filled');
+  document.getElementById('slotA').textContent = 'Theory';
+  document.getElementById('slotA').classList.remove('filled');
+  document.getElementById('slotA').classList.add('active-slot');
+  document.getElementById('slotB').style.display = 'none';
+  document.querySelector('.selection-bar span:nth-child(3)').style.display = 'none';
+  document.getElementById('goBtn').classList.remove('ready');
+  addChat('system', `Selected operator <span class="highlight">${opName}</span>. Now click a theory to apply it to.`);
+}
+
+function fillSlot(name, type) {
+  if (!selectionMode) return;
+  if (type === 'operator') return; // only theories in slots
+
+  if (selectionMode.activeSlot === 'A') {
+    selectionMode.slotA = name;
+    document.getElementById('slotA').textContent = name;
+    document.getElementById('slotA').classList.add('filled');
+    document.getElementById('slotA').classList.remove('active-slot');
+
+    if (selectionMode.type === 'unary') {
+      document.getElementById('goBtn').classList.add('ready');
+    } else {
+      selectionMode.activeSlot = 'B';
+      document.getElementById('slotB').classList.add('active-slot');
+    }
+  } else if (selectionMode.activeSlot === 'B') {
+    selectionMode.slotB = name;
+    document.getElementById('slotB').textContent = name;
+    document.getElementById('slotB').classList.add('filled');
+    document.getElementById('slotB').classList.remove('active-slot');
+    document.getElementById('goBtn').classList.add('ready');
+  }
+}
+
+document.getElementById('cancelBtn').addEventListener('click', cancelSelection);
+function cancelSelection() {
+  selectionMode = null;
+  document.getElementById('selectionBar').classList.remove('active');
+  // reset visibility
+  document.getElementById('slotB').style.display = '';
+  document.querySelector('.selection-bar span:nth-child(3)').style.display = '';
+  document.getElementById('slotOp').style.display = 'none';
+}
+
+document.getElementById('goBtn').addEventListener('click', () => {
+  if (!selectionMode) return;
+  const op = selectionMode.op;
+  const a = selectionMode.slotA;
+  const b = selectionMode.slotB;
+
+  if (selectionMode.type === 'unary') {
+    addChat('user', `Apply <span class="highlight">${op}</span> to <span class="highlight">${a}</span>`);
+    runReaction(op, a, null);
+  } else {
+    addChat('user', `Apply <span class="highlight">${op}</span> to <span class="highlight">${a}</span> and <span class="highlight">${b}</span>`);
+    runReaction(op, a, b);
+  }
+  cancelSelection();
+});
+
+// ── API CLIENT ────────────────────────────────────────────────────────────────
+
+const API_BASE = window.CATLAB_API_BASE || '';
+
+async function apiGet(path) {
+  const res = await fetch(API_BASE + path);
+  return { status: res.status, data: await res.json() };
+}
+
+async function apiPost(path, body) {
+  const res = await fetch(API_BASE + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return { status: res.status, data: await res.json() };
+}
+
+// ── LIVE REACTIONS (backed by CAS) ───────────────────────────────────────────
+
+async function runReaction(op, theoryA, theoryB) {
+  const msgId = addChat('assistant', `<div class="status-bar"><div class="spinner"></div> Applying ${op} via Lean CAS...</div>`);
+
+  try {
+    let result;
+    if (theoryB) {
+      // Binary: use pushout with Basic as base
+      result = await apiPost('/api/pushout', { theory1: theoryA, theory2: theoryB, base: 'Basic' });
+    } else {
+      // Unary: apply operator
+      result = await apiPost('/api/operator/apply', { operator: op.toLowerCase(), theory: theoryA });
+    }
+
+    if (result.status === 200 && result.data.theory) {
+      const theory = result.data.theory;
+      const name = theory.name || `${op}(${theoryA}${theoryB ? ', ' + theoryB : ''})`;
+      const objs = (theory.objects || []).map(o => o.name).join(', ');
+      const morphs = (theory.morphisms || []).map(m => m.name).join(', ');
+      const axiomCount = (theory.axioms || []).length;
+
+      updateChat(msgId, `
+        <span class="success">Done.</span> Result: <span class="highlight">${name}</span><br>
+        <span style="color:var(--text-dim)">Doctrine:</span> ${theory.doctrine || 'unknown'}<br>
+        <span style="color:var(--text-dim)">Objects:</span> <span class="code">${objs || 'none'}</span><br>
+        <span style="color:var(--text-dim)">Morphisms:</span> <span class="code">${morphs || 'none'}</span><br>
+        <span style="color:var(--text-dim)">Axioms:</span> ${axiomCount}<br><br>
+        <em style="color:var(--text-dim)">Switch to Workbench mode to see the graph.</em>
+      `);
+
+      addGraphNode(name, op, theoryA, theoryB);
+    } else {
+      const errMsg = result.data.error || result.data.message || 'Unknown error';
+      updateChat(msgId, `
+        <span style="color:var(--red)">CAS returned an error:</span> ${escHtml(errMsg)}<br><br>
+        <em style="color:var(--text-dim)">The operator may not be implemented for this theory, or the combination is invalid.</em>
+      `);
+    }
+  } catch (e) {
+    updateChat(msgId, `
+      <span style="color:var(--red)">Connection error:</span> ${escHtml(e.message)}<br><br>
+      <em style="color:var(--text-dim)">Make sure the CatLab Studio server is running: <span class="code">npx ts-node src/server.ts</span></em>
+    `);
+  }
+}
+
+// ── WORKBENCH GRAPH ───────────────────────────────────────────────────────────
+
+let graphNodes = [];
+let graphEdges = [];
+
+function addGraphNode(resultName, op, inputA, inputB) {
+  const container = document.getElementById('graphContainer');
+  const empty = document.getElementById('workbenchEmpty');
+  if (empty) empty.style.display = 'none';
+
+  const cx = 200 + Math.random() * 400;
+  const cy = 100 + graphNodes.length * 80;
+
+  // Input nodes
+  const ensureNode = (name, color) => {
+    if (!graphNodes.find(n => n.name === name)) {
+      const nx = cx - 180 + Math.random() * 60;
+      const ny = cy - 20 + Math.random() * 40;
+      const node = createGraphNodeEl(name, color, nx, ny);
+      container.appendChild(node);
+      graphNodes.push({ name, x: nx, y: ny, el: node });
+    }
+    return graphNodes.find(n => n.name === name);
+  };
+
+  const inputColor = 'var(--accent)';
+  const opColor = 'var(--orange)';
+  const resultColor = 'var(--green)';
+
+  const nA = ensureNode(inputA, inputColor);
+  if (inputB) {
+    const nB = ensureNode(inputB, inputColor);
+  }
+
+  // Op node
+  const opNode = createGraphNodeEl(op, opColor, cx, cy, true);
+  container.appendChild(opNode);
+  graphNodes.push({ name: op + '_' + graphNodes.length, x: cx, y: cy, el: opNode });
+
+  // Result node
+  const rNode = createGraphNodeEl(resultName, resultColor, cx + 180, cy);
+  container.appendChild(rNode);
+  graphNodes.push({ name: resultName, x: cx + 180, y: cy, el: rNode });
+
+  // Draw edges
+  drawEdge(nA.x + 60, nA.y + 15, cx, cy + 15);
+  if (inputB) {
+    const nB = graphNodes.find(n => n.name === inputB);
+    drawEdge(nB.x + 60, nB.y + 15, cx, cy + 15);
+  }
+  drawEdge(cx + 50, cy + 15, cx + 180, cy + 15);
+}
+
+function createGraphNodeEl(name, color, x, y, isOp) {
+  const div = document.createElement('div');
+  div.className = 'graph-node';
+  div.style.left = x + 'px';
+  div.style.top = y + 'px';
+  div.style.borderColor = color;
+  div.style.color = color;
+  div.textContent = name;
+  if (isOp) {
+    div.style.borderRadius = '50%';
+    div.style.padding = '10px';
+    div.style.fontSize = '11px';
+  }
+
+  // Drag
+  let dragging = false, dx, dy;
+  div.addEventListener('mousedown', e => {
+    dragging = true;
+    dx = e.clientX - div.offsetLeft;
+    dy = e.clientY - div.offsetTop;
+    div.style.cursor = 'grabbing';
+    e.stopPropagation();
+  });
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    div.style.left = (e.clientX - dx) + 'px';
+    div.style.top = (e.clientY - dy) + 'px';
+  });
+  document.addEventListener('mouseup', () => {
+    dragging = false;
+    div.style.cursor = 'grab';
+  });
+
+  return div;
+}
+
+function drawEdge(x1, y1, x2, y2) {
+  const svg = document.getElementById('graphEdges');
+  const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  line.setAttribute('x1', x1);
+  line.setAttribute('y1', y1);
+  line.setAttribute('x2', x2);
+  line.setAttribute('y2', y2);
+  line.setAttribute('stroke', 'var(--border)');
+  line.setAttribute('stroke-width', '2');
+  line.setAttribute('stroke-dasharray', '4,4');
+  svg.appendChild(line);
+}
+
+// ── CHAT ──────────────────────────────────────────────────────────────────────
+
+let chatCounter = 0;
+const chatMessages = document.getElementById('chatMessages');
+
+function addChat(role, html) {
+  const id = 'msg-' + (++chatCounter);
+  const div = document.createElement('div');
+  div.className = `chat-msg ${role}`;
+  div.id = id;
+  div.innerHTML = html;
+  chatMessages.appendChild(div);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+  return id;
+}
+
+function updateChat(id, html) {
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = html;
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+// Chat input
+const chatInput = document.getElementById('chatInput');
+const sendBtn = document.getElementById('sendBtn');
+
+function handleSend() {
+  const text = chatInput.value.trim();
+  if (!text) return;
+  chatInput.value = '';
+  addChat('user', escHtml(text));
+  processUserMessage(text);
+}
+
+sendBtn.addEventListener('click', handleSend);
+chatInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') handleSend();
+});
+
+// ── Fetch theory details from CAS ────────────────────────────────────────────
+
+async function fetchTheorySummary(name, localTheory, msgId) {
+  try {
+    const [summaryRes, validateRes] = await Promise.all([
+      apiGet(`/api/theories/${encodeURIComponent(name)}/summary`),
+      apiGet(`/api/theories/${encodeURIComponent(name)}/validate`),
+    ]);
+
+    let html = `<span class="highlight">${name}</span>`;
+    if (localTheory) html += ` (${localTheory.symbol})`;
+    html += '<br>';
+
+    if (summaryRes.status === 200 && summaryRes.data.summary) {
+      html += `<pre style="white-space:pre-wrap;color:var(--text-dim);font-size:11px;margin:6px 0">${escHtml(summaryRes.data.summary)}</pre>`;
+    } else if (localTheory) {
+      html += localTheory.desc + '<br>';
+    }
+
+    if (validateRes.status === 200) {
+      const valid = validateRes.data.valid;
+      html += `<span style="color:${valid ? 'var(--green)' : 'var(--red)'}">${valid ? 'Valid' : 'Invalid'}</span>`;
+      if (validateRes.data.errors && validateRes.data.errors.length > 0) {
+        html += `: ${validateRes.data.errors.map(escHtml).join(', ')}`;
+      }
+      html += '<br>';
+    }
+
+    html += '<br><em style="color:var(--text-dim)">Click an operator to apply a reaction to this theory.</em>';
+    updateChat(msgId, html);
+  } catch (e) {
+    // Fallback to local data
+    if (localTheory) {
+      updateChat(msgId, `<span class="highlight">${localTheory.name}</span> (${localTheory.symbol})<br>${localTheory.desc}<br><br><em style="color:var(--text-dim)">Server offline — showing cached description. Start server with <span class="code">npx ts-node src/server.ts</span></em>`);
+    } else {
+      updateChat(msgId, `<span style="color:var(--red)">Could not fetch ${name}.</span> Server may be offline.`);
+    }
+  }
+}
+
+// ── LLM-DRIVEN CHAT ──────────────────────────────────────────────────────────
+
+const SESSION_ID = 'studio-' + Date.now();
+
+async function processUserMessage(text) {
+  const msgId = addChat('assistant', `<div class="status-bar"><div class="spinner"></div> Thinking...</div>`);
+
+  try {
+    const res = await apiPost('/api/chat', {
+      message: text,
+      sessionId: SESSION_ID,
+    });
+
+    if (res.status !== 200 || !res.data.events) {
+      updateChat(msgId, `<span style="color:var(--red)">Error:</span> ${escHtml(res.data.error || 'Unknown error')}<br><em style="color:var(--text-dim)">Make sure ANTHROPIC_API_KEY is set and the server is running.</em>`);
+      return;
+    }
+
+    // Render events from the agent
+    let html = '';
+    for (const ev of res.data.events) {
+      switch (ev.type) {
+        case 'status':
+          html += `<div class="status-bar"><div class="spinner"></div> ${escHtml(ev.content)}</div>`;
+          break;
+        case 'text':
+          // Convert markdown-ish text to HTML
+          html += formatLLMText(ev.content);
+          break;
+        case 'theory':
+          if (ev.theory) {
+            html += renderTheoryCard(ev.theory);
+            // Add to graph
+            addGraphNode(ev.theory.name || ev.content, 'result', ev.content, null);
+          }
+          break;
+        case 'error':
+          html += `<span style="color:var(--red)">${escHtml(ev.content)}</span><br>`;
+          break;
+        case 'done':
+          break;
+      }
+    }
+
+    if (!html.trim()) {
+      html = '<em style="color:var(--text-dim)">No response from agent.</em>';
+    }
+
+    updateChat(msgId, html);
+  } catch (e) {
+    updateChat(msgId, `<span style="color:var(--red)">Connection error:</span> ${escHtml(e.message)}<br><em style="color:var(--text-dim)">Make sure the server is running: <span class="code">cd ts && npm run studio</span></em>`);
+  }
+}
+
+function formatLLMText(text) {
+  // Simple markdown → HTML
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    // Code blocks
+    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre style="background:var(--surface2);padding:8px;border-radius:4px;font-size:11px;overflow-x:auto;margin:6px 0">$2</pre>')
+    // Inline code
+    .replace(/`([^`]+)`/g, '<span class="code">$1</span>')
+    // Bold
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    // Italic
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    // Line breaks
+    .replace(/\n\n/g, '<br><br>')
+    .replace(/\n/g, '<br>');
+}
+
+function renderTheoryCard(theory) {
+  const objs = (theory.objects || []).map(o => o.name).join(', ') || 'none';
+  const morphs = (theory.morphisms || []).map(m => m.name).join(', ') || 'none';
+  const axiomCount = (theory.axioms || []).length;
+  return `
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin:8px 0;font-size:12px">
+      <div style="font-weight:700;color:var(--green);margin-bottom:4px">${escHtml(theory.name || 'unnamed')}</div>
+      <div style="color:var(--text-dim)">Doctrine: <span class="code">${escHtml(theory.doctrine || '?')}</span></div>
+      <div style="color:var(--text-dim)">Objects: <span class="code">${escHtml(objs)}</span></div>
+      <div style="color:var(--text-dim)">Morphisms: <span class="code">${escHtml(morphs)}</span></div>
+      <div style="color:var(--text-dim)">Axioms: ${axiomCount}</div>
+    </div>
+  `;
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+
+renderInventory();
+</script>
+</body>
+</html>
