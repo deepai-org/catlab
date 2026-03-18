@@ -24,7 +24,9 @@ import type { TheoryJson, VerificationResult } from "./types";
 
 const SYSTEM_PROMPT = `You are a mathematical problem solver working with a rigorous Computer Algebra System (CAS) for categorical theories.
 
-Your task is to propose candidate theories in JSON format. The CAS will verify each proposal by applying a forward operator to your candidate and checking whether the result is structurally equivalent to a target theory. The inverse problem you are solving depends on which operator is being inverted — it may be categorification, Stone duality, Morita equivalence, or any other categorical construction.
+Your task is to propose candidate theories in JSON format. The CAS will verify each proposal by applying a forward operator to your candidate and checking whether the result is **structurally equivalent** (≅) to a target theory.
+
+**What "≅" means here:** The CAS checks structural equivalence — same number of objects, morphisms with matching domain/codomain shapes (position-normalized, ignoring names), and axioms that reduce to the same normal forms under rewriting. Generator names do NOT matter; only structural shapes do. §0 = first object, §1 = second, etc.
 
 You will receive structured diffs describing exactly what is wrong with your previous proposal.
 
@@ -107,93 +109,131 @@ function describeInverseProblem(
     case "decategorify_iso":
       return {
         problem:
-          `Find a theory C such that **decategorify(C, isoClasses) ≅ "${targetName}"**.\n` +
-          `Decategorification (iso classes) maps:\n` +
+          `Find a theory C such that **decategorify(C, isoClasses) ≅ "${targetName}"**.\n\n` +
+          `**What \`decategorify_iso\` does:** Collapses a higher theory down one categorical level:\n` +
           `  • Objects of C       → generators of the target\n` +
           `  • Isomorphism classes of morphisms → equations of the target\n` +
-          `  • 2-cells / axioms   → discarded`,
+          `  • 2-cells / axioms   → discarded (lost in decategorification)\n\n` +
+          `**Worked example:** decategorify_iso(FinSet) ≅ CommutativeMonoid\n` +
+          `  • FinSet objects (finite sets) → generators of CommutativeMonoid\n` +
+          `  • Bijections between sets → equations (|A×B| = |A|·|B|, |A⊔B| = |A|+|B|)`,
         hint:
-          `Propose a "higher-dimensional" theory whose decategorification produces the target.\n\n` +
-          `**The Categorification Dictionary:**\n` +
-          `1. Target Generator (Noun) → Create an **Object** in your theory.\n` +
-          `2. Target Equation (LHS = RHS) → Create **TWO Morphisms** (f: LHS → RHS, g: RHS → LHS).\n` +
-          `3. Target Equation (LHS = RHS) → Create **TWO Axioms** making them an isomorphism (f ∘ g = id, g ∘ f = id).\n` +
-          `4. Target morphism (f: A → B) → Create a **Functor-like morphism** between the corresponding objects.\n\n` +
-          `Apply this dictionary mechanically to every generator and equation in the target.`,
+          `**The Categorification Dictionary (apply mechanically):**\n` +
+          `1. Each target **object** → Create an **Object** in your theory.\n` +
+          `2. Each target **morphism** f: A → B → Create a **Morphism** between corresponding objects.\n` +
+          `3. Each target **axiom** (LHS = RHS) → Create **TWO Morphisms** (f: LHS → RHS, g: RHS → LHS) ` +
+          `and **TWO Axioms** making them an isomorphism (f ∘ g = id, g ∘ f = id).\n\n` +
+          `Apply this dictionary to every generator, morphism, and equation in the target.`,
       };
 
     case "decategorify_K0":
       return {
         problem:
-          `Find a theory C such that **decategorify(C, grothendieckGroup) ≅ "${targetName}"**.\n` +
-          `The Grothendieck group K₀ decategorification maps:\n` +
-          `  • Objects of C      → one formal generator in the K₀ group\n` +
-          `  • Morphisms         → group relations`,
+          `Find a theory C such that **decategorify(C, grothendieckGroup) ≅ "${targetName}"**.\n\n` +
+          `**What \`decategorify_K0\` does:** Computes the Grothendieck group K₀:\n` +
+          `  • Objects of C      → formal generators [X] in K₀\n` +
+          `  • Short exact sequences 0→A→B→C→0 → relations [B] = [A] + [C]\n` +
+          `  • Morphisms         → group homomorphisms\n\n` +
+          `**Worked example:** decategorify_K0(VectorBundles) ≅ K-Theory\n` +
+          `  • Vector bundles E → generators [E]\n` +
+          `  • Direct sum E⊕F → addition [E]+[F]`,
         hint:
-          `Propose a theory whose K₀ Grothendieck group is the target. ` +
-          `Think of this as lifting an abelian group structure to a category of representations.`,
+          `**Recipe for K₀ categorification:**\n` +
+          `1. Each target generator → an Object (representing an isomorphism class).\n` +
+          `2. Target addition → direct sum / coproduct in your theory.\n` +
+          `3. Target relations → short exact sequences as axioms.\n` +
+          `Think of this as lifting an abelian group to a category of modules or bundles.`,
       };
 
     case "decategorify_chi":
       return {
         problem:
-          `Find a theory C such that **decategorify(C, eulerCharacteristic) ≅ "${targetName}"**.\n` +
-          `The Euler characteristic decategorification produces a theory with:\n` +
-          `  • Exactly one object (the "whole space")\n` +
-          `  • Exactly one morphism (the Euler characteristic)`,
+          `Find a theory C such that **decategorify(C, eulerCharacteristic) ≅ "${targetName}"**.\n\n` +
+          `**What \`decategorify_chi\` does:** Computes the Euler characteristic:\n` +
+          `  • Collapses all objects into a single alternating sum\n` +
+          `  • Result has exactly one object and one morphism (the characteristic)\n\n` +
+          `**Worked example:** decategorify_chi(ChainComplex) ≅ Z\n` +
+          `  • Chain complex C_0 → C_1 → C_2 → ... collapses to χ = Σ(-1)^n rank(C_n)`,
         hint:
-          `Propose a theory whose Euler characteristic matches the target. ` +
-          `The target has exactly 1 object and 1 morphism — focus on the global invariant.`,
+          `**Recipe for Euler characteristic categorification:**\n` +
+          `1. Create a **graded** theory with objects for each degree.\n` +
+          `2. Add differential morphisms d: C_n → C_{n-1} with d∘d = 0.\n` +
+          `3. The alternating sum of ranks must produce the target.`,
       };
 
     case "mirror":
       return {
         problem:
-          `Find a theory C such that **mirror(C) ≅ "${targetName}"**.\n` +
-          `The Mirror (Stone duality) operator swaps:\n` +
-          `  • Products ↔ Coproducts\n` +
+          `Find a theory C such that **mirror(C) ≅ "${targetName}"**.\n\n` +
+          `**What \`mirror\` does:** Stone duality — it swaps categorical duals:\n` +
+          `  • \`{"prod": [A, B]}\` ↔ \`{"coprod": [A, B]}\`\n` +
+          `  • \`"terminal"\` ↔ \`"initial"\`\n` +
           `  • Limits ↔ Colimits\n` +
-          `  • Terminal ↔ Initial objects`,
+          `  • Morphism directions are preserved (unlike \`opposite\`).\n\n` +
+          `**Worked example:** mirror(BooleanAlgebra) ≈ BooleanAlgebra (self-dual)\n` +
+          `  • ∧ (meet, prod) becomes ∨ (join, coprod) and vice versa\n` +
+          `  • ⊤ (terminal) becomes ⊥ (initial) and vice versa`,
         hint:
-          `Propose a theory whose Stone dual (mirror) is the target. ` +
-          `Apply mirror duality to the target to recover C: swap all products with coproducts, ` +
-          `limits with colimits, and terminal with initial objects.`,
+          `**Recipe for \`mirror\`:** Since mirror is an involution, C = mirror(target).\n` +
+          `1. Keep the SAME objects and morphism directions.\n` +
+          `2. Replace every \`{"prod": [...]}\` with \`{"coprod": [...]}\` and vice versa.\n` +
+          `3. Replace \`"terminal"\` with \`"initial"\` and vice versa.\n` +
+          `4. Replace \`"unit"\` with the dual unit if applicable.\n` +
+          `Apply this substitution to all morphism domains, codomains, and axiom expressions.`,
       };
 
     case "opposite":
       return {
         problem:
-          `Find a theory C such that **opposite(C) ≅ "${targetName}"**.\n` +
-          `The Opposite functor reverses all morphism directions:\n` +
-          `  • Every morphism f: A → B in C becomes f^op: B → A in C^op`,
+          `Find a theory C such that **opposite(C) ≅ "${targetName}"**.\n\n` +
+          `**What \`opposite\` does:** It reverses all morphism directions. Every morphism ` +
+          `f: A → B in C becomes f^op: B → A in C^op. Composition order reverses: ` +
+          `if C has \`comp([f, g])\`, then C^op has \`comp([g, f])\`.\n\n` +
+          `**Worked example:** opposite(Monoid) = CoMonoid\n` +
+          `  • Monoid has μ: M×M → M (multiplication) and η: 1 → M (unit)\n` +
+          `  • CoMonoid has δ: M → M×M (comultiplication) and ε: M → 1 (counit)\n` +
+          `  • Axioms reverse composition order: assoc becomes coassoc, unit laws become counit laws`,
         hint:
-          `Propose a theory whose opposite (C^op) is the target. ` +
-          `Since opposite is an involution, C = opposite(target). ` +
-          `Reverse all morphism directions in the target theory.`,
+          `**Recipe for \`opposite\`:** Since opposite is an involution, C = opposite(target).\n` +
+          `1. Keep the SAME objects.\n` +
+          `2. For each morphism f: A → B in the target, create f: B → A in your candidate (swap domain/codomain).\n` +
+          `3. For each axiom, reverse the order inside every \`comp([...])\` (swap the array elements).\n` +
+          `4. Non-comp expressions (prod, tensor, id, atom) stay the same.\n` +
+          `Apply this mechanically to every morphism and axiom.`,
       };
 
     case "identity":
       return {
         problem:
-          `Find a theory C such that **C ≅ "${targetName}"** (direct structural match).\n` +
-          `The forward operator is identity — no transformation is applied. ` +
-          `Your candidate must be structurally equivalent to the target as-is.`,
+          `Find a theory C such that **C ≅ "${targetName}"** (direct structural match).\n\n` +
+          `**What \`identity\` does:** Nothing — no transformation is applied. Your candidate ` +
+          `must be structurally equivalent to the target as-is.\n\n` +
+          `**Worked example:** identity(Monoid) = Monoid\n` +
+          `  • Same objects, same morphism shapes, same axiom normal forms\n` +
+          `  • Names can differ: your "mul" matches target's "μ" if the shapes match`,
         hint:
-          `Propose a theory that is structurally isomorphic to the target. ` +
-          `You may rename generators freely — the CAS uses positional/shape matching, ` +
-          `not name matching.`,
+          `**Recipe for \`identity\`:** Copy the target structure exactly.\n` +
+          `1. Same number of objects, in the same order.\n` +
+          `2. Same number of morphisms, with matching domain/codomain shapes.\n` +
+          `3. Same axioms (LHS and RHS must reduce to the same normal forms).\n` +
+          `You may rename generators freely — the CAS uses positional/shape matching, not name matching.`,
       };
 
     default:
       // Unknown operator: give a general description without misleading the LLM
       return {
         problem:
-          `Find a theory C such that **${forwardOp}(C) ≅ "${targetName}"**.\n` +
-          `The CAS will apply the "${forwardOp}" operator to your candidate ` +
-          `and check structural equivalence with the target.`,
+          `Find a theory C such that **${forwardOp}(C) ≅ "${targetName}"**.\n\n` +
+          `The CAS will apply the "${forwardOp}" operator to your candidate and check ` +
+          `structural equivalence with the target. Structural equivalence means: same ` +
+          `number of objects, morphisms with matching domain/codomain shapes, and axioms ` +
+          `that reduce to the same normal forms.`,
         hint:
-          `Propose a theory that, when "${forwardOp}" is applied, produces the target theory. ` +
-          `Study the target structure carefully and reason about what pre-image would be needed.`,
+          `**General strategy:**\n` +
+          `1. Study the target structure (objects, morphism shapes, axiom patterns).\n` +
+          `2. Reason about what pre-image under "${forwardOp}" would produce this structure.\n` +
+          `3. Start simple — propose the minimal theory that could work.\n` +
+          `4. Use the diff feedback to iteratively fix mismatches.`,
       };
   }
 }
