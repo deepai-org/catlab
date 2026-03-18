@@ -163,4 +163,6 @@ export interface SolverResult {
   finalResult?: VerificationResult;
   /** One entry per successful Lean verification attempt, pass or fail */
   history: HistoryEntry[];
+  /** Post-solve LLM reflection on prompt quality (if available) */
+  reflection?: string;
 }

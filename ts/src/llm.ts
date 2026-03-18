@@ -80,7 +80,15 @@ Valid values: Category, CartesianCategory, MonoidalCategory, BraidedMonoidal, Sy
    operator to your candidate, not by inspecting it directly.
 4. Axiom LHS and RHS must be Exprs built from the theory's own morphism and object atoms.
 5. When fixing a diff, address EVERY missingSignature and axiomViolation listed.
-6. The "reasoning" field in the tool schema is for your mathematical scratchpad — use it.`;
+6. The "reasoning" field in the tool schema is for your mathematical scratchpad — use it.
+7. DO NOT redefine doctrine-native structures as custom generators. If your doctrine is
+   \`MonoidalCategory\`, do NOT add a \`tensor\` or \`unit\` morphism to the \`morphisms\` array.
+   Use the built-in \`{"tensor": [...]}\` and \`"unit"\` Exprs directly in domains/codomains.
+   Generators are strictly for custom algebraic/topological data beyond what the doctrine provides.
+8. ORIENT YOUR AXIOMS to prevent infinite rewriting loops (Timeouts). Write axioms as
+   left-to-right reduction rules (Complex → Simple). Avoid symmetric axioms like
+   \`f ∘ g = g ∘ f\` — if commutativity is needed, break it into intermediate steps
+   or use a canonical ordering.`;
 
 // ── Inverse problem descriptions ─────────────────────────────────────────────
 
@@ -105,9 +113,13 @@ function describeInverseProblem(
           `  • Isomorphism classes of morphisms → equations of the target\n` +
           `  • 2-cells / axioms   → discarded`,
         hint:
-          `Propose a "higher-dimensional" theory whose decategorification (iso classes) ` +
-          `produces the target. This is the categorification problem. ` +
-          `Replace each target generator with an object, and each equation with a morphism class.`,
+          `Propose a "higher-dimensional" theory whose decategorification produces the target.\n\n` +
+          `**The Categorification Dictionary:**\n` +
+          `1. Target Generator (Noun) → Create an **Object** in your theory.\n` +
+          `2. Target Equation (LHS = RHS) → Create **TWO Morphisms** (f: LHS → RHS, g: RHS → LHS).\n` +
+          `3. Target Equation (LHS = RHS) → Create **TWO Axioms** making them an isomorphism (f ∘ g = id, g ∘ f = id).\n` +
+          `4. Target morphism (f: A → B) → Create a **Functor-like morphism** between the corresponding objects.\n\n` +
+          `Apply this dictionary mechanically to every generator and equation in the target.`,
       };
 
     case "decategorify_K0":
@@ -250,6 +262,51 @@ export class LLMClient {
   }
 
   /**
+   * Post-solve reflection: ask the same conversation chain what would have
+   * made the problem clearer. Returns free-text suggestions for improving
+   * the system prompt, diff format, and problem descriptions.
+   */
+  async reflectOnSolve(
+    targetName: string,
+    forwardOp: string,
+    rounds: number,
+    history: Array<{ round: number; candidate: TheoryJson; result: VerificationResult }>,
+  ): Promise<string> {
+    const historyStr = history.map((h) => {
+      const status = h.result.verified ? "✓ Success" : h.result.verificationStatus;
+      return `Round ${h.round}: "${h.candidate.name}" (${h.candidate.objects.length} obj / ` +
+        `${h.candidate.morphisms.length} mor / ${h.candidate.axioms.length} ax) → ${status}`;
+    }).join("\n");
+
+    const prompt =
+      `You just solved an inverse problem: find X such that ${forwardOp}(X) ≅ "${targetName}".\n` +
+      `It took ${rounds} round(s). Here's the history:\n\n${historyStr}\n\n` +
+      `Now reflect on the experience. Answer these questions concisely:\n\n` +
+      `1. **What was confusing about the problem description or system prompt?** ` +
+      `What phrasing led you astray, if anything?\n` +
+      `2. **What information was missing?** What facts about the forward operator, ` +
+      `the target theory, or the CAS would have helped you solve it in fewer rounds?\n` +
+      `3. **How useful were the structured diffs?** Did the missing-signature shapes, ` +
+      `axiom violation details, and fix strategies help you converge?\n` +
+      `4. **What specific changes to the system prompt would help future solvers?** ` +
+      `Suggest concrete wording changes or new rules.\n` +
+      `5. **What "dictionary" or "recipe" did you discover** for this operator? ` +
+      `(e.g., "for opposite: reverse all morphism domains and codomains")`;
+
+    const response = await this.client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 4096,
+      system: "You are reflecting on your experience solving a mathematical inverse problem. Be specific and actionable.",
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    return response.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("");
+  }
+
+  /**
    * Core: call Claude with tool_choice forced to "propose_theory".
    *
    * Why tool_use instead of output_config / code block extraction:
@@ -310,6 +367,7 @@ export class LLMClient {
     } as any);
 
     const message = await stream.finalMessage();
+    console.error(`[llm] stop_reason=${message.stop_reason} usage=${JSON.stringify(message.usage)}`);
 
     const toolUse = message.content.find(
       (b): b is Anthropic.ToolUseBlock => b.type === "tool_use",
@@ -373,6 +431,10 @@ export function formatDiff(result: VerificationResult): string {
           `  (originally named '${sig.sourceName}' in the target)`,
       );
     }
+    lines.push(
+      "\n💡 STRATEGY: Add new generators to your `morphisms` array that exactly match " +
+      "these domain/codomain shapes. Do not guess names; use the structural shapes above.",
+    );
     lines.push("");
   }
 
@@ -386,6 +448,10 @@ export function formatDiff(result: VerificationResult): string {
     for (const obj of result.unmappedObjects) {
       lines.push(`  • '${obj}' — remove this object or merge it with an existing one`);
     }
+    lines.push(
+      "\n💡 STRATEGY: Remove these extra objects entirely. The target has a fixed number " +
+      "of objects — your theory must have exactly that many, no more.",
+    );
     lines.push("");
   }
 
@@ -403,6 +469,15 @@ export function formatDiff(result: VerificationResult): string {
         lines.push(`    LHS reduced to: ${v.lhsReduced}`);
         lines.push(`    RHS reduced to: ${v.rhsReduced}`);
         lines.push(`    → These must reduce to the SAME normal form`);
+        lines.push(
+          `    💡 STRATEGY: You are missing an intermediate axiom. Add a new axiom ` +
+          `that explicitly rewrites '${v.lhsReduced}' into '${v.rhsReduced}'.`,
+        );
+      } else {
+        lines.push(
+          `    💡 STRATEGY: Timeout means your axioms may form circular rewriting loops. ` +
+          `Rewrite this axiom so LHS is strictly more complex than RHS (left-to-right reduction).`,
+        );
       }
     }
     lines.push("");

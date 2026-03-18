@@ -323,12 +323,28 @@ export class InverseProblemSolver {
       }
     }
 
+    // ── Post-solve reflection ──────────────────────────────────────────────
+    let reflection: string | undefined;
+    if (success || history.length > 0) {
+      try {
+        console.error(`\n[solver:REFLECT] Asking LLM for prompt improvement suggestions...`);
+        reflection = await this.llm.reflectOnSolve(
+          targetName, options.forwardOp, round, history,
+        );
+        console.error(`[solver:REFLECT] Suggestions:\n${reflection}\n`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[solver:REFLECT] Reflection failed (non-fatal): ${msg}`);
+      }
+    }
+
     return {
       success,
       rounds: round,
       winner:      success ? candidate : undefined,
       finalResult: lastResult,
       history,
+      reflection,
     };
   }
 }
