@@ -158,18 +158,26 @@ echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
 cd .. && lake build catlab-repl && cd ts
 ```
 
-### Problem Types
+### Problem Types (16 total)
 
 | Problem | Status | Command | What it solves |
 |---------|--------|---------|----------------|
 | **Inverse** | ✅ | `catlab-solve <theory> <op>` | find X s.t. op(X) ≅ target |
-| **Fixed-point** | ✅ | `catlab-solve --problem fixed-point --target <T> --op <op>` | find X s.t. op(X) ≅ X |
-| **Pushout complement** | ✅ | `catlab-solve --problem pushout-complement --base <T> --target <T>` | find X s.t. pushout(base, X) ≅ target |
-| **Extension** | ✅ | `catlab-solve --problem extension --base <T> --property <P>` | find X extending base with property P |
-| **Interpolation** | ✅ | `catlab-solve --problem interpolation --base <T> --target <T>` | find X with base ↪ X → target |
-| **Multi-objective** | 🚧 | `catlab-solve --problem multi --objectives "<T>:<op>,..."` | find X satisfying multiple constraints |
-| **Factorization** | 🚧 | `catlab-solve --problem factorization --target <T>` | find (X,Y) s.t. X⊗Y ≅ target |
-| **Optimization** | 🚧 | `catlab-solve --problem optimization --target <T> --op <op> --property <P>` | minimize cost subject to op(X)≅target |
+| **Fixed-point** | ✅ | `--problem fixed-point --target <T> --op <op>` | find X s.t. op(X) ≅ X |
+| **Pushout complement** | ✅ | `--problem pushout-complement --base <T> --target <T>` | find X s.t. pushout(base, X) ≅ target |
+| **Pullback complement** | ✅ | `--problem pullback-complement --base <T> --target <T>` | find X s.t. pullback(base, X) ≅ target |
+| **Extension** | ✅ | `--problem extension --base <T> --property <P>` | find X extending base with property P |
+| **Interpolation** | ✅ | `--problem interpolation --base <T> --target <T>` | find X with base ↪ X → target |
+| **Simplification** | ✅ | `--problem simplify --target <T>` | find minimal X ≅ target |
+| **Model finding** | ✅ | `--problem model-finding --target <T>` | generate concrete instance of a theory |
+| **Synthesis** | ✅ | `--problem synthesis --base <T> --source <A> --target <B>` | find morphism composition A → B |
+| **Quotient** | ✅ | `--problem quotient --base <T> --property <P>` | find minimal quotient satisfying P |
+| **Relaxation** | ✅ | `--problem relax --target <T> --property <P>` | find X closest to target satisfying P |
+| **Sub-object** | ✅ | `--problem subobject --target <T> --property <P>` | find sub-theory satisfying P |
+| **Decomposition** | ✅ | `--problem decompose --target <T>` | find components s.t. ⨁ Xᵢ ≅ target |
+| **Multi-objective** | 🚧 | `--problem multi --objectives "<T>:<op>,..."` | find X satisfying multiple constraints |
+| **Factorization** | 🚧 | `--problem factorization --target <T>` | find (X,Y) s.t. X⊗Y ≅ target |
+| **Optimization** | 🚧 | `--problem optimization --target <T> --op <op> --property <P>` | minimize cost subject to op(X)≅target |
 
 ### Tested Examples
 
@@ -183,24 +191,28 @@ catlab-solve Monoid opposite        # round 1 ✅
 catlab-solve Group opposite         # round 1 ✅
 catlab-solve AbelianGroup opposite  # round 1 ✅
 catlab-solve Category opposite      # round 1 ✅
-catlab-solve Poset opposite         # round 2 ✅
-catlab-solve Lattice opposite       # round 2 ✅
 catlab-solve Ring opposite          # round 2 ✅
 catlab-solve Monoid mirror          # round 2 ✅
-catlab-solve Semiring opposite      # round 3 ✅
 
 # ── Fixed-point: find X such that op(X) ≅ X ───────────────
 catlab-solve --problem fixed-point --target Monoid --op opposite        # round 1 ✅
 catlab-solve --problem fixed-point --target AbelianGroup --op opposite  # round 1 ✅
 
-# ── Extension: find X extending base with property P ──────
+# ── Extension / Pushout / Pullback / Interpolation ─────────
 catlab-solve --problem extension --base Monoid --property has_inverses  # round 1 ✅
-
-# ── Pushout complement: find X s.t. pushout(base, X) ≅ target
 catlab-solve --problem pushout-complement --base Monoid --target Group  # round 1 ✅
-
-# ── Interpolation: find X with base ↪ X → target ─────────
+catlab-solve --problem pullback-complement --base Monoid --target Group # round 1 ✅
 catlab-solve --problem interpolation --base Monoid --target Group       # round 1 ✅
+
+# ── Simplification / Model / Synthesis ─────────────────────
+catlab-solve --problem simplify --target Monoid                         # round 2 ✅
+catlab-solve --problem model-finding --target Monoid                    # round 1 ✅
+catlab-solve --problem synthesis --base Group --source M --target M     # round 1 ✅
+
+# ── Quotient / Relaxation / Decomposition ──────────────────
+catlab-solve --problem quotient --base Group --property commutative     # round 1 ✅
+catlab-solve --problem relax --target Monoid --property has_inverses    # round 1 ✅
+catlab-solve --problem decompose --target Ring                          # harder
 
 # ── Options ────────────────────────────────────────────────
 catlab-solve Monoid opposite --rounds 5 --style "keep it simple"
