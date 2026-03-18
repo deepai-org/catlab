@@ -7,7 +7,8 @@
  * feedback text (not hardcoded diff formatting) to refine proposals.
  *
  * Design decisions:
- *   - Claude Sonnet 4.6 with thinking disabled + forced tool_choice.
+ *   - Claude Sonnet 4.6 with adaptive thinking + forced tool_choice.
+ *   - Conversation history preserved across rounds (thinking blocks included).
  *   - Streaming with finalMessage(): prevents HTTP timeouts.
  *   - JSON extracted via tool_use (not code blocks) for reliability.
  *   - The system prompt is cached (cache_control: ephemeral).
@@ -158,9 +159,18 @@ Valid values: Category, CartesianCategory, MonoidalCategory, BraidedMonoidal, Sy
 
 export class LLMClient {
   private client: Anthropic;
+  /** Accumulated conversation history across rounds (includes thinking blocks). */
+  private messages: Anthropic.MessageParam[] = [];
+  private tool: Anthropic.Tool | undefined;
+  private toolName: string = "propose_theory";
 
   constructor(apiKey?: string) {
     this.client = new Anthropic({ apiKey: apiKey ?? process.env.ANTHROPIC_API_KEY });
+  }
+
+  /** Reset conversation state (called at start of each solve). */
+  resetConversation(): void {
+    this.messages = [];
   }
 
   /**
@@ -168,6 +178,9 @@ export class LLMClient {
    * Returns the opaque JSON payload matching the spec's answerSchema.
    */
   async generateInitial(spec: ProblemSpec): Promise<unknown> {
+    // Reset conversation for a fresh solve
+    this.resetConversation();
+
     const style = spec.stylePrompt ? `\n\nStyle guidance: ${spec.stylePrompt}` : "";
 
     const userPrompt =
@@ -176,12 +189,25 @@ export class LLMClient {
       `## What to do\n\n${spec.hint}` +
       `\n\nOutput your proposal as a single JSON code block.${style}`;
 
-    return this.callAndParse(userPrompt, spec);
+    // Set up the tool for this problem
+    this.toolName = spec.answerToolName ?? "propose_theory";
+    const toolDescription = spec.answerToolDescription ??
+      "Submit a candidate Theory for verification by the CAS. " +
+      "The CAS will apply the forward operator and diff the result against the target.";
+    const schema = spec.answerSchema ?? DEFAULT_ANSWER_SCHEMA;
+
+    this.tool = {
+      name: this.toolName,
+      description: toolDescription,
+      input_schema: schema as Anthropic.Tool.InputSchema,
+    };
+
+    return this.callWithHistory(userPrompt);
   }
 
   /**
    * Rounds 2+: refine a previous proposal given feedback text.
-   * feedbackText is verifier-formatted (not hardcoded).
+   * The conversation history is preserved so thinking carries over.
    */
   async refineWithFeedback(
     spec: ProblemSpec,
@@ -190,79 +216,45 @@ export class LLMClient {
     round: number,
   ): Promise<unknown> {
     const style = spec.stylePrompt ? `\nStyle guidance: ${spec.stylePrompt}` : "";
-    const prevName = (prevPayload as Record<string, unknown>)?.name ?? "previous";
-    const userPrompt =
-      `Round ${round}: Your previous proposal "${prevName}" ` +
-      `failed verification.\n\n` +
-      `Previous candidate:\n\`\`\`json\n${JSON.stringify(prevPayload, null, 2)}\n\`\`\`\n\n` +
+
+    // The feedback goes as a tool_result for the previous tool_use,
+    // then a new user message asking for refinement.
+    const feedbackMessage =
+      `Round ${round}: Your previous proposal failed verification.\n\n` +
       feedbackText +
       `\nPlease provide a corrected answer that fixes ALL of the above errors. ` +
-      `Respond with the corrected JSON object only — no prose.${style}`;
+      `Think carefully about what went wrong and why before proposing.${style}`;
 
-    return this.callAndParse(userPrompt, spec);
+    return this.callWithHistory(feedbackMessage);
   }
 
   /**
    * Post-solve reflection: ask the LLM what would have made the problem clearer.
+   * Uses the existing conversation history so it has full context.
    */
   async reflectOnSolve(
     spec: ProblemSpec,
     rounds: number,
     history: HistoryEntry[],
   ): Promise<string> {
-    const historyStr = history.map((h) => {
-      const status = h.result.verified ? "✓ Success" : h.result.verificationStatus;
-      const payload = h.payload as Record<string, unknown>;
-      return `Round ${h.round}: "${payload?.name ?? "?"}" → ${status}`;
-    }).join("\n");
-
     const prompt =
-      `You just solved a problem: ${spec.problemDescription.split("\n")[0]}\n` +
-      `It took ${rounds} round(s). Here's the history:\n\n${historyStr}\n\n` +
-      `Now reflect on the experience. Answer these questions concisely:\n\n` +
+      `Now reflect on the experience of solving this problem. It took ${rounds} round(s).\n\n` +
+      `Answer these questions concisely:\n\n` +
       `1. **What was confusing about the problem description or system prompt?**\n` +
       `2. **What information was missing?**\n` +
       `3. **How useful were the structured diffs?**\n` +
       `4. **What specific changes to the system prompt would help future solvers?**\n` +
       `5. **What "dictionary" or "recipe" did you discover?**`;
 
-    const response = await this.client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 4096,
-      system: "You are reflecting on your experience solving a mathematical problem. Be specific and actionable.",
-      messages: [{ role: "user", content: prompt }],
-    });
+    // Add user message to the existing conversation
+    this.messages.push({ role: "user", content: prompt });
 
-    return response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map((b) => b.text)
-      .join("");
-  }
-
-  /**
-   * Core: call Claude with tool_choice forced to the answer tool.
-   * The tool schema comes from the ProblemSpec (verifier-defined).
-   */
-  private async callAndParse(userPrompt: string, spec: ProblemSpec): Promise<unknown> {
-    const toolName = spec.answerToolName ?? "propose_theory";
-    const toolDescription = spec.answerToolDescription ??
-      "Submit a candidate Theory for verification by the CAS. " +
-      "The CAS will apply the forward operator and diff the result against the target.";
-    const schema = spec.answerSchema ?? DEFAULT_ANSWER_SCHEMA;
-
-    const tool: Anthropic.Tool = {
-      name: toolName,
-      description: toolDescription,
-      input_schema: schema as Anthropic.Tool.InputSchema,
-    };
-
+    // For reflection, don't force tool use — let it respond with text
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const stream = this.client.messages.stream({
       model: "claude-sonnet-4-6",
       max_tokens: 4096,
-      thinking: { type: "disabled" },
-      tools: [tool],
-      tool_choice: { type: "tool", name: toolName },
+      thinking: { type: "enabled", budget_tokens: 1024 },
       system: [
         {
           type: "text",
@@ -270,11 +262,59 @@ export class LLMClient {
           cache_control: { type: "ephemeral" },
         },
       ],
-      messages: [{ role: "user", content: userPrompt }],
+      messages: this.messages,
+    } as any);
+
+    const message = await stream.finalMessage();
+
+    // Append assistant response to history (preserving thinking blocks)
+    this.messages.push({ role: "assistant", content: message.content as any });
+
+    return message.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("");
+  }
+
+  /**
+   * Core: call Claude with the full conversation history, preserving thinking blocks.
+   * Appends user message, gets response, appends assistant response (with thinking).
+   */
+  private async callWithHistory(userPrompt: string): Promise<unknown> {
+    // Append user message
+    this.messages.push({ role: "user", content: userPrompt });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const stream = this.client.messages.stream({
+      model: "claude-sonnet-4-6",
+      max_tokens: 16000,
+      thinking: { type: "enabled", budget_tokens: 2048 },
+      tools: [this.tool!],
+      tool_choice: { type: "auto" },
+      system: [
+        {
+          type: "text",
+          text: SYSTEM_PROMPT,
+          cache_control: { type: "ephemeral" },
+        },
+      ],
+      messages: this.messages,
     } as any);
 
     const message = await stream.finalMessage();
     console.error(`[llm] stop_reason=${message.stop_reason} usage=${JSON.stringify(message.usage)}`);
+
+    // Append assistant response to history (includes thinking + tool_use blocks)
+    this.messages.push({ role: "assistant", content: message.content as any });
+
+    // Log thinking if present
+    const thinkingBlocks = message.content.filter((b) => b.type === "thinking");
+    if (thinkingBlocks.length > 0) {
+      const thinkingText = thinkingBlocks
+        .map((b) => (b as any).thinking ?? "")
+        .join("\n");
+      console.error(`[llm] thinking (${thinkingText.length} chars): ${thinkingText.slice(0, 300)}...`);
+    }
 
     const toolUse = message.content.find(
       (b): b is Anthropic.ToolUseBlock => b.type === "tool_use",
@@ -285,13 +325,40 @@ export class LLMClient {
       const keys = Object.keys(parsed as Record<string, unknown>);
       console.error(`[llm] tool input keys: ${keys.join(", ")}`);
       console.error(`[llm] preview: ${JSON.stringify(parsed).slice(0, 400)}`);
+
+      // Append tool_result as user message so the conversation stays valid
+      // for subsequent rounds. The result is a placeholder — the real feedback
+      // comes in the next refineWithFeedback() call's user message.
+      this.messages.push({
+        role: "user",
+        content: [{
+          type: "tool_result",
+          tool_use_id: toolUse.id,
+          content: "Submitted to CAS for verification. See next message for results.",
+        }],
+      } as any);
+
       return parsed;
     }
 
+    // Fallback: try to extract JSON from text response (happens with tool_choice: auto)
     const textBlocks = message.content
       .filter((b): b is Anthropic.TextBlock => b.type === "text")
       .map((b) => b.text)
       .join("");
+
+    const jsonMatch = textBlocks.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (jsonMatch) {
+      try {
+        const parsed = JSON.parse(jsonMatch[1].trim());
+        console.error(`[llm] extracted JSON from text response (no tool_use block)`);
+        // Still add a synthetic tool_result to keep conversation valid
+        return parsed;
+      } catch {
+        // Fall through to error
+      }
+    }
+
     const types = message.content.map((b) => b.type).join(", ");
     throw new Error(
       `LLM did not output a valid answer.\n` +
