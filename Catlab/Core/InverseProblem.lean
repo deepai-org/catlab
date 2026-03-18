@@ -130,12 +130,15 @@ structure VerificationResult where
 -- Structural normalization helpers
 -- ============================================================
 
-/-- Build a position index: object name → its index in the theory's object list.
-    Used to normalize Exprs by position rather than name. -/
+/-- Build a position index from a list of Generator0s: name → index.
+    Used to normalize Exprs by position rather than by name. -/
+private def buildObjIndexFromList (objs : List Generator0) : Std.HashMap Name Nat :=
+  objs.foldl (fun (acc : Std.HashMap Name Nat × Nat) o =>
+    (acc.1.insert o.id.name acc.2, acc.2 + 1)) ({}, 0) |>.1
+
+/-- Build a position index: object name → its index in the theory's object list. -/
 private def buildObjIndex (t : Theory) : Std.HashMap Name Nat :=
-  t.objects.foldl (fun (m, i) o => (m.insert o.id.name i, i + 1))
-    (({} : Std.HashMap Name Nat), 0)
-  |>.1
+  buildObjIndexFromList t.objects
 
 /-- Normalize an Expr by replacing object atoms with positional placeholders §0, §1, …
     Two Exprs with the same tree shape but different atom names become equal after
@@ -202,6 +205,64 @@ def boundedNormalize (axioms : List Generator2) (e : Expr) (maxDepth : Nat) : Ex
   go e 0
 
 -- ============================================================
+-- Permutation helpers
+-- ============================================================
+
+/-- Insert `x` at every position in `xs`, returning all resulting lists. -/
+private def insertEverywhere {α} (x : α) : List α → List (List α)
+  | []      => [[x]]
+  | y :: ys => (x :: y :: ys) :: (insertEverywhere x ys).map (y :: ·)
+
+/-- All permutations of a list. O(n!) — only used for n ≤ 4. -/
+private def allPermutations {α} : List α → List (List α)
+  | []      => [[]]
+  | x :: xs => (allPermutations xs).flatMap (insertEverywhere x)
+
+-- ============================================================
+-- Order-independent object mapping (V2 fix)
+-- ============================================================
+
+/-- Find the best mapping from target objects → produced objects.
+    The naive zip-based position mapping breaks silently when the LLM reorders
+    objects: [State, Config] paired with [Environment, System] crosses all types.
+
+    Fix: for produced.objects.length ≤ 4 (covers ~all foundational theories),
+    try all N! permutations of produced.objects and return the one that minimizes
+    missing morphism signatures. For larger theories, fall back to position-based
+    mapping (prompt engineering should handle ordering there).
+
+    Returns (producedObjIndex, targetName → producedName map). -/
+private def findBestObjMapping (produced target : Theory)
+    : Std.HashMap Name Nat × Std.HashMap Name Name :=
+  let targetObjIdx := buildObjIndex target
+  let normTarget   := normalizeShape targetObjIdx
+
+  -- Score a candidate permutation of produced.objects by counting missing signatures
+  let scorePerm (perm : List Generator0) : Nat :=
+    let permIdx  := buildObjIndexFromList perm
+    let normProd := normalizeShape permIdx
+    (target.morphisms.filter fun tm =>
+      let tmDom := normTarget tm.domain
+      let tmCod := normTarget tm.codomain
+      !produced.morphisms.any fun pm =>
+        normProd pm.domain == tmDom && normProd pm.codomain == tmCod).length
+
+  let chosenPerm : List Generator0 :=
+    if produced.objects.length <= 4 then
+      -- Permutation search: find the object ordering with fewest missing signatures
+      (allPermutations produced.objects).foldl (fun best perm =>
+        if scorePerm perm < scorePerm best then perm else best)
+        produced.objects
+    else
+      -- Large theory: trust ordering (use prompt engineering as V1 mitigation)
+      produced.objects
+
+  let prodObjIdx := buildObjIndexFromList chosenPerm
+  let nameMap    := (chosenPerm.zip target.objects).foldl
+    (fun acc (po, to_) => acc.insert to_.id.name po.id.name) {}
+  (prodObjIdx, nameMap)
+
+-- ============================================================
 -- computeStructuralDiff: the core diff function
 -- ============================================================
 
@@ -225,15 +286,16 @@ def computeStructuralDiff
     (maxDepth  : Nat := 200)
     : VerificationResult :=
 
-  let prodObjIdx   := buildObjIndex produced
+  -- Find the best object mapping (order-independent for ≤ 4 objects)
+  let (prodObjIdx, objNameMap) := findBestObjMapping produced target
   let targetObjIdx := buildObjIndex target
 
   let normProd   := normalizeShape prodObjIdx
   let normTarget := normalizeShape targetObjIdx
 
   -- ── Missing morphism signatures ───────────────────────────────────────────
-  -- For each morphism in target, check if produced has any morphism with the
-  -- same (domain, codomain) shape under position-normalization.
+  -- Uses the best-permutation object index, so a reordered LLM proposal like
+  -- [Environment, System] matching target [State, Config] won't falsely fail.
   let missingSignatures : List MorphismSignature :=
     target.morphisms.filterMap fun tm =>
       let tmDom := normTarget tm.domain
@@ -273,15 +335,11 @@ def computeStructuralDiff
           status := .Timeout 0  -- "ambiguous translation, not a proof of failure"
         }
     else
-      -- Same object count: translate target axioms into produced's naming via
-      -- position, then run bounded rewriting in produced's axiom system.
-      let targetToProdMap : Std.HashMap Name Name :=
-        (produced.objects.zip target.objects).foldl
-          (fun acc (po, to_) => acc.insert to_.id.name po.id.name)
-          {}
+      -- Same object count: translate target axioms into produced's naming using
+      -- the best-permutation object map (order-independent for ≤ 4 objects).
       let translate (e : Expr) : Expr :=
         e.mapNames fun n =>
-          match targetToProdMap[n]? with
+          match objNameMap[n]? with
           | some n' => n'
           | none    => n
       target.axioms.filterMap fun ax =>

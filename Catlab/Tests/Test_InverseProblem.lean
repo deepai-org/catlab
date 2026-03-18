@@ -154,6 +154,40 @@ open CatLab CatLab.Tests CatLab.Library
   check "rename survives: missingSignatures empty" result.missingSignatures.isEmpty
 
 -- ============================================================
+-- computeStructuralDiff: order-independence (V2 fix)
+-- LLMs do not reliably preserve object array order.
+-- Permutation search (≤ 4 objects) must find the correct mapping
+-- even when the proposal reverses or shuffles the object list.
+-- ============================================================
+
+#eval do
+  IO.println "\n=== computeStructuralDiff: order-independence (permutation search) ==="
+  let target := TheoryOfMonoids
+  -- Reverse the object order in the produced theory.
+  -- Without permutation search this would cross all morphism types and fail.
+  let reversed : Theory := { target with
+    name    := "ReversedMonoid"
+    objects := target.objects.reverse }
+  let result := computeStructuralDiff reversed reversed target
+  -- Permutation search should find the identity permutation (reversed.reverse)
+  -- and report no missing signatures
+  check "reversed objects: missingSignatures empty (permutation search found match)"
+    result.missingSignatures.isEmpty
+
+#eval do
+  IO.println "\n=== order-independence: all theories with ≤ 4 objects ==="
+  -- For any theory with ≤ 4 objects, reversing the object order should still
+  -- produce verified = true (permutation search recovers the correct mapping)
+  for (name, t) in allLibTheories do
+    if t.objects.length <= 4 then
+      let reversed : Theory := { t with
+        name    := s!"Reversed_{name}"
+        objects := t.objects.reverse }
+      let result := computeStructuralDiff reversed reversed t
+      check s!"reversed({name}): permutation search recovers"
+        result.missingSignatures.isEmpty
+
+-- ============================================================
 -- computeStructuralDiff: surplus objects detected
 -- ============================================================
 
