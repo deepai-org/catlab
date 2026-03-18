@@ -718,6 +718,34 @@ def handleEvaluateRelaxation (j : Json) (id : String) : Json :=
                      ("target_size", natJson targetSize)]
 
 -- ============================================================
+-- evaluate_catalyst command
+-- Find C such that A⊗C → B⊗C is valid (inclusion exists)
+-- ============================================================
+
+def handleEvaluateCatalyst (j : Json) (id : String) : Json :=
+  let sourceResult := getStr j "source"
+  let targetResult := getStr j "target"
+  let candidateJson := j.getObjVal? "candidate"
+  match sourceResult, targetResult, candidateJson with
+  | .error e, _, _       => errorResponse id e
+  | _, .error e, _       => errorResponse id e
+  | _, _, .error _       => errorResponse id "missing field 'candidate'"
+  | .ok sourceName, .ok targetName, .ok candJson =>
+    match lookupTheory sourceName, lookupTheory targetName, theoryFromJson candJson with
+    | .error e, _, _ => errorResponse id e
+    | _, .error e, _ => errorResponse id e
+    | _, _, .error e => errorResponse id s!"invalid candidate: {e}"
+    | .ok source, .ok target, .ok catalyst =>
+      -- Compute A⊗C and B⊗C
+      let ac := tensorTheories source catalyst
+      let bc := tensorTheories target catalyst
+      -- Check if A⊗C maps into B⊗C (all generators of A⊗C present in B⊗C)
+      let result := computeStructuralDiff catalyst ac bc
+      okResponse id [("result", verificationToJson result),
+                     ("ac_size", natJson (ac.objects.length + ac.morphisms.length)),
+                     ("bc_size", natJson (bc.objects.length + bc.morphisms.length))]
+
+-- ============================================================
 -- summary / validate commands
 -- ============================================================
 
@@ -784,6 +812,7 @@ def handleRequest (line : String) : Json :=
       | "evaluate_quotient"            => handleEvaluateQuotient           j id
       | "evaluate_decomposition"       => handleEvaluateDecomposition      j id
       | "evaluate_relaxation"          => handleEvaluateRelaxation         j id
+      | "evaluate_catalyst"            => handleEvaluateCatalyst           j id
       | other              => errorResponse id s!"Unknown command '{other}'"
     | .ok other =>
       errorResponse id s!"'command' must be a string, got: {other.compress}"

@@ -1130,6 +1130,63 @@ export class RelaxationVerifier implements Verifier {
   }
 }
 
+// ── 17. Catalyst verifier ───────────────────────────────────────────────────
+
+/**
+ * Find C such that A⊗C → B⊗C is valid.
+ * The catalyst enables a morphism that doesn't exist between A and B alone.
+ */
+export class CatalystVerifier implements Verifier {
+  constructor(
+    private sourceName: string,
+    private targetName: string,
+  ) {}
+
+  async preflight(catlab: CatlabClient, timeoutMs: number): Promise<ProblemSpec> {
+    const [source, target] = await Promise.all([
+      fetchTheorySummary(catlab, this.sourceName, timeoutMs),
+      fetchTheorySummary(catlab, this.targetName, timeoutMs),
+    ]);
+
+    return {
+      kind: "catalyst",
+      problemDescription:
+        `Find a **catalyst** theory C such that **${this.sourceName} ⊗ C → ${this.targetName} ⊗ C** is valid.\n\n` +
+        `The tensor product ${this.sourceName} ⊗ C must map into ${this.targetName} ⊗ C. ` +
+        `Your catalyst C provides the "extra structure" that enables a morphism ` +
+        `between the tensored theories that doesn't exist between ${this.sourceName} and ${this.targetName} alone.`,
+      hint:
+        `**Strategy for catalyst:**\n` +
+        `1. Study the gap between "${this.sourceName}" and "${this.targetName}".\n` +
+        `2. Your catalyst C should provide generators that "bridge" this gap when tensored.\n` +
+        `3. The CAS computes A⊗C and B⊗C, then checks structural inclusion.\n` +
+        `4. A simple catalyst might just add the missing structure directly.`,
+      contextJson:
+        `## Source Theory: "${this.sourceName}"\n\n\`\`\`json\n${source.json}\n\`\`\`\n\n` +
+        `## Target Theory: "${this.targetName}"\n\n\`\`\`json\n${target.json}\n\`\`\``,
+    };
+  }
+
+  async verify(
+    catlab: CatlabClient,
+    payload: unknown,
+    timeoutMs: number,
+  ): Promise<VerificationResult> {
+    const candidate = payload as TheoryJson;
+    const res = await catlab.request(
+      {
+        command: "evaluate_catalyst",
+        source: this.sourceName,
+        target: this.targetName,
+        candidate,
+      },
+      timeoutMs,
+    );
+    if (res.status === "error") throw new Error(`Lean error: ${res.message}`);
+    return res.result!;
+  }
+}
+
 // ── Inverse problem descriptions ────────────────────────────────────────────
 
 function describeInverseProblem(
@@ -1265,5 +1322,99 @@ function describeInverseProblem(
           `3. Start simple — propose the minimal theory that could work.\n` +
           `4. Use the diff feedback to iteratively fix mismatches.`,
       };
+  }
+}
+
+// ── 18. Compose verifier ───────────────────────────────────────────────────
+
+/**
+ * Composes N existing verifiers: candidate must satisfy ALL constraints.
+ * Each sub-verifier runs independently; results are merged.
+ */
+export class ComposeVerifier implements Verifier {
+  constructor(private verifiers: { label: string; verifier: Verifier }[]) {
+    if (verifiers.length < 2) throw new Error("ComposeVerifier needs at least 2 constraints");
+  }
+
+  async preflight(catlab: CatlabClient, timeoutMs: number): Promise<ProblemSpec> {
+    const specs = await Promise.all(
+      this.verifiers.map(async ({ label, verifier }) => ({
+        label,
+        spec: await verifier.preflight(catlab, timeoutMs),
+      })),
+    );
+
+    const problemDescription =
+      `Find a **single theory** that satisfies ALL of the following constraints simultaneously:\n\n` +
+      specs
+        .map(({ label, spec }, i) => `### Constraint ${i + 1}: ${label}\n${spec.problemDescription}`)
+        .join("\n\n");
+
+    const hint =
+      `**Composition strategy:**\n` +
+      `1. Read ALL constraints carefully before proposing.\n` +
+      `2. Your theory must satisfy every constraint at once — not just one.\n` +
+      `3. Start from the most restrictive constraint, then ensure the others hold.\n` +
+      `4. The feedback will show per-constraint results so you can see which ones pass/fail.\n\n` +
+      specs.map(({ label, spec }, i) => `**Constraint ${i + 1} (${label}) hint:** ${spec.hint}`).join("\n\n");
+
+    const contextJson = specs
+      .map(({ label, spec }, i) => `## Constraint ${i + 1}: ${label}\n\n${spec.contextJson}`)
+      .join("\n\n---\n\n");
+
+    return { kind: "compose", problemDescription, hint, contextJson };
+  }
+
+  async verify(catlab: CatlabClient, payload: unknown, timeoutMs: number): Promise<VerificationResult> {
+    const results = await Promise.all(
+      this.verifiers.map(async ({ label, verifier }) => {
+        try {
+          return { label, result: await verifier.verify(catlab, payload, timeoutMs) };
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          return {
+            label,
+            result: {
+              verified: false,
+              candidateName: (payload as any)?.name ?? "?",
+              verificationStatus: `✗ Error: ${msg}`,
+              missingSignatures: [],
+              unmappedObjects: [],
+              axiomViolations: [],
+            } as VerificationResult,
+          };
+        }
+      }),
+    );
+
+    const allVerified = results.every((r) => r.result.verified);
+    const passCount = results.filter((r) => r.result.verified).length;
+
+    // Merge: collect all violations across constraints
+    const merged: VerificationResult = {
+      verified: allVerified,
+      candidateName: results[0]?.result.candidateName ?? "?",
+      verificationStatus: allVerified
+        ? "✓ All constraints satisfied"
+        : `✗ ${passCount}/${results.length} constraints satisfied`,
+      missingSignatures: results.flatMap((r) => r.result.missingSignatures),
+      unmappedObjects: [...new Set(results.flatMap((r) => r.result.unmappedObjects))],
+      axiomViolations: results.flatMap((r) => r.result.axiomViolations),
+      feedbackStrings: results.map(
+        ({ label, result }) =>
+          `[${label}] ${result.verified ? "✓" : "✗"} ${result.verificationStatus}`,
+      ),
+      distance: results.reduce((sum, r) => sum + (r.result.distance ?? (r.result.verified ? 0 : 1)), 0),
+    };
+
+    return merged;
+  }
+
+  formatFeedback(result: VerificationResult, payload: unknown): string {
+    const lines = result.feedbackStrings ?? [];
+    const header = result.verified
+      ? "✓ All constraints satisfied!"
+      : `✗ ${lines.filter((l) => l.includes("✓")).length}/${lines.length} constraints passed:`;
+    return [header, ...lines.map((l) => `  ${l}`)].join("\n");
   }
 }

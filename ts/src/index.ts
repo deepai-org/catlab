@@ -36,6 +36,8 @@ import {
   QuotientVerifier,
   DecompositionVerifier,
   RelaxationVerifier,
+  CatalystVerifier,
+  ComposeVerifier,
 } from "./verifiers";
 import type { Verifier, SolverOptions } from "./types";
 
@@ -63,6 +65,8 @@ Problem types:
   quotient              find minimal quotient of base satisfying property P
   decompose             decompose target into independent components
   relax                 find X closest to target satisfying property P
+  catalyst              find C such that source⊗C → target⊗C
+  compose               find X satisfying ALL constraints simultaneously
 
 Problem arguments:
   --target <name>       Target theory name
@@ -70,6 +74,7 @@ Problem arguments:
   --base <name>         Base theory (for pushout-complement / extension)
   --property <name>     Property to check (for extension / subobject)
   --objectives <spec>   Comma-separated target:op pairs (for multi)
+  --constraints <spec>  Plus-separated constraint specs (for compose)
   --source <name>       Source object (for synthesis)
 
 General options:
@@ -88,6 +93,7 @@ Examples:
   catlab-solve --problem extension --base Monoid --property "has_inverses"
   catlab-solve --problem multi --objectives "Monoid:opposite,Monoid:mirror"
   catlab-solve --problem fixed-point --target Monoid --op opposite
+  catlab-solve --problem compose --constraints "inverse:Monoid:opposite+extension:Monoid:has_inverses"
   catlab-solve list
 `);
   process.exit(1);
@@ -97,6 +103,54 @@ async function listTheories(client: CatlabClient): Promise<void> {
   const res = await client.requestOrThrow({ command: "list_theories" });
   console.log("Available theories:");
   (res.theories ?? []).forEach((name) => console.log(`  ${name}`));
+}
+
+/**
+ * Parse a single constraint spec like "inverse:Monoid:opposite" into a labeled verifier.
+ */
+function parseConstraint(spec: string): { label: string; verifier: Verifier } {
+  const parts = spec.split(":");
+  const type = parts[0];
+  switch (type) {
+    case "inverse":
+      if (parts.length < 3) throw new Error(`inverse needs target:op, got "${spec}"`);
+      return { label: `inverse(${parts[1]},${parts[2]})`, verifier: new InverseVerifier(parts[1], parts[2]) };
+    case "fixed-point":
+      if (parts.length < 3) throw new Error(`fixed-point needs target:op, got "${spec}"`);
+      return { label: `fixed-point(${parts[1]},${parts[2]})`, verifier: new FixedPointVerifier(parts[1], parts[2]) };
+    case "pushout-complement":
+      if (parts.length < 3) throw new Error(`pushout-complement needs base:target, got "${spec}"`);
+      return { label: `pc(${parts[1]},${parts[2]})`, verifier: new PushoutComplementVerifier(parts[1], parts[2]) };
+    case "pullback-complement":
+      if (parts.length < 3) throw new Error(`pullback-complement needs base:target, got "${spec}"`);
+      return { label: `pbc(${parts[1]},${parts[2]})`, verifier: new PullbackComplementVerifier(parts[1], parts[2]) };
+    case "extension":
+      if (parts.length < 3) throw new Error(`extension needs base:property, got "${spec}"`);
+      return { label: `ext(${parts[1]},${parts[2]})`, verifier: new ExtensionVerifier(parts[1], parts[2]) };
+    case "interpolation":
+      if (parts.length < 3) throw new Error(`interpolation needs base:target, got "${spec}"`);
+      return { label: `interp(${parts[1]},${parts[2]})`, verifier: new InterpolationVerifier(parts[1], parts[2]) };
+    case "simplify":
+      if (parts.length < 2) throw new Error(`simplify needs target, got "${spec}"`);
+      return { label: `simplify(${parts[1]})`, verifier: new SimplificationVerifier(parts[1]) };
+    case "subobject":
+      if (parts.length < 3) throw new Error(`subobject needs target:property, got "${spec}"`);
+      return { label: `sub(${parts[1]},${parts[2]})`, verifier: new SubobjectVerifier(parts[1], parts[2]) };
+    case "quotient":
+      if (parts.length < 3) throw new Error(`quotient needs base:property, got "${spec}"`);
+      return { label: `quot(${parts[1]},${parts[2]})`, verifier: new QuotientVerifier(parts[1], parts[2]) };
+    case "relax":
+      if (parts.length < 3) throw new Error(`relax needs target:property, got "${spec}"`);
+      return { label: `relax(${parts[1]},${parts[2]})`, verifier: new RelaxationVerifier(parts[1], parts[2]) };
+    case "catalyst":
+      if (parts.length < 3) throw new Error(`catalyst needs source:target, got "${spec}"`);
+      return { label: `catalyst(${parts[1]},${parts[2]})`, verifier: new CatalystVerifier(parts[1], parts[2]) };
+    case "decompose":
+      if (parts.length < 2) throw new Error(`decompose needs target, got "${spec}"`);
+      return { label: `decompose(${parts[1]})`, verifier: new DecompositionVerifier(parts[1]) };
+    default:
+      throw new Error(`Unknown constraint type: "${type}"`);
+  }
 }
 
 function buildVerifier(args: string[]): {
@@ -135,6 +189,7 @@ function buildVerifier(args: string[]): {
   let base: string | undefined;
   let property: string | undefined;
   let objectivesStr: string | undefined;
+  let constraintsStr: string | undefined;
   let source: string | undefined;
   let repoRoot: string | undefined;
   const solverOpts: SolverOptions = {};
@@ -147,6 +202,7 @@ function buildVerifier(args: string[]): {
       case "--base":       base = args[++i]; break;
       case "--property":   property = args[++i]; break;
       case "--objectives": objectivesStr = args[++i]; break;
+      case "--constraints": constraintsStr = args[++i]; break;
       case "--source":     source = args[++i]; break;
       case "--style":      solverOpts.stylePrompt = args[++i]; break;
       case "--rounds":     solverOpts.maxRounds = parseInt(args[++i], 10); break;
@@ -228,6 +284,16 @@ function buildVerifier(args: string[]): {
       if (!target || !property) { console.error("--target and --property required for relax"); usage(); }
       verifier = new RelaxationVerifier(target, property);
       break;
+    case "catalyst":
+      if (!source || !target) { console.error("--source and --target required for catalyst"); usage(); }
+      verifier = new CatalystVerifier(source, target);
+      break;
+    case "compose": {
+      if (!constraintsStr) { console.error("--constraints required for compose"); usage(); }
+      const constraints = constraintsStr.split("+").map((s) => parseConstraint(s.trim()));
+      verifier = new ComposeVerifier(constraints);
+      break;
+    }
     default:
       console.error(`Unknown problem type: ${problemType}`);
       usage();

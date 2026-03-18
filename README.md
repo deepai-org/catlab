@@ -158,7 +158,7 @@ echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
 cd .. && lake build catlab-repl && cd ts
 ```
 
-### Problem Types (16 total)
+### Problem Types (18 total)
 
 | Problem | Status | Command | What it solves |
 |---------|--------|---------|----------------|
@@ -175,9 +175,38 @@ cd .. && lake build catlab-repl && cd ts
 | **Relaxation** | ✅ | `--problem relax --target <T> --property <P>` | find X closest to target satisfying P |
 | **Sub-object** | ✅ | `--problem subobject --target <T> --property <P>` | find sub-theory satisfying P |
 | **Decomposition** | ✅ | `--problem decompose --target <T>` | find components s.t. ⨁ Xᵢ ≅ target |
-| **Multi-objective** | 🚧 | `--problem multi --objectives "<T>:<op>,..."` | find X satisfying multiple constraints |
+| **Catalyst** | ✅ | `--problem catalyst --source <A> --target <B>` | find C s.t. A⊗C → B⊗C |
+| **Compose** | ✅ | `--problem compose --constraints "<spec>"` | find X satisfying ALL constraints |
+| **Multi-objective** | 🚧 | `--problem multi --objectives "<T>:<op>,..."` | find X satisfying multiple inverse constraints |
 | **Factorization** | 🚧 | `--problem factorization --target <T>` | find (X,Y) s.t. X⊗Y ≅ target |
 | **Optimization** | 🚧 | `--problem optimization --target <T> --op <op> --property <P>` | minimize cost subject to op(X)≅target |
+
+### Composition
+
+The **compose** problem type combines any of the above constraints into a single search. The LLM must find one theory satisfying all constraints simultaneously. Constraints are specified as `type:arg1:arg2` separated by `+`:
+
+```
+type:arg1:arg2+type:arg1:arg2+...
+```
+
+Available constraint types and their arguments:
+
+| Constraint | Format | Example |
+|------------|--------|---------|
+| `inverse` | `inverse:<target>:<op>` | `inverse:Monoid:opposite` |
+| `fixed-point` | `fixed-point:<target>:<op>` | `fixed-point:Monoid:opposite` |
+| `pushout-complement` | `pushout-complement:<base>:<target>` | `pushout-complement:Monoid:Group` |
+| `pullback-complement` | `pullback-complement:<base>:<target>` | `pullback-complement:Monoid:Group` |
+| `extension` | `extension:<base>:<property>` | `extension:Monoid:has_inverses` |
+| `interpolation` | `interpolation:<base>:<target>` | `interpolation:Monoid:Group` |
+| `simplify` | `simplify:<target>` | `simplify:Monoid` |
+| `subobject` | `subobject:<target>:<property>` | `subobject:Group:has_inverses` |
+| `quotient` | `quotient:<base>:<property>` | `quotient:Group:commutative` |
+| `relax` | `relax:<target>:<property>` | `relax:Monoid:has_inverses` |
+| `catalyst` | `catalyst:<source>:<target>` | `catalyst:Monoid:Group` |
+| `decompose` | `decompose:<target>` | `decompose:Ring` |
+
+Verification runs all constraints independently and reports per-constraint pass/fail. The distance metric sums across constraints, giving the LLM gradient-like feedback for iterative refinement.
 
 ### Tested Examples
 
@@ -213,6 +242,12 @@ catlab-solve --problem synthesis --base Group --source M --target M     # round 
 catlab-solve --problem quotient --base Group --property commutative     # round 1 ✅
 catlab-solve --problem relax --target Monoid --property has_inverses    # round 1 ✅
 catlab-solve --problem decompose --target Ring                          # harder
+
+# ── Composition: find X satisfying multiple constraints ────
+catlab-solve --problem compose \
+  --constraints "inverse:Monoid:opposite+fixed-point:Monoid:opposite"   # round 1 ✅
+catlab-solve --problem compose \
+  --constraints "extension:Monoid:has_inverses+quotient:Group:commutative"
 
 # ── Options ────────────────────────────────────────────────
 catlab-solve Monoid opposite --rounds 5 --style "keep it simple"

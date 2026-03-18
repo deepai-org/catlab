@@ -177,6 +177,12 @@ export type CatlabCommand =
       target: string;
       property: string;
       candidate: TheoryJson;
+    }
+  | {
+      command: "evaluate_catalyst";
+      source: string;
+      target: string;
+      candidate: TheoryJson;
     };
 
 export type CatlabRequest = CatlabCommand & { id: string };
