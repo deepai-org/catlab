@@ -89,9 +89,11 @@ structure VerificationResult where
   axiomViolations   : List AxiomViolation     -- axioms that don't hold, with partial reductions
 ```
 
-Two traps addressed explicitly:
+Three traps addressed explicitly:
 
 - **Verification is not O(N).** Checking theory isomorphism is Graph Isomorphism; checking if an axiom holds is the Word Problem (undecidable). `VerificationStatus.Timeout depth` reports "I tried N rewriting steps and couldn't prove this" rather than falsely reporting failure.
+
+- **Comp-reversing operators.** Operators like `opposite` and `mirror` reverse the direction of composition. Naively comparing `op(candidate)` against `target` puts axioms in the wrong orientation for rewriting, causing infinite expansion. CatLab detects comp-reversing operators and uses a **contravariant verification strategy**: instead of diffing `op(X)` against `T`, it diffs `X` against `op(T)`, keeping composition direction aligned.
 
 - **The alias problem.** If the target requires an object named `State` and the LLM proposes `System`, a name-based diff wastes an API call on a trivial rename. CatLab diffs by **structural signatures**: position-normalized Expr shapes invariant under generator renaming. "Missing morphism `§0 → §1 ⊗ §0`" rather than "Missing morphism `η`."
 
