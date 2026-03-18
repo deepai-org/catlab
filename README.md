@@ -177,9 +177,9 @@ cd .. && lake build catlab-repl && cd ts
 | **Decomposition** | ✅ | `--problem decompose --target <T>` | find components s.t. ⨁ Xᵢ ≅ target |
 | **Catalyst** | ✅ | `--problem catalyst --source <A> --target <B>` | find C s.t. A⊗C → B⊗C |
 | **Compose** | ✅ | `--problem compose --constraints "<spec>"` | find X satisfying ALL constraints |
-| **Multi-objective** | 🚧 | `--problem multi --objectives "<T>:<op>,..."` | find X satisfying multiple inverse constraints |
-| **Factorization** | 🚧 | `--problem factorization --target <T>` | find (X,Y) s.t. X⊗Y ≅ target |
-| **Optimization** | 🚧 | `--problem optimization --target <T> --op <op> --property <P>` | minimize cost subject to op(X)≅target |
+| **Multi-objective** | ✅ | `--problem multi --objectives "<T>:<op>,..."` | find X satisfying multiple inverse constraints |
+| **Factorization** | ✅ | `--problem factorization --target <T>` | find (X,Y) s.t. X⊗Y ≅ target |
+| **Optimization** | ✅ | `--problem optimization --target <T> --op <op> --property <P>` | minimize cost subject to op(X)≅target |
 
 ### Composition
 
@@ -247,6 +247,17 @@ catlab-solve --problem decompose --target Monoid                        # round 
 # ── Catalyst: find C such that source⊗C → target⊗C ────────
 catlab-solve --problem catalyst --source Monoid --target Monoid         # round 1 ✅
 # Note: cross-theory catalysts (e.g. Monoid→Group) are hard — expect 5+ rounds
+
+# ── Multi-objective: find X satisfying multiple inverse constraints ──
+catlab-solve --problem multi \
+  --objectives "Monoid:opposite,Monoid:identity"                        # round 2 ✅
+
+# ── Factorization: find (X,Y) such that X⊗Y ≅ target ────
+catlab-solve --problem factorization --target Monoid                    # round 1 ✅
+
+# ── Optimization: minimize cost subject to constraint ─────
+catlab-solve --problem optimization --target Monoid --op opposite \
+  --property "minimize generators"                                      # round 1 ✅
 
 # ── Composition: find X satisfying multiple constraints ────
 catlab-solve --problem compose \

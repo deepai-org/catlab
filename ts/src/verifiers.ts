@@ -240,16 +240,43 @@ export class MultiObjectiveVerifier implements Verifier {
     timeoutMs: number,
   ): Promise<VerificationResult> {
     const candidate = payload as TheoryJson;
-    const res = await catlab.request(
-      {
-        command: "evaluate_multi_objective",
-        objectives: this.objectives.map(o => ({ target: o.target, forward_op: o.forwardOp })),
-        candidate,
-      },
-      timeoutMs,
+
+    // Run each objective as an independent inverse evaluation
+    const subResults = await Promise.all(
+      this.objectives.map(async (obj) => {
+        const res = await catlab.request(
+          {
+            command: "evaluate_inverse",
+            target: obj.target,
+            forward_op: obj.forwardOp,
+            candidate,
+          },
+          timeoutMs,
+        );
+        if (res.status === "error") throw new Error(`Lean error: ${res.message}`);
+        return { label: `${obj.forwardOp}(X) ≅ ${obj.target}`, result: res.result! };
+      }),
     );
-    if (res.status === "error") throw new Error(`Lean error: ${res.message}`);
-    return res.result!;
+
+    const allVerified = subResults.every((r) => r.result.verified);
+    const merged: VerificationResult = {
+      verified: allVerified,
+      candidateName: candidate.name,
+      verificationStatus: allVerified
+        ? "✓ All objectives satisfied"
+        : `✗ Failed: ${subResults.filter((r) => !r.result.verified).length}/${subResults.length} objectives failed`,
+      missingSignatures: subResults.flatMap((r) => r.result.missingSignatures),
+      unmappedObjects: subResults.flatMap((r) => r.result.unmappedObjects),
+      axiomViolations: subResults.flatMap((r) => r.result.axiomViolations),
+      distance: subResults.reduce((sum, r) => sum + (r.result.distance ?? 0), 0),
+      feedbackStrings: subResults.flatMap((r) =>
+        r.result.verified
+          ? [`✓ ${r.label}: PASSED`]
+          : [`✗ ${r.label}: FAILED — ${r.result.verificationStatus}`,
+             ...(r.result.feedbackStrings ?? [])],
+      ),
+    };
+    return merged;
   }
 }
 
@@ -381,37 +408,17 @@ export class FactorizationVerifier implements Verifier {
     timeoutMs: number,
   ): Promise<VerificationResult> {
     const p = payload as { factorX: TheoryJson; factorY: TheoryJson };
-    // Use generic evaluate: pack both factors into the payload
     const res = await catlab.request(
       {
-        command: "evaluate_generic" as any,
-        handler: "factorization",
-        payload: {
-          target: this.targetName,
-          binary_op: this.binaryOp,
-          factor_x: p.factorX,
-          factor_y: p.factorY,
-        },
+        command: "evaluate_factorization",
+        target: this.targetName,
+        binary_op: this.binaryOp,
+        factor_x: p.factorX,
+        factor_y: p.factorY,
       } as any,
       timeoutMs,
     );
-    if (res.status === "error") {
-      // Fall back: verify each factor individually against the target
-      // (This is a degraded mode until the Lean handler exists)
-      return {
-        verified: false,
-        candidateName: `${p.factorX?.name ?? "X"} ⊗ ${p.factorY?.name ?? "Y"}`,
-        verificationStatus: `✗ Failed: ${res.message}`,
-        missingSignatures: [],
-        unmappedObjects: [],
-        axiomViolations: [],
-        feedbackStrings: [
-          `Factorization verification not yet implemented in CAS: ${res.message}`,
-          `Factor X: "${p.factorX?.name}" (${p.factorX?.objects?.length ?? 0} obj)`,
-          `Factor Y: "${p.factorY?.name}" (${p.factorY?.objects?.length ?? 0} obj)`,
-        ],
-      };
-    }
+    if (res.status === "error") throw new Error(`Lean error: ${res.message}`);
     return res.result!;
   }
 

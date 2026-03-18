@@ -746,6 +746,34 @@ def handleEvaluateCatalyst (j : Json) (id : String) : Json :=
                      ("bc_size", natJson (bc.objects.length + bc.morphisms.length))]
 
 -- ============================================================
+-- evaluate_factorization command
+-- Find (X, Y) such that tensor(X, Y) ≅ target
+-- ============================================================
+
+def handleEvaluateFactorization (j : Json) (id : String) : Json :=
+  let targetResult := getStr j "target"
+  let binaryOp     := match getStr j "binary_op" with | .ok s => s | .error _ => "tensor"
+  let factorXJson  := j.getObjVal? "factor_x"
+  let factorYJson  := j.getObjVal? "factor_y"
+  match targetResult, factorXJson, factorYJson with
+  | .error e, _, _       => errorResponse id e
+  | _, .error _, _       => errorResponse id "missing field 'factor_x'"
+  | _, _, .error _       => errorResponse id "missing field 'factor_y'"
+  | .ok targetName, .ok fxJson, .ok fyJson =>
+    match lookupTheory targetName, theoryFromJson fxJson, theoryFromJson fyJson with
+    | .error e, _, _ => errorResponse id e
+    | _, .error e, _ => errorResponse id s!"invalid factor_x: {e}"
+    | _, _, .error e => errorResponse id s!"invalid factor_y: {e}"
+    | .ok target, .ok factorX, .ok factorY =>
+      -- Apply binary operator (currently only tensor supported)
+      let composed := match binaryOp with
+        | "tensor" => tensorTheories factorX factorY
+        | _ => tensorTheories factorX factorY  -- fallback to tensor
+      let result := computeStructuralDiff composed composed target
+      okResponse id [("result", verificationToJson result),
+                     ("composed_size", natJson (composed.objects.length + composed.morphisms.length))]
+
+-- ============================================================
 -- summary / validate commands
 -- ============================================================
 
@@ -813,6 +841,7 @@ def handleRequest (line : String) : Json :=
       | "evaluate_decomposition"       => handleEvaluateDecomposition      j id
       | "evaluate_relaxation"          => handleEvaluateRelaxation         j id
       | "evaluate_catalyst"            => handleEvaluateCatalyst           j id
+      | "evaluate_factorization"      => handleEvaluateFactorization     j id
       | other              => errorResponse id s!"Unknown command '{other}'"
     | .ok other =>
       errorResponse id s!"'command' must be a string, got: {other.compress}"
