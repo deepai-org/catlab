@@ -160,33 +160,51 @@ cd .. && lake build catlab-repl && cd ts
 
 ### Problem Types
 
-| Problem | Command | What it solves |
-|---------|---------|----------------|
-| **Inverse** | `catlab-solve Monoid opposite` | find X s.t. op(X) ≅ target |
-| **Fixed-point** | `catlab-solve --problem fixed-point --target Monoid --op opposite` | find X s.t. op(X) ≅ X |
-| **Pushout complement** | `catlab-solve --problem pushout-complement --base Monoid --target Ring` | find X s.t. pushout(base, X) ≅ target |
-| **Extension** | `catlab-solve --problem extension --base Monoid --property has_inverses` | find X extending base with property P |
-| **Multi-objective** | `catlab-solve --problem multi --objectives "Monoid:opposite,Monoid:mirror"` | find X satisfying multiple constraints |
-| **Factorization** | `catlab-solve --problem factorization --target Ring` | find (X,Y) s.t. X⊗Y ≅ target |
-| **Interpolation** | `catlab-solve --problem interpolation --base Monoid --target Ring` | find X with base ↪ X → target |
-| **Optimization** | `catlab-solve --problem optimization --target Ring --op opposite --property cost` | minimize cost subject to op(X)≅target |
+| Problem | Status | Command | What it solves |
+|---------|--------|---------|----------------|
+| **Inverse** | ✅ | `catlab-solve <theory> <op>` | find X s.t. op(X) ≅ target |
+| **Fixed-point** | ✅ | `catlab-solve --problem fixed-point --target <T> --op <op>` | find X s.t. op(X) ≅ X |
+| **Pushout complement** | ✅ | `catlab-solve --problem pushout-complement --base <T> --target <T>` | find X s.t. pushout(base, X) ≅ target |
+| **Extension** | ✅ | `catlab-solve --problem extension --base <T> --property <P>` | find X extending base with property P |
+| **Interpolation** | ✅ | `catlab-solve --problem interpolation --base <T> --target <T>` | find X with base ↪ X → target |
+| **Multi-objective** | 🚧 | `catlab-solve --problem multi --objectives "<T>:<op>,..."` | find X satisfying multiple constraints |
+| **Factorization** | 🚧 | `catlab-solve --problem factorization --target <T>` | find (X,Y) s.t. X⊗Y ≅ target |
+| **Optimization** | 🚧 | `catlab-solve --problem optimization --target <T> --op <op> --property <P>` | minimize cost subject to op(X)≅target |
 
-### Examples
+### Tested Examples
+
+All examples below solve in 1–3 rounds (~4–15s each).
 
 ```bash
 export $(cat .env | xargs)
 
-# Easy: find X such that opposite(X) ≅ Monoid → solves in ~6s
-catlab-solve Monoid opposite
+# ── Inverse: find X such that op(X) ≅ target ──────────────
+catlab-solve Monoid opposite        # round 1 ✅
+catlab-solve Group opposite         # round 1 ✅
+catlab-solve AbelianGroup opposite  # round 1 ✅
+catlab-solve Category opposite      # round 1 ✅
+catlab-solve Poset opposite         # round 2 ✅
+catlab-solve Lattice opposite       # round 2 ✅
+catlab-solve Ring opposite          # round 2 ✅
+catlab-solve Monoid mirror          # round 2 ✅
+catlab-solve Semiring opposite      # round 3 ✅
 
-# Fixed-point: find X such that opposite(X) ≅ X → solves in ~4s
-catlab-solve --problem fixed-point --target Monoid --op opposite
+# ── Fixed-point: find X such that op(X) ≅ X ───────────────
+catlab-solve --problem fixed-point --target Monoid --op opposite        # round 1 ✅
+catlab-solve --problem fixed-point --target AbelianGroup --op opposite  # round 1 ✅
 
-# With options
+# ── Extension: find X extending base with property P ──────
+catlab-solve --problem extension --base Monoid --property has_inverses  # round 1 ✅
+
+# ── Pushout complement: find X s.t. pushout(base, X) ≅ target
+catlab-solve --problem pushout-complement --base Monoid --target Group  # round 1 ✅
+
+# ── Interpolation: find X with base ↪ X → target ─────────
+catlab-solve --problem interpolation --base Monoid --target Group       # round 1 ✅
+
+# ── Options ────────────────────────────────────────────────
 catlab-solve Monoid opposite --rounds 5 --style "keep it simple"
-
-# List available theories
-catlab-solve list
+catlab-solve list  # list all 34 available theories
 ```
 
 Output goes to stderr (progress logs) and stdout (final JSON result).
