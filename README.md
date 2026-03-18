@@ -238,14 +238,19 @@ catlab-solve --problem simplify --target Monoid                         # round 
 catlab-solve --problem model-finding --target Monoid                    # round 1 ✅
 catlab-solve --problem synthesis --base Group --source M --target M     # round 1 ✅
 
-# ── Quotient / Relaxation / Decomposition ──────────────────
+# ── Quotient / Relaxation / Sub-object / Decomposition ─────
 catlab-solve --problem quotient --base Group --property commutative     # round 1 ✅
 catlab-solve --problem relax --target Monoid --property has_inverses    # round 1 ✅
-catlab-solve --problem decompose --target Ring                          # harder
+catlab-solve --problem subobject --target Group --property has_identity # round 1 ✅
+catlab-solve --problem decompose --target Monoid                        # round 1 ✅
+
+# ── Catalyst: find C such that source⊗C → target⊗C ────────
+catlab-solve --problem catalyst --source Monoid --target Monoid         # round 1 ✅
+# Note: cross-theory catalysts (e.g. Monoid→Group) are hard — expect 5+ rounds
 
 # ── Composition: find X satisfying multiple constraints ────
 catlab-solve --problem compose \
-  --constraints "inverse:Monoid:opposite+fixed-point:Monoid:opposite"   # round 1 ✅
+  --constraints "inverse:Monoid:opposite+fixed-point:Monoid:opposite"   # round 2 ✅
 catlab-solve --problem compose \
   --constraints "extension:Monoid:has_inverses+quotient:Group:commutative"
 

@@ -200,6 +200,8 @@ export class GenericSolver {
           `${tag("GENERATING", round + 1, maxRounds)} ` +
           `candidate ${summarizePayload(payload)}`,
         );
+        // Print the full candidate JSON so we can inspect what the LLM proposed
+        console.error(`\n── candidate JSON ──\n${JSON.stringify(payload, null, 2)}\n── end candidate ──`);
         phase = "VERIFYING";
       }
 
@@ -268,6 +270,12 @@ export class GenericSolver {
           console.error(`  • ${lastResult.axiomViolations.length} axiom violation(s)`);
         if (lastResult.feedbackStrings && lastResult.feedbackStrings.length > 0)
           console.error(`  • ${lastResult.feedbackStrings.length} feedback message(s)`);
+
+        // Print the full feedback that will be sent to the LLM
+        if (!lastResult.verified) {
+          const feedbackText = formatFeedback(lastResult, payload);
+          console.error(`\n── feedback to LLM ──\n${feedbackText}\n── end feedback ──`);
+        }
 
         if (lastResult.verified) {
           const name = (payload as Record<string, unknown>)?.name ?? "solution";
