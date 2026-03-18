@@ -1079,104 +1079,161 @@ async function runReaction(op, theoryA, theoryB) {
 
 // ── WORKBENCH GRAPH ───────────────────────────────────────────────────────────
 
-let graphNodes = [];
-let graphEdges = [];
+// Graph model: nodes + edges with live redraw on drag
+const graph = { nodes: [], edges: [], nextId: 0, reactionCount: 0 };
+
+function switchToWorkbench() {
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('.mode-btn[data-mode="workbench"]').classList.add('active');
+  document.getElementById('inventory').classList.remove('active');
+  document.getElementById('workbench').classList.add('active');
+}
 
 function addGraphNode(resultName, op, inputA, inputB) {
   const container = document.getElementById('graphContainer');
   const empty = document.getElementById('workbenchEmpty');
   if (empty) empty.style.display = 'none';
+  switchToWorkbench();
 
-  const cx = 200 + Math.random() * 400;
-  const cy = 100 + graphNodes.length * 80;
+  graph.reactionCount++;
+  const row = graph.reactionCount;
+  const baseY = 40 + (row - 1) * 120;
+  const baseX = 60;
 
-  // Input nodes
-  const ensureNode = (name, color) => {
-    if (!graphNodes.find(n => n.name === name)) {
-      const nx = cx - 180 + Math.random() * 60;
-      const ny = cy - 20 + Math.random() * 40;
-      const node = createGraphNodeEl(name, color, nx, ny);
-      container.appendChild(node);
-      graphNodes.push({ name, x: nx, y: ny, el: node });
-    }
-    return graphNodes.find(n => n.name === name);
+  const ensureNode = (name, x, y, color) => {
+    const existing = graph.nodes.find(n => n.name === name && !n.isOp);
+    if (existing) return existing;
+    const id = graph.nextId++;
+    const el = makeNodeEl(id, name, x, y, color, false);
+    container.appendChild(el);
+    const node = { id, name, x, y, el, color, isOp: false };
+    graph.nodes.push(node);
+    return node;
   };
 
-  const inputColor = 'var(--accent)';
-  const opColor = 'var(--orange)';
-  const resultColor = 'var(--green)';
-
-  const nA = ensureNode(inputA, inputColor);
-  if (inputB) {
-    const nB = ensureNode(inputB, inputColor);
+  const nA = ensureNode(inputA, baseX, baseY, '#388bfd');
+  let nB = null;
+  if (inputB && inputB !== inputA) {
+    nB = ensureNode(inputB, baseX, baseY + 60, '#388bfd');
+  } else if (inputB) {
+    nB = nA;
   }
 
-  // Op node
-  const opNode = createGraphNodeEl(op, opColor, cx, cy, true);
-  container.appendChild(opNode);
-  graphNodes.push({ name: op + '_' + graphNodes.length, x: cx, y: cy, el: opNode });
+  const opId = graph.nextId++;
+  const opX = baseX + 280;
+  const opY = nB && nB !== nA ? baseY + 30 : baseY;
+  const opEl = makeNodeEl(opId, op, opX, opY, '#d29922', true);
+  container.appendChild(opEl);
+  graph.nodes.push({ id: opId, name: op, x: opX, y: opY, el: opEl, color: '#d29922', isOp: true });
 
-  // Result node
-  const rNode = createGraphNodeEl(resultName, resultColor, cx + 180, cy);
-  container.appendChild(rNode);
-  graphNodes.push({ name: resultName, x: cx + 180, y: cy, el: rNode });
+  const resId = graph.nextId++;
+  const resX = baseX + 540;
+  const resY = opY;
+  const resEl = makeNodeEl(resId, resultName, resX, resY, '#3fb950', false);
+  container.appendChild(resEl);
+  graph.nodes.push({ id: resId, name: resultName, x: resX, y: resY, el: resEl, color: '#3fb950', isOp: false });
 
-  // Draw edges
-  drawEdge(nA.x + 60, nA.y + 15, cx, cy + 15);
-  if (inputB) {
-    const nB = graphNodes.find(n => n.name === inputB);
-    drawEdge(nB.x + 60, nB.y + 15, cx, cy + 15);
-  }
-  drawEdge(cx + 50, cy + 15, cx + 180, cy + 15);
+  graph.edges.push({ from: nA.id, to: opId });
+  if (nB) graph.edges.push({ from: nB.id, to: opId });
+  graph.edges.push({ from: opId, to: resId });
+  redrawEdges();
 }
 
-function createGraphNodeEl(name, color, x, y, isOp) {
+function makeNodeEl(id, name, x, y, color, isOp) {
   const div = document.createElement('div');
   div.className = 'graph-node';
+  div.dataset.nodeId = id;
   div.style.left = x + 'px';
   div.style.top = y + 'px';
   div.style.borderColor = color;
   div.style.color = color;
   div.textContent = name;
   if (isOp) {
-    div.style.borderRadius = '50%';
-    div.style.padding = '10px';
+    div.style.borderRadius = '20px';
+    div.style.padding = '8px 14px';
     div.style.fontSize = '11px';
+    div.style.fontStyle = 'italic';
   }
 
-  // Drag
   let dragging = false, dx, dy;
   div.addEventListener('mousedown', e => {
     dragging = true;
     dx = e.clientX - div.offsetLeft;
     dy = e.clientY - div.offsetTop;
     div.style.cursor = 'grabbing';
+    div.style.zIndex = '10';
+    e.preventDefault();
     e.stopPropagation();
   });
   document.addEventListener('mousemove', e => {
     if (!dragging) return;
-    div.style.left = (e.clientX - dx) + 'px';
-    div.style.top = (e.clientY - dy) + 'px';
+    const nx = e.clientX - dx;
+    const ny = e.clientY - dy;
+    div.style.left = nx + 'px';
+    div.style.top = ny + 'px';
+    const node = graph.nodes.find(n => n.id === id);
+    if (node) { node.x = nx; node.y = ny; }
+    redrawEdges();
   });
   document.addEventListener('mouseup', () => {
+    if (!dragging) return;
     dragging = false;
     div.style.cursor = 'grab';
+    div.style.zIndex = '2';
   });
-
   return div;
 }
 
-function drawEdge(x1, y1, x2, y2) {
+function nodeCenter(node) {
+  const w = node.el.offsetWidth || 80;
+  const h = node.el.offsetHeight || 32;
+  return { x: node.x + w / 2, y: node.y + h / 2 };
+}
+
+function edgePoint(node, target) {
+  const w = node.el.offsetWidth || 80;
+  const h = node.el.offsetHeight || 32;
+  const cx = node.x + w / 2, cy = node.y + h / 2;
+  const dx = target.x - cx, dy = target.y - cy;
+  if (!dx && !dy) return { x: cx, y: cy };
+  const sx = (w / 2) / (Math.abs(dx) || 1);
+  const sy = (h / 2) / (Math.abs(dy) || 1);
+  const s = Math.min(sx, sy);
+  return { x: cx + dx * s, y: cy + dy * s };
+}
+
+function redrawEdges() {
   const svg = document.getElementById('graphEdges');
-  const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-  line.setAttribute('x1', x1);
-  line.setAttribute('y1', y1);
-  line.setAttribute('x2', x2);
-  line.setAttribute('y2', y2);
-  line.setAttribute('stroke', 'var(--border)');
-  line.setAttribute('stroke-width', '2');
-  line.setAttribute('stroke-dasharray', '4,4');
-  svg.appendChild(line);
+  svg.innerHTML = '';
+  const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+  const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+  marker.setAttribute('id', 'ah');
+  marker.setAttribute('markerWidth', '8');
+  marker.setAttribute('markerHeight', '6');
+  marker.setAttribute('refX', '7');
+  marker.setAttribute('refY', '3');
+  marker.setAttribute('orient', 'auto');
+  const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+  poly.setAttribute('points', '0 0, 8 3, 0 6');
+  poly.setAttribute('fill', '#8b949e');
+  marker.appendChild(poly);
+  defs.appendChild(marker);
+  svg.appendChild(defs);
+
+  for (const e of graph.edges) {
+    const fn = graph.nodes.find(n => n.id === e.from);
+    const tn = graph.nodes.find(n => n.id === e.to);
+    if (!fn || !tn) continue;
+    const fc = nodeCenter(fn), tc = nodeCenter(tn);
+    const s = edgePoint(fn, tc), d = edgePoint(tn, fc);
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', `M${s.x},${s.y} L${d.x},${d.y}`);
+    path.setAttribute('stroke', '#8b949e');
+    path.setAttribute('stroke-width', '2');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('marker-end', 'url(#ah)');
+    svg.appendChild(path);
+  }
 }
 
 // ── CHAT ──────────────────────────────────────────────────────────────────────
@@ -1276,21 +1333,19 @@ async function processUserMessage(text) {
       return;
     }
 
-    // Render events from the agent
+    // Render events — skip status events (tool call spinners) in final output
     let html = '';
     for (const ev of res.data.events) {
       switch (ev.type) {
         case 'status':
-          html += `<div class="status-bar"><div class="spinner"></div> ${escHtml(ev.content)}</div>`;
+          // Don't render status bars in final output — they were intermediate
           break;
         case 'text':
-          // Convert markdown-ish text to HTML
           html += formatLLMText(ev.content);
           break;
         case 'theory':
           if (ev.theory) {
             html += renderTheoryCard(ev.theory);
-            // Add to graph
             addGraphNode(ev.theory.name || ev.content, 'result', ev.content, null);
           }
           break;
