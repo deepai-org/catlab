@@ -1,0 +1,12 @@
+{"id":"t1","command":"list_theories"}
+{"id":"t2","command":"summary","theory":"Monoid"}
+{"id":"t3","command":"summary","theory":"DoesNotExist"}
+{"id":"t4","command":"apply_operator","operator":"decategorify_iso","theory":"Group"}
+{"id":"t5","command":"apply_operator","operator":"mirror","theory":"Ring"}
+{"id":"t6","command":"apply_operator","operator":"unknown_op","theory":"Monoid"}
+{"id":"t7","command":"compute_pushout","theory1":"Group","theory2":"Ring","base":"Monoid"}
+{"id":"t8","command":"validate","theory":"Category"}
+{"id":"t9","command":"evaluate_inverse","target":"Monoid","forward_op":"identity","candidate":{"name":"CorrectMonoid","doctrine":"LawvereTheory","objects":[{"name":"M","description":"carrier"}],"morphisms":[{"name":"μ","domain":{"prod":[{"atom":"M"},{"atom":"M"}]},"codomain":{"atom":"M"},"description":"multiplication"},{"name":"η","domain":"terminal","codomain":{"atom":"M"},"description":"unit"}],"axioms":[{"name":"assoc","lhs":{"comp":[{"prod":[{"atom":"μ"},{"id":{"atom":"M"}}]},{"atom":"μ"}]},"rhs":{"comp":[{"prod":[{"id":{"atom":"M"}},{"atom":"μ"}]},{"atom":"μ"}]}},{"name":"left_unit","lhs":{"comp":[{"prod":[{"atom":"η"},{"id":{"atom":"M"}}]},{"atom":"μ"}]},"rhs":{"id":{"atom":"M"}}},{"name":"right_unit","lhs":{"comp":[{"prod":[{"id":{"atom":"M"}},{"atom":"η"}]},{"atom":"μ"}]},"rhs":{"id":{"atom":"M"}}}]}}
+{"id":"t10","command":"evaluate_inverse","target":"Monoid","forward_op":"identity","candidate":{"name":"MissingUnit","doctrine":"LawvereTheory","objects":[{"name":"M"}],"morphisms":[{"name":"μ","domain":{"prod":[{"atom":"M"},{"atom":"M"}]},"codomain":{"atom":"M"}}],"axioms":[]}}
+{"id":"t11","command":"solve_inverse","target":"Monoid","forward_op":"identity","candidates":[{"name":"Proposal1_Bad","doctrine":"Category","objects":[{"name":"X"}],"morphisms":[],"axioms":[]},{"name":"Proposal2_Correct","doctrine":"LawvereTheory","objects":[{"name":"M"}],"morphisms":[{"name":"μ","domain":{"prod":[{"atom":"M"},{"atom":"M"}]},"codomain":{"atom":"M"}},{"name":"η","domain":"terminal","codomain":{"atom":"M"}}],"axioms":[{"name":"assoc","lhs":{"comp":[{"prod":[{"atom":"μ"},{"id":{"atom":"M"}}]},{"atom":"μ"}]},"rhs":{"comp":[{"prod":[{"id":{"atom":"M"}},{"atom":"μ"}]},{"atom":"μ"}]}},{"name":"left_unit","lhs":{"comp":[{"prod":[{"atom":"η"},{"id":{"atom":"M"}}]},{"atom":"μ"}]},"rhs":{"id":{"atom":"M"}}},{"name":"right_unit","lhs":{"comp":[{"prod":[{"id":{"atom":"M"}},{"atom":"η"}]},{"atom":"μ"}]},"rhs":{"id":{"atom":"M"}}}]}]}
+{"not valid json at all"

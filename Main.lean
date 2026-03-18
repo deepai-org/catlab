@@ -1,7 +1,8 @@
 import Catlab.Repl.Server
 
 def main : IO Unit := do
-  IO.println "CatLab v0.1.0 — Categorical Computer Algebra System"
-  IO.println "Type 'help' for commands, 'quit' to exit."
-  IO.println ""
-  CatLab.Repl.replLoop
+  -- Banner to stderr only — stdout is reserved for NDJSON responses.
+  -- The TypeScript orchestrator reads stdout line-by-line as JSON;
+  -- any non-JSON on stdout would break readline parsing.
+  IO.eprintln "CatLab v0.1.0 — NDJSON mode (stderr=log, stdout=JSON)"
+  CatLab.Repl.ndjsonLoop
