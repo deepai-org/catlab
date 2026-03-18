@@ -174,10 +174,12 @@ export class InverseProblemSolver {
 
             if (kind === "PARSE_ERROR") {
               // LLM produced non-JSON: retry fresh (not refine) — it may have
-              // confused itself trying to fix the diff
+              // confused itself trying to fix the diff.
+              // Log the full message (not just line 1) so we can see the preview.
+              const fullMsg = err instanceof Error ? err.message : String(err);
               console.error(
                 `${tag("GENERATING", round + 1, maxRounds)} ` +
-                `PARSE_ERROR (attempt ${llmAttempt}/${maxLLMRetries}) — retrying fresh`,
+                `PARSE_ERROR (attempt ${llmAttempt}/${maxLLMRetries}) — retrying fresh\n  ${fullMsg}`,
               );
               candidate = undefined; // force fresh generation on next attempt
               lastResult = undefined;
@@ -186,7 +188,7 @@ export class InverseProblemSolver {
               const delay = backoffMs(llmAttempt - 1);
               console.error(
                 `${tag("GENERATING", round + 1, maxRounds)} ` +
-                `${kind} (attempt ${llmAttempt}/${maxLLMRetries}) — backing off ${delay}ms`,
+                `${kind} (attempt ${llmAttempt}/${maxLLMRetries}) — backing off ${delay}ms: ${msg}`,
               );
               await sleep(delay);
             }

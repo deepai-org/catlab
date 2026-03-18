@@ -70,7 +70,45 @@ def natJson (n : Nat) : Json :=
 -- Doctrine deserialization
 -- ============================================================
 
-def doctrineFromStr : String → Except String Doctrine
+/-- Short names for each doctrine, used when serializing theories to JSON.
+    Produces "CartesianClosed" not "CatLab.Doctrine.CartesianClosed", so the
+    LLM sees clean strings it can copy back verbatim. -/
+def doctrineToStr : Doctrine → String
+  | .Category                    => "Category"
+  | .CartesianCategory           => "CartesianCategory"
+  | .CartesianClosed             => "CartesianClosed"
+  | .MonoidalCategory            => "MonoidalCategory"
+  | .BraidedMonoidal             => "BraidedMonoidal"
+  | .SymmetricMonoidal           => "SymmetricMonoidal"
+  | .SymmetricMonoidalClosed     => "SymmetricMonoidalClosed"
+  | .FinitelyComplete            => "FinitelyComplete"
+  | .FinitelyCocomplete          => "FinitelyCocomplete"
+  | .Abelian                     => "Abelian"
+  | .Topos                       => "Topos"
+  | .GrothendieckTopos           => "GrothendieckTopos"
+  | .LawvereTheory               => "LawvereTheory"
+  | .StableCategory              => "StableCategory"
+  | .ElementaryTopos             => "ElementaryTopos"
+  | .MartinLofTypeTheory         => "MartinLofTypeTheory"
+  | .PresentableInfinityCategory => "PresentableInfinityCategory"
+  | .ModelCategory               => "ModelCategory"
+  | .Derivator                   => "Derivator"
+  | .InfinityNCategory           => "InfinityNCategory"
+  | .Operad                      => "Operad"
+  | .CubicalTypeTheory           => "CubicalTypeTheory"
+  | .LinearLogic                 => "LinearLogic"
+  | .GeometricLogic              => "GeometricLogic"
+  | .CohesiveHomotopyTypeTheory  => "CohesiveHomotopyTypeTheory"
+  | .EnrichedCategory            => "EnrichedCategory"
+  | .TriangulatedCategory        => "TriangulatedCategory"
+  | .Locale                      => "Locale"
+  | .DifferentialGraded          => "DifferentialGraded"
+
+def doctrineFromStr (raw : String) : Except String Doctrine :=
+  -- Strip Lean repr prefix so both "CartesianClosed" and
+  -- "CatLab.Doctrine.CartesianClosed" are accepted
+  let s := raw.stripPrefix "CatLab.Doctrine."
+  match s with
   | "Category"                    => .ok .Category
   | "CartesianCategory"           => .ok .CartesianCategory
   | "CartesianClosed"             => .ok .CartesianClosed
@@ -100,7 +138,7 @@ def doctrineFromStr : String → Except String Doctrine
   | "TriangulatedCategory"        => .ok .TriangulatedCategory
   | "Locale"                      => .ok .Locale
   | "DifferentialGraded"          => .ok .DifferentialGraded
-  | s                             => .error s!"Unknown doctrine '{s}'"
+  | s                             => .error s!"Unknown doctrine '{s}' (raw: '{raw}')"
 
 -- ============================================================
 -- Expr deserialization
@@ -247,7 +285,7 @@ def axiomToJson (a : Generator2) : Json :=
 def theoryToJson (t : Theory) : Json :=
   Json.mkObj [
     ("name",      .str t.name),
-    ("doctrine",  .str (repr t.doctrine.doctrine).pretty),
+    ("doctrine",  .str (doctrineToStr t.doctrine.doctrine)),
     ("objects",   .arr (t.objects.map objectToJson).toArray),
     ("morphisms", .arr (t.morphisms.map morphismToJson).toArray),
     ("axioms",    .arr (t.axioms.map axiomToJson).toArray)]

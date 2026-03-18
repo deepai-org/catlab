@@ -35,7 +35,14 @@ export class CatlabClient {
   constructor(repoRoot?: string) {
     const root = repoRoot ?? path.resolve(__dirname, "../../");
 
-    this.process = spawn("lake", ["exe", "catlab-repl"], {
+    // Use the pre-built binary directly — avoids the 30-60s lake build-system
+    // check on every run. Falls back to `lake exe catlab-repl` if not found.
+    const binaryPath = path.join(root, ".lake/build/bin/catlab-repl");
+    const [cmd, args] = require("fs").existsSync(binaryPath)
+      ? [binaryPath, [] as string[]]
+      : ["lake", ["exe", "catlab-repl"]];
+
+    this.process = spawn(cmd, args, {
       cwd: root,
       stdio: ["pipe", "pipe", "pipe"],
     });

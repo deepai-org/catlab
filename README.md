@@ -139,6 +139,46 @@ CatLab has an exhaustive test suite organized by operator category:
 
 ---
 
+## Running the Inverse Solver
+
+The TypeScript orchestrator in `ts/` drives the LLM ↔ CAS loop.
+
+### Setup
+
+```bash
+cd ts
+npm install
+
+# Create .env with your Anthropic API key
+echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
+
+# Build the Lean REPL (first time only)
+cd .. && lake build catlab-repl && cd ts
+```
+
+### Usage
+
+```bash
+source .env && export ANTHROPIC_API_KEY && npx tsx src/index.ts <target> <forwardOp> [--rounds N] [--style "hint"]
+```
+
+**Examples:**
+
+```bash
+# Find X such that opposite(X) ≅ BooleanAlgebra
+source .env && export ANTHROPIC_API_KEY && npx tsx src/index.ts BooleanAlgebra opposite --rounds 5
+
+# Find X such that decategorify(X) ≅ Monoid
+source .env && export ANTHROPIC_API_KEY && npx tsx src/index.ts Monoid decategorify_iso --rounds 3
+
+# Identity test (find X ≅ Group)
+source .env && export ANTHROPIC_API_KEY && npx tsx src/index.ts Group identity --rounds 2
+```
+
+Output goes to stderr (progress logs) and stdout (final JSON result).
+
+---
+
 ## Structure
 
 ```

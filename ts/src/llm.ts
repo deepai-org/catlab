@@ -72,11 +72,15 @@ Valid values: Category, CartesianCategory, MonoidalCategory, BraidedMonoidal, Sy
 
 ## Rules
 
-1. Output EXACTLY ONE JSON code block containing the Theory, and nothing else outside it.
-2. List objects in the ORDER they appear in the target theory. The CAS uses positional matching — wrong order causes false failures.
-3. Keep the candidate as simple as possible. The CAS verifies by forward-applying an operator, not by inspecting the theory directly.
-4. Axiom LHS and RHS must be Exprs over the theory's own morphism atoms.
-5. When fixing a diff, address EVERY missingSignature and axiomViolation listed.`;
+1. Submit your proposal by calling the propose_theory tool. Do not output text —
+   your entire response should be the tool call with the theory as its argument.
+2. List objects in the ORDER they appear in the target theory. The CAS uses positional
+   matching — wrong order causes false structural failures even if the names are right.
+3. Keep the candidate as simple as possible. The CAS verifies by forward-applying an
+   operator to your candidate, not by inspecting it directly.
+4. Axiom LHS and RHS must be Exprs built from the theory's own morphism and object atoms.
+5. When fixing a diff, address EVERY missingSignature and axiomViolation listed.
+6. The "reasoning" field in the tool schema is for your mathematical scratchpad — use it.`;
 
 // ── Inverse problem descriptions ─────────────────────────────────────────────
 
@@ -240,43 +244,98 @@ export class LLMClient {
       `Previous candidate:\n\`\`\`json\n${JSON.stringify(prevCandidate, null, 2)}\n\`\`\`\n\n` +
       formatDiff(diff) +
       `\nPlease provide a corrected Theory JSON that fixes ALL of the above errors. ` +
-      `Output ONLY the corrected JSON code block.`;
+      `Respond with the corrected JSON object only — no prose.`;
 
     return this.callAndParse(userPrompt);
   }
 
-  /** Core: call Claude, stream the response, extract and parse the JSON block. */
+  /**
+   * Core: call Claude with tool_choice forced to "propose_theory".
+   *
+   * Why tool_use instead of output_config / code block extraction:
+   *   - output_config json_object: doesn't exist in the API (only json_schema)
+   *   - output_config json_schema: doesn't support recursive types (ExprJson is recursive)
+   *   - Code block extraction: with adaptive thinking, Claude may return only a
+   *     thinking block and empty text — extracting from text is unreliable
+   *
+   * tool_choice: {type:"tool", name:"propose_theory"} forces Claude to emit a
+   * ToolUseBlock whose `input` is pre-parsed JSON. No text parsing needed, no
+   * recursion schema constraints, and thinking blocks coexist happily.
+   *
+   * The tool schema uses `type: "object"` with loose item types for the arrays
+   * (no `additionalProperties: false` on inner objects) so ExprJson can be
+   * nested arbitrarily without schema violations.
+   */
   private async callAndParse(userPrompt: string): Promise<TheoryJson> {
-    // Use streaming with finalMessage() to prevent HTTP timeouts on long outputs
+    const proposeTool: Anthropic.Tool = {
+      name: "propose_theory",
+      description:
+        "Submit a candidate Theory for verification by the CAS. " +
+        "The CAS will apply the forward operator and diff the result against the target.",
+      input_schema: {
+        type: "object",
+        properties: {
+          reasoning: {
+            type: "string",
+            description: "Your mathematical reasoning and approach (scratchpad — ignored by CAS)",
+          },
+          name:      { type: "string", description: "Theory name" },
+          doctrine:  { type: "string", description: "Doctrine string, e.g. MonoidalCategory" },
+          objects:   { type: "array",  description: "List of {name, description?} objects",
+                       items: { type: "object" } },
+          morphisms: { type: "array",  description: "List of {name, domain, codomain, description?}",
+                       items: { type: "object" } },
+          axioms:    { type: "array",  description: "List of {name, lhs, rhs, description?}",
+                       items: { type: "object" } },
+        },
+        required: ["name", "objects", "morphisms", "axioms"],
+      },
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const stream = this.client.messages.stream({
-      model: "claude-opus-4-6",
-      max_tokens: 8192,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      thinking: { type: "adaptive" } as any,  // adaptive thinking (Opus 4.6)
+      model: "claude-sonnet-4-6",
+      max_tokens: 16384,
+      thinking: { type: "disabled" },
+      tools: [proposeTool],
+      tool_choice: { type: "tool", name: "propose_theory" },
       system: [
         {
           type: "text",
           text: SYSTEM_PROMPT,
-          // Cache the system prompt — it's identical every round, ~90% cheaper after round 1
           cache_control: { type: "ephemeral" },
         },
       ],
       messages: [{ role: "user", content: userPrompt }],
-    });
-
-    // Stream text to stderr so the user sees progress
-    stream.on("text", (delta) => process.stderr.write(delta));
+    } as any);
 
     const message = await stream.finalMessage();
-    process.stderr.write("\n");
 
-    // Extract the full text response
-    const text = message.content
+    const toolUse = message.content.find(
+      (b): b is Anthropic.ToolUseBlock => b.type === "tool_use",
+    );
+
+    if (toolUse) {
+      const parsed = toolUse.input as unknown;
+      const keys = Object.keys(parsed as Record<string, unknown>);
+      console.error(`[llm] tool input keys: ${keys.join(", ")}`);
+      console.error(`[llm] preview: ${JSON.stringify(parsed).slice(0, 400)}`);
+      validateTheoryShape(parsed);
+      return parsed as TheoryJson;
+    }
+
+    // Fallback: Claude responded with text instead of calling the tool.
+    // Log the prose (ignore it for parsing) and throw so the retry loop can try again.
+    const textBlocks = message.content
       .filter((b): b is Anthropic.TextBlock => b.type === "text")
       .map((b) => b.text)
       .join("");
-
-    return extractTheoryJson(text);
+    const types = message.content.map((b) => b.type).join(", ");
+    throw new Error(
+      `LLM did not output a valid Theory JSON.\n` +
+      `Response had no tool_use block (got: ${types}).\n` +
+      `Response preview: ${textBlocks.slice(0, 300)}`,
+    );
   }
 }
 
@@ -356,49 +415,25 @@ export function formatDiff(result: VerificationResult): string {
   return lines.join("\n");
 }
 
-// ── JSON extraction ───────────────────────────────────────────────────────────
 
-/**
- * Extract the first ```json ... ``` code block from a text response
- * and parse it as a TheoryJson.
- */
-function extractTheoryJson(text: string): TheoryJson {
-  // Try ```json ... ``` first, then ``` ... ``` as fallback
-  const jsonBlockRe = /```(?:json)?\s*([\s\S]*?)```/g;
-  const matches = [...text.matchAll(jsonBlockRe)];
-
-  for (const match of matches) {
-    const raw = match[1].trim();
-    try {
-      const parsed = JSON.parse(raw) as unknown;
-      validateTheoryShape(parsed);
-      return parsed as TheoryJson;
-    } catch {
-      // Try the next block
-    }
-  }
-
-  // Last resort: try parsing the entire response as JSON
-  try {
-    const parsed = JSON.parse(text.trim()) as unknown;
-    validateTheoryShape(parsed);
-    return parsed as TheoryJson;
-  } catch {
-    throw new Error(
-      `LLM did not output a valid Theory JSON.\n` +
-        `Response preview: ${text.slice(0, 500)}`,
-    );
-  }
-}
-
-/** Minimal structural validation — catch obvious errors before sending to Lean. */
+/** Minimal structural validation — catch obvious errors before sending to Lean.
+ *  Logs the actual keys so we can debug schema mismatches. */
 function validateTheoryShape(obj: unknown): void {
   if (typeof obj !== "object" || obj === null) {
     throw new Error("Response is not a JSON object");
   }
   const t = obj as Record<string, unknown>;
-  if (typeof t.name !== "string") throw new Error("Missing 'name' field");
-  if (!Array.isArray(t.objects)) throw new Error("Missing 'objects' array");
-  if (!Array.isArray(t.morphisms)) throw new Error("Missing 'morphisms' array");
-  if (!Array.isArray(t.axioms)) throw new Error("Missing 'axioms' array");
+  const keys = Object.keys(t);
+  console.error(`[llm] tool input keys: [${keys.join(", ")}]`);
+  if (typeof t.name !== "string") throw new Error(`Missing 'name' field (keys: ${keys.join(", ")})`);
+  if (!Array.isArray(t.objects)) throw new Error(`Missing 'objects' array (keys: ${keys.join(", ")})`);
+  if (!Array.isArray(t.morphisms)) throw new Error(`Missing 'morphisms' array (keys: ${keys.join(", ")})`);
+  if (!Array.isArray(t.axioms)) {
+    // Default axioms to empty if everything else is present — the CAS handles missing axioms gracefully
+    if (typeof t.name === "string" && Array.isArray(t.objects) && Array.isArray(t.morphisms)) {
+      (t as Record<string, unknown>).axioms = [];
+      return;
+    }
+    throw new Error(`Missing 'axioms' array (keys: ${keys.join(", ")})`);
+  }
 }
