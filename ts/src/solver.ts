@@ -1,30 +1,25 @@
 /**
- * InverseProblemSolver — LLM ↔ CAS feedback loop as an explicit state machine.
+ * GenericSolver — LLM ↔ CAS feedback loop as an explicit state machine.
+ *
+ * The solver is fully verifier-agnostic. It treats the LLM's output as an
+ * opaque JSON payload. The verifier defines the answer schema, the verification
+ * logic, the feedback formatting, and the payload validation.
  *
  * States:
- *   GENERATING  — waiting for the LLM to produce a candidate Theory JSON
- *   VERIFYING   — waiting for the Lean CAS to evaluate the candidate
- *   SUCCESS     — terminal: Lean confirmed verified = true
+ *   GENERATING  — waiting for the LLM to produce a candidate payload
+ *   VERIFYING   — waiting for the CAS to evaluate the payload
+ *   SUCCESS     — terminal: CAS confirmed verified = true
  *   EXHAUSTED   — terminal: maxRounds completed without verification
- *
- * Round discipline:
- *   A "round" is one complete GENERATING → VERIFYING cycle.
- *   Retries within a phase (rate limits, network blips, transient Lean errors)
- *   do NOT advance the round counter. The counter only increments when Lean
- *   returns a real VerificationResult (whether it passes or not).
- *
- * Error classification:
- *   FATAL       — do not retry; fail the entire run (auth errors, wrong config)
- *   RETRYABLE   — retry with exponential backoff (rate limits, network, timeouts)
- *   PARSE_ERROR — retry fresh generation (LLM produced non-JSON output)
  */
 
 import Anthropic from "@anthropic-ai/sdk";
 import type { CatlabClient } from "./client";
 import type { LLMClient } from "./llm";
+import { formatStructuralDiff, validateTheoryPayload } from "./llm";
 import type {
-  TheoryJson,
+  ProblemSpec,
   VerificationResult,
+  Verifier,
   SolverOptions,
   SolverResult,
   HistoryEntry,
@@ -44,18 +39,15 @@ function classifyLLMError(err: unknown): ErrorKind {
   if (err instanceof Anthropic.RateLimitError)        return "RETRYABLE";
   if (err instanceof Anthropic.APIConnectionError)    return "RETRYABLE";
   if (err instanceof Anthropic.InternalServerError)   return "RETRYABLE";
-  // JSON parse failures from extractTheoryJson are plain Errors
   if (err instanceof Error && err.message.startsWith("LLM did not output")) {
     return "PARSE_ERROR";
   }
-  return "RETRYABLE"; // unknown errors: give it another shot
+  return "RETRYABLE";
 }
 
 function classifyLeanError(err: unknown): ErrorKind {
   if (err instanceof Error) {
-    // "Theory '...' not found" is a config error, not a transient one
     if (err.message.includes("not found")) return "FATAL";
-    // Timeouts and process errors are retryable
     if (err.message.includes("timed out"))  return "RETRYABLE";
     if (err.message.includes("exited"))     return "RETRYABLE";
   }
@@ -68,7 +60,6 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Exponential backoff: attempt 0 = 1s, 1 = 2s, 2 = 4s, capped at 30s. */
 function backoffMs(attempt: number): number {
   return Math.min(1_000 * 2 ** attempt, 30_000);
 }
@@ -79,15 +70,28 @@ function tag(phase: Phase, round: number, maxRounds: number): string {
   return `[solver:${phase}:round ${round}/${maxRounds}]`;
 }
 
-// ── InverseProblemSolver ──────────────────────────────────────────────────────
+/** Summarize a payload for logging (works for TheoryJson or any object with a name). */
+function summarizePayload(payload: unknown): string {
+  if (typeof payload !== "object" || payload === null) return "(unknown)";
+  const p = payload as Record<string, unknown>;
+  const name = typeof p.name === "string" ? p.name : "?";
+  const parts: string[] = [`"${name}"`];
+  if (Array.isArray(p.objects)) parts.push(`${p.objects.length} obj`);
+  if (Array.isArray(p.morphisms)) parts.push(`${p.morphisms.length} mor`);
+  if (Array.isArray(p.axioms)) parts.push(`${p.axioms.length} ax`);
+  return parts.join(" / ");
+}
 
-export class InverseProblemSolver {
+// ── GenericSolver ─────────────────────────────────────────────────────────────
+
+export class GenericSolver {
   constructor(
     private catlab: CatlabClient,
     private llm: LLMClient,
+    private verifier: Verifier,
   ) {}
 
-  async solve(targetName: string, options: SolverOptions): Promise<SolverResult> {
+  async solve(options: SolverOptions): Promise<SolverResult> {
     const maxRounds     = options.maxRounds     ?? 5;
     const maxLLMRetries = options.maxLLMRetries ?? 3;
     const maxLeanRetries= options.maxLeanRetries ?? 2;
@@ -95,27 +99,27 @@ export class InverseProblemSolver {
 
     const history: HistoryEntry[] = [];
 
-    // ── Preflight: fetch target theory structure ──────────────────────────
-    console.error(`[solver:INIT] Fetching "${targetName}" from CAS...`);
-    const summaryRes = await this.catlab.requestOrThrow(
-      { command: "summary", theory: targetName },
-      timeoutMs,
-    );
-    const targetJson = summaryRes.theory
-      ? JSON.stringify(summaryRes.theory, null, 2)
-      : `(name: ${targetName})`;
+    // ── Preflight: get problem spec from verifier ───────────────────────
+    console.error(`[solver:INIT] Running verifier preflight...`);
+    const spec = await this.verifier.preflight(this.catlab, timeoutMs);
+    if (options.stylePrompt) {
+      spec.stylePrompt = options.stylePrompt;
+    }
     console.error(
-      `[solver:INIT] Target loaded. ` +
+      `[solver:INIT] Problem type: ${spec.kind}  ` +
       `maxRounds=${maxRounds} llmRetries=${maxLLMRetries} leanRetries=${maxLeanRetries}`,
     );
-    console.error(`[solver:INIT] forward_op=${options.forwardOp}${
-      options.stylePrompt ? `  style="${options.stylePrompt}"` : ""
-    }`);
+
+    // Resolve feedback formatter and payload validator from verifier
+    const formatFeedback = this.verifier.formatFeedback?.bind(this.verifier)
+      ?? ((result: VerificationResult, _payload: unknown) => formatStructuralDiff(result));
+    const validatePayload = this.verifier.validatePayload?.bind(this.verifier)
+      ?? validateTheoryPayload;
 
     // ── State machine variables ───────────────────────────────────────────
     let phase: Phase = "GENERATING";
     let round = 0;
-    let candidate: TheoryJson | undefined;
+    let payload: unknown | undefined;
     let lastResult: VerificationResult | undefined;
 
     // ── Main loop ─────────────────────────────────────────────────────────
@@ -123,32 +127,31 @@ export class InverseProblemSolver {
 
       // ════════════════════════════════════════════════════════════════════
       //  GENERATING phase
-      //  Retry loop: retries stay in GENERATING, never advance the round.
       // ════════════════════════════════════════════════════════════════════
       if (phase === "GENERATING") {
-        const isRefine = (candidate !== undefined && lastResult !== undefined);
+        const isRefine = (payload !== undefined && lastResult !== undefined);
         console.error(
           `\n${"─".repeat(60)}\n` +
           `${tag("GENERATING", round + 1, maxRounds)} ` +
-          (isRefine ? "refining with diff" : "initial proposal"),
+          (isRefine ? "refining with feedback" : "initial proposal"),
         );
 
         let llmAttempt = 0;
-        let generatedCandidate: TheoryJson | undefined;
+        let generatedPayload: unknown | undefined;
 
         while (llmAttempt <= maxLLMRetries) {
           try {
-            if (!isRefine || generatedCandidate === undefined && llmAttempt > 0) {
-              // Fresh generation: round 1, or after a PARSE_ERROR clears the candidate
-              generatedCandidate = await this.llm.generateInitial(
-                targetName, targetJson, options.forwardOp, options.stylePrompt,
-              );
+            if (!isRefine || generatedPayload === undefined && llmAttempt > 0) {
+              generatedPayload = await this.llm.generateInitial(spec);
             } else {
-              generatedCandidate = await this.llm.refineWithDiff(
-                targetName, lastResult!, candidate!, options.forwardOp, round + 1,
+              const feedbackText = formatFeedback(lastResult!, payload);
+              generatedPayload = await this.llm.refineWithFeedback(
+                spec, feedbackText, payload!, round + 1,
               );
             }
-            break; // success → exit retry loop
+            // Validate the payload shape
+            validatePayload(generatedPayload);
+            break;
 
           } catch (err) {
             const kind = classifyLLMError(err);
@@ -158,7 +161,7 @@ export class InverseProblemSolver {
               console.error(
                 `${tag("GENERATING", round + 1, maxRounds)} FATAL LLM error: ${msg}`,
               );
-              throw err; // propagate immediately — nothing to retry
+              throw err;
             }
 
             llmAttempt++;
@@ -167,24 +170,19 @@ export class InverseProblemSolver {
                 `${tag("GENERATING", round + 1, maxRounds)} ` +
                 `LLM retries exhausted (${maxLLMRetries}). Last error: ${msg}`,
               );
-              // Treat as EXHAUSTED — we can't make progress without a candidate
               phase = "EXHAUSTED";
               break;
             }
 
             if (kind === "PARSE_ERROR") {
-              // LLM produced non-JSON: retry fresh (not refine) — it may have
-              // confused itself trying to fix the diff.
-              // Log the full message (not just line 1) so we can see the preview.
               const fullMsg = err instanceof Error ? err.message : String(err);
               console.error(
                 `${tag("GENERATING", round + 1, maxRounds)} ` +
                 `PARSE_ERROR (attempt ${llmAttempt}/${maxLLMRetries}) — retrying fresh\n  ${fullMsg}`,
               );
-              candidate = undefined; // force fresh generation on next attempt
+              payload = undefined;
               lastResult = undefined;
             } else {
-              // RETRYABLE: rate limit or network — back off and retry same prompt
               const delay = backoffMs(llmAttempt - 1);
               console.error(
                 `${tag("GENERATING", round + 1, maxRounds)} ` +
@@ -197,20 +195,16 @@ export class InverseProblemSolver {
 
         if (phase === "EXHAUSTED") break;
 
-        // We have a valid candidate — transition to VERIFYING
-        candidate = generatedCandidate!;
+        payload = generatedPayload!;
         console.error(
           `${tag("GENERATING", round + 1, maxRounds)} ` +
-          `candidate "${candidate.name}" ` +
-          `(${candidate.objects.length} obj / ${candidate.morphisms.length} mor / ${candidate.axioms.length} ax)`,
+          `candidate ${summarizePayload(payload)}`,
         );
         phase = "VERIFYING";
       }
 
       // ════════════════════════════════════════════════════════════════════
       //  VERIFYING phase
-      //  Retry loop: retries stay in VERIFYING, never advance the round.
-      //  The round counter increments only when Lean returns a real result.
       // ════════════════════════════════════════════════════════════════════
       if (phase === "VERIFYING") {
         let leanAttempt = 0;
@@ -218,33 +212,10 @@ export class InverseProblemSolver {
 
         while (leanAttempt <= maxLeanRetries) {
           try {
-            const leanRes = await this.catlab.request(
-              {
-                command: "evaluate_inverse",
-                target: targetName,
-                forward_op: options.forwardOp,
-                candidate: candidate!,
-              },
-              timeoutMs,
+            verifyResult = await this.verifier.verify(
+              this.catlab, payload!, timeoutMs,
             );
-
-            if (leanRes.status === "error") {
-              // Lean returned a well-formed error response (e.g. bad theory structure)
-              // This is a *soft* error — the theory was malformed, not a crash.
-              // Treat it like a PARSE_ERROR: retry with fresh LLM generation.
-              console.error(
-                `${tag("VERIFYING", round + 1, maxRounds)} ` +
-                `Lean soft error: ${leanRes.message}`,
-              );
-              // Force fresh generation on next round
-              candidate  = undefined;
-              lastResult = undefined;
-              phase = "GENERATING";
-              break;
-            }
-
-            verifyResult = leanRes.result!;
-            break; // success → exit retry loop
+            break;
 
           } catch (err) {
             const kind = classifyLeanError(err);
@@ -263,8 +234,7 @@ export class InverseProblemSolver {
                 `${tag("VERIFYING", round + 1, maxRounds)} ` +
                 `Lean retries exhausted (${maxLeanRetries}). Last error: ${msg}`,
               );
-              // Skip this candidate — go back to GENERATING for a fresh one
-              candidate  = undefined;
+              payload    = undefined;
               lastResult = undefined;
               phase = "GENERATING";
               break;
@@ -279,32 +249,34 @@ export class InverseProblemSolver {
           }
         }
 
-        // If Lean retries sent us back to GENERATING, continue without incrementing round
         if (phase === "GENERATING") continue;
 
-        // A real VerificationResult arrived — this counts as a completed round
         round++;
         lastResult = verifyResult!;
-        history.push({ round, candidate: candidate!, result: lastResult });
+        history.push({ round, payload: payload!, result: lastResult });
 
         console.error(
           `${tag("VERIFYING", round, maxRounds)} ${lastResult.verificationStatus}`,
         );
+        if (lastResult.distance !== undefined)
+          console.error(`  • distance: ${lastResult.distance}`);
         if (lastResult.missingSignatures.length > 0)
           console.error(`  • ${lastResult.missingSignatures.length} missing signature(s)`);
         if (lastResult.unmappedObjects.length > 0)
           console.error(`  • ${lastResult.unmappedObjects.length} unmapped object(s)`);
         if (lastResult.axiomViolations.length > 0)
           console.error(`  • ${lastResult.axiomViolations.length} axiom violation(s)`);
+        if (lastResult.feedbackStrings && lastResult.feedbackStrings.length > 0)
+          console.error(`  • ${lastResult.feedbackStrings.length} feedback message(s)`);
 
         if (lastResult.verified) {
-          console.error(`\n✅ ${tag("SUCCESS", round, maxRounds)} "${candidate!.name}"`);
+          const name = (payload as Record<string, unknown>)?.name ?? "solution";
+          console.error(`\n✅ ${tag("SUCCESS", round, maxRounds)} "${name}"`);
           phase = "SUCCESS";
         } else if (round >= maxRounds) {
           console.error(`\n❌ [solver:EXHAUSTED] max rounds reached`);
           phase = "EXHAUSTED";
         } else {
-          // More rounds remain — go back to GENERATING with the diff
           phase = "GENERATING";
         }
       }
@@ -318,19 +290,17 @@ export class InverseProblemSolver {
       );
       if (history.length > 0) {
         const last = history[history.length - 1];
-        console.error(`  Best attempt: "${last.candidate.name}"`);
+        console.error(`  Best attempt: ${summarizePayload(last.payload)}`);
         console.error(`  Final status: ${last.result.verificationStatus}`);
       }
     }
 
-    // ── Post-solve reflection ──────────────────────────────────────────────
+    // ── Post-solve reflection (opt-in via options) ────────────────────────
     let reflection: string | undefined;
-    if (success || history.length > 0) {
+    if (options.reflect && (success || history.length > 0)) {
       try {
         console.error(`\n[solver:REFLECT] Asking LLM for prompt improvement suggestions...`);
-        reflection = await this.llm.reflectOnSolve(
-          targetName, options.forwardOp, round, history,
-        );
+        reflection = await this.llm.reflectOnSolve(spec, round, history);
         console.error(`[solver:REFLECT] Suggestions:\n${reflection}\n`);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -341,10 +311,11 @@ export class InverseProblemSolver {
     return {
       success,
       rounds: round,
-      winner:      success ? candidate : undefined,
+      winner:      success ? payload : undefined,
       finalResult: lastResult,
       history,
       reflection,
     };
   }
 }
+

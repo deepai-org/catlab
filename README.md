@@ -139,15 +139,15 @@ CatLab has an exhaustive test suite organized by operator category:
 
 ---
 
-## Running the Inverse Solver
+## Running the Solver
 
-The TypeScript orchestrator in `ts/` drives the LLM ↔ CAS loop.
+The TypeScript orchestrator in `ts/` drives the LLM ↔ CAS feedback loop. The solver is fully generic — it treats the LLM's output as an opaque payload and delegates all verification, feedback formatting, and schema definition to pluggable **Verifiers**.
 
 ### Setup
 
 ```bash
 cd ts
-npm install
+npm install && npm run build
 
 # Create .env with your Anthropic API key
 echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
@@ -156,23 +156,35 @@ echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
 cd .. && lake build catlab-repl && cd ts
 ```
 
-### Usage
+### Problem Types
+
+| Problem | Command | What it solves |
+|---------|---------|----------------|
+| **Inverse** | `catlab-solve Monoid opposite` | find X s.t. op(X) ≅ target |
+| **Fixed-point** | `catlab-solve --problem fixed-point --target Monoid --op opposite` | find X s.t. op(X) ≅ X |
+| **Pushout complement** | `catlab-solve --problem pushout-complement --base Monoid --target Ring` | find X s.t. pushout(base, X) ≅ target |
+| **Extension** | `catlab-solve --problem extension --base Monoid --property has_inverses` | find X extending base with property P |
+| **Multi-objective** | `catlab-solve --problem multi --objectives "Monoid:opposite,Monoid:mirror"` | find X satisfying multiple constraints |
+| **Factorization** | `catlab-solve --problem factorization --target Ring` | find (X,Y) s.t. X⊗Y ≅ target |
+| **Interpolation** | `catlab-solve --problem interpolation --base Monoid --target Ring` | find X with base ↪ X → target |
+| **Optimization** | `catlab-solve --problem optimization --target Ring --op opposite --property cost` | minimize cost subject to op(X)≅target |
+
+### Examples
 
 ```bash
-source .env && export ANTHROPIC_API_KEY && npx tsx src/index.ts <target> <forwardOp> [--rounds N] [--style "hint"]
-```
+export $(cat .env | xargs)
 
-**Examples:**
+# Easy: find X such that opposite(X) ≅ Monoid → solves in ~6s
+catlab-solve Monoid opposite
 
-```bash
-# Find X such that opposite(X) ≅ BooleanAlgebra
-source .env && export ANTHROPIC_API_KEY && npx tsx src/index.ts BooleanAlgebra opposite --rounds 5
+# Fixed-point: find X such that opposite(X) ≅ X → solves in ~4s
+catlab-solve --problem fixed-point --target Monoid --op opposite
 
-# Find X such that decategorify(X) ≅ Monoid
-source .env && export ANTHROPIC_API_KEY && npx tsx src/index.ts Monoid decategorify_iso --rounds 3
+# With options
+catlab-solve Monoid opposite --rounds 5 --style "keep it simple"
 
-# Identity test (find X ≅ Group)
-source .env && export ANTHROPIC_API_KEY && npx tsx src/index.ts Group identity --rounds 2
+# List available theories
+catlab-solve list
 ```
 
 Output goes to stderr (progress logs) and stdout (final JSON result).

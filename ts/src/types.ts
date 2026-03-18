@@ -7,7 +7,7 @@
 // "unit" | "terminal" | "initial"  → Expr constants
 // "X"                              → Expr.atom (bare string shorthand)
 // { "atom": "X" }                  → Expr.atom
-// { "comp": [e1, e2] }             → Expr.comp e1 e2
+// { "comp": [e1, e2] }            → Expr.comp e1 e2
 // etc.
 export type ExprJson =
   | string
@@ -49,7 +49,9 @@ export interface TheoryJson {
   axioms: AxiomJson[];
 }
 
-// ── VerificationResult (from Core/InverseProblem.lean) ────────────────────────
+// ── VerificationResult ──────────────────────────────────────────────────────────
+// Generic feedback from the CAS. Specific fields (missingSignatures, etc.) are
+// present for structural-equivalence problems but optional in general.
 
 export interface MissingSignature {
   /** Position-normalized domain, e.g. "§0" or "(§0,§0)" */
@@ -74,10 +76,14 @@ export interface VerificationResult {
   candidateName: string;
   /** "✓ Success" | "✗ Failed: ..." | "⏱ Timeout at depth N" */
   verificationStatus: string;
+  /** Structural-equivalence specific fields (optional for generic problems) */
   missingSignatures: MissingSignature[];
-  /** Generator names the LLM hallucinated that don't correspond to any target object */
   unmappedObjects: string[];
   axiomViolations: AxiomViolation[];
+  /** Generic feedback strings from the CAS (for non-structural problems) */
+  feedbackStrings?: string[];
+  /** Numeric distance/score (0 = perfect match, higher = worse). Used as gradient signal. */
+  distance?: number;
 }
 
 // ── NDJSON Request types ──────────────────────────────────────────────────────
@@ -99,6 +105,34 @@ export type CatlabCommand =
       target: string;
       forward_op: string;
       candidates: TheoryJson[];
+    }
+  | {
+      command: "evaluate_pushout_complement";
+      base: string;
+      target: string;
+      candidate: TheoryJson;
+    }
+  | {
+      command: "evaluate_extension";
+      base: string;
+      property: string;
+      candidate: TheoryJson;
+    }
+  | {
+      command: "evaluate_multi_objective";
+      objectives: Array<{ target: string; forward_op: string }>;
+      candidate: TheoryJson;
+    }
+  | {
+      command: "evaluate_fixed_point";
+      forward_op: string;
+      candidate: TheoryJson;
+    }
+  | {
+      /** Generic evaluate: verifier packs the full payload, Lean handler unpacks it */
+      command: "evaluate_generic";
+      handler: string;
+      payload: unknown;
     };
 
 export type CatlabRequest = CatlabCommand & { id: string };
@@ -110,6 +144,8 @@ export interface CatlabResponseOk {
   status: "ok";
   // Fields present depending on command
   result?: VerificationResult;
+  /** For multi-objective: per-objective sub-results */
+  subResults?: VerificationResult[];
   theory?: TheoryJson;
   theories?: string[];
   summary?: string;
@@ -129,29 +165,89 @@ export interface CatlabResponseError {
 
 export type CatlabResponse = CatlabResponseOk | CatlabResponseError;
 
+// ── Problem specification (consumed by solver + LLM) ─────────────────────────
+
+/** Describes any search problem — consumed by both the solver loop and LLM. */
+export interface ProblemSpec {
+  /** Human-readable problem type */
+  kind: string;
+  /** Full problem statement shown to LLM */
+  problemDescription: string;
+  /** Actionable hint / recipe for the LLM */
+  hint: string;
+  /** Context JSON (target theory, base theory, etc.) */
+  contextJson: string;
+  /** Optional style prompt */
+  stylePrompt?: string;
+  /**
+   * Anthropic tool input_schema for the LLM's answer.
+   * If undefined, defaults to the standard TheoryJson schema.
+   * This lets verifiers ask for { theoryA, theoryB }, a functor mapping, etc.
+   */
+  answerSchema?: Record<string, unknown>;
+  /**
+   * Name and description for the tool the LLM calls to submit its answer.
+   * Defaults to "propose_theory" / "Submit a candidate Theory".
+   */
+  answerToolName?: string;
+  answerToolDescription?: string;
+}
+
+// ── Verifier interface ───────────���───────────────────────────────────────────
+
+import type { CatlabClient } from "./client";
+
+/**
+ * Pluggable verification backend. The solver loop is verifier-agnostic.
+ *
+ * The verifier owns three things:
+ *   1. The answer schema (what shape JSON the LLM must produce)
+ *   2. The verification logic (send payload to CAS, interpret result)
+ *   3. The feedback formatting (turn VerificationResult into LLM-readable text)
+ */
+export interface Verifier {
+  /** Fetch preflight data from CAS, return a ProblemSpec for the LLM. */
+  preflight(catlab: CatlabClient, timeoutMs: number): Promise<ProblemSpec>;
+
+  /** Send the LLM's answer payload to the CAS, return verification result. */
+  verify(catlab: CatlabClient, payload: unknown, timeoutMs: number): Promise<VerificationResult>;
+
+  /**
+   * Format a VerificationResult into LLM-readable feedback text.
+   * If not implemented, the solver uses a default structural-diff formatter.
+   */
+  formatFeedback?(result: VerificationResult, payload: unknown): string;
+
+  /**
+   * Validate the LLM's raw output before sending to CAS.
+   * If not implemented, the solver uses default TheoryJson validation.
+   * Throw if invalid.
+   */
+  validatePayload?(payload: unknown): void;
+}
+
 // ── Solver types ──────────────────────────────────────────────────────────────
 
 export interface SolverOptions {
-  /** Which CAS operator inverts the candidate to check against target */
-  forwardOp: "decategorify_iso" | "decategorify_K0" | "decategorify_chi" | "mirror" | "opposite" | "identity";
   /** Style hint for the LLM (e.g. "prefer cobordisms", "use chain complexes") */
   stylePrompt?: string;
-  /** Max verification rounds before giving up. Default: 5.
-   *  A "round" is one successful LLM generation + one successful Lean verification.
-   *  Transient retries (rate limits, network blips) do not count as rounds. */
+  /** Max verification rounds before giving up. Default: 5. */
   maxRounds?: number;
-  /** Max retries per round for LLM API errors (rate limits, network, bad JSON). Default: 3 */
+  /** Max retries per round for LLM API errors. Default: 3 */
   maxLLMRetries?: number;
-  /** Max retries per round for transient Lean errors (timeout, soft error). Default: 2 */
+  /** Max retries per round for transient Lean errors. Default: 2 */
   maxLeanRetries?: number;
   /** Timeout per Lean request in ms. Default: 30000 */
   leanTimeoutMs?: number;
+  /** Run post-solve reflection step. Default: false */
+  reflect?: boolean;
 }
 
 /** One entry per *verification attempt* (not per retry). */
 export interface HistoryEntry {
   round: number;
-  candidate: TheoryJson;
+  /** The raw payload the LLM submitted (TheoryJson for most problems, opaque for others) */
+  payload: unknown;
   result: VerificationResult;
 }
 
@@ -159,7 +255,8 @@ export interface SolverResult {
   success: boolean;
   /** Number of verification rounds completed (not counting retries) */
   rounds: number;
-  winner?: TheoryJson;
+  /** The winning payload (TheoryJson for most problems) */
+  winner?: unknown;
   finalResult?: VerificationResult;
   /** One entry per successful Lean verification attempt, pass or fail */
   history: HistoryEntry[];

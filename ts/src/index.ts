@@ -1,57 +1,77 @@
 #!/usr/bin/env node
 /**
- * catlab-solve — CLI entry point for the inverse problem solver.
+ * catlab-solve — CLI entry point for the generalized solver.
  *
- * Usage:
- *   node dist/index.js <target> <forwardOp> [options]
+ * Supports multiple problem types:
+ *   catlab-solve <target> <forwardOp>                              # inverse (default)
+ *   catlab-solve --problem inverse --target T --op F               # explicit inverse
+ *   catlab-solve --problem pushout-complement --base B --target T
+ *   catlab-solve --problem extension --base B --property P
+ *   catlab-solve --problem multi --objectives "T1:op1,T2:op2"
+ *   catlab-solve --problem fixed-point --target T --op F
+ *   catlab-solve list                                              # show theories
  *
- * Examples:
- *   node dist/index.js Monoid identity
- *   node dist/index.js Monoid decategorify_iso --style "prefer cobordisms" --rounds 5
- *   node dist/index.js Ring decategorify_iso --rounds 3
- *
- * The Lean REPL is spawned automatically from the catlab repo root.
  * Set ANTHROPIC_API_KEY in your environment.
- *
  * Output (stdout): final result JSON
- * Logs (stderr):   round-by-round progress + Claude streaming text
+ * Logs (stderr):   round-by-round progress
  */
 
 import { CatlabClient } from "./client";
 import { LLMClient } from "./llm";
-import { InverseProblemSolver } from "./solver";
-import type { SolverOptions } from "./types";
+import { GenericSolver } from "./solver";
+import {
+  InverseVerifier,
+  PushoutComplementVerifier,
+  ExtensionVerifier,
+  MultiObjectiveVerifier,
+  FixedPointVerifier,
+  FactorizationVerifier,
+  InterpolationVerifier,
+  OptimizationVerifier,
+} from "./verifiers";
+import type { Verifier, SolverOptions } from "./types";
 
 // ── CLI argument parsing ──────────────────────────────────────────────────────
 
 function usage(): never {
   console.error(`
-Usage: catlab-solve <targetTheory> <forwardOp> [options]
+Usage: catlab-solve <targetTheory> <forwardOp> [options]    (inverse problem shorthand)
+       catlab-solve --problem <type> [problem-args] [options]
 
-Arguments:
-  targetTheory   Name of the target theory in the CatLab registry
-                 Run with "list" to see all available theories
-  forwardOp      CAS operator to apply to the candidate:
-                   identity           no-op (solve for X ≅ target directly)
-                   decategorify_iso   decategorify via isomorphism classes
-                   decategorify_K0    decategorify via Grothendieck group
-                   decategorify_chi   decategorify via Euler characteristic
-                   mirror             apply the Mirror/Stone-duality operator
-                   opposite           apply the Opposite functor
+Problem types:
+  inverse               find X such that op(X) ≅ target  (default)
+  pushout-complement    find X such that pushout(base, X) ≅ target
+  extension             find X extending base with property P
+  multi                 find X such that op₁(X)≅T₁ ∧ op₂(X)≅T₂
+  fixed-point           find X such that op(X) ≅ X
+  factorization         find (X,Y) such that X⊗Y ≅ target
+  interpolation         find X with base ↪ X → target
+  optimization          find X minimizing cost subject to op(X)≅target
 
-Options:
-  --style <str>   Style guidance for the LLM (e.g. "prefer cobordisms")
-  --rounds <n>    Max LLM rounds (default: 5)
-  --timeout <ms>  Per-Lean-request timeout in ms (default: 30000)
-  --lean <path>   Path to catlab repo root (default: ../../ relative to ts/src)
+Problem arguments:
+  --target <name>       Target theory name
+  --op <name>           Forward operator (for inverse / fixed-point)
+  --base <name>         Base theory (for pushout-complement / extension)
+  --property <name>     Property to check (for extension)
+  --objectives <spec>   Comma-separated target:op pairs (for multi)
+
+General options:
+  --style <str>         Style guidance / hints for the LLM
+  --rounds <n>          Max LLM rounds (default: 5)
+  --timeout <ms>        Per-Lean-request timeout in ms (default: 30000)
+  --lean <path>         Path to catlab repo root
 
 Environment:
-  ANTHROPIC_API_KEY  Required — your Anthropic API key
+  ANTHROPIC_API_KEY     Required — your Anthropic API key
 
 Examples:
   catlab-solve Monoid identity
-  catlab-solve Ring decategorify_iso --style "use graded vector spaces" --rounds 3
-  catlab-solve list     # show available theories
+  catlab-solve Monoid opposite --style "keep it simple" --rounds 3
+  catlab-solve --problem pushout-complement --base Monoid --target Ring
+  catlab-solve --problem extension --base Monoid --property "has_inverses"
+  catlab-solve --problem multi --objectives "Monoid:opposite,Monoid:mirror"
+  catlab-solve --problem fixed-point --target Monoid --op opposite
+  catlab-solve list
 `);
   process.exit(1);
 }
@@ -62,70 +82,145 @@ async function listTheories(client: CatlabClient): Promise<void> {
   (res.theories ?? []).forEach((name) => console.log(`  ${name}`));
 }
 
+function buildVerifier(args: string[]): {
+  verifier: Verifier;
+  solverOpts: SolverOptions;
+  repoRoot?: string;
+} {
+  // Shorthand: catlab-solve <target> <forwardOp> [options]
+  if (args.length >= 2 && !args[0].startsWith("--")) {
+    const targetName = args[0];
+    const forwardOp = args[1];
+    const solverOpts: SolverOptions = {};
+    let repoRoot: string | undefined;
+
+    for (let i = 2; i < args.length; i++) {
+      switch (args[i]) {
+        case "--style":   solverOpts.stylePrompt = args[++i]; break;
+        case "--rounds":  solverOpts.maxRounds = parseInt(args[++i], 10); break;
+        case "--timeout": solverOpts.leanTimeoutMs = parseInt(args[++i], 10); break;
+        case "--lean":    repoRoot = args[++i]; break;
+        default: console.error(`Unknown option: ${args[i]}`); usage();
+      }
+    }
+
+    return {
+      verifier: new InverseVerifier(targetName, forwardOp),
+      solverOpts,
+      repoRoot,
+    };
+  }
+
+  // Full form: --problem <type> [args]
+  let problemType: string | undefined;
+  let target: string | undefined;
+  let op: string | undefined;
+  let base: string | undefined;
+  let property: string | undefined;
+  let objectivesStr: string | undefined;
+  let repoRoot: string | undefined;
+  const solverOpts: SolverOptions = {};
+
+  for (let i = 0; i < args.length; i++) {
+    switch (args[i]) {
+      case "--problem":    problemType = args[++i]; break;
+      case "--target":     target = args[++i]; break;
+      case "--op":         op = args[++i]; break;
+      case "--base":       base = args[++i]; break;
+      case "--property":   property = args[++i]; break;
+      case "--objectives": objectivesStr = args[++i]; break;
+      case "--style":      solverOpts.stylePrompt = args[++i]; break;
+      case "--rounds":     solverOpts.maxRounds = parseInt(args[++i], 10); break;
+      case "--timeout":    solverOpts.leanTimeoutMs = parseInt(args[++i], 10); break;
+      case "--lean":       repoRoot = args[++i]; break;
+      default: console.error(`Unknown option: ${args[i]}`); usage();
+    }
+  }
+
+  let verifier: Verifier;
+  switch (problemType) {
+    case "inverse":
+      if (!target || !op) { console.error("--target and --op required for inverse"); usage(); }
+      verifier = new InverseVerifier(target, op);
+      break;
+    case "pushout-complement":
+      if (!base || !target) { console.error("--base and --target required for pushout-complement"); usage(); }
+      verifier = new PushoutComplementVerifier(base, target);
+      break;
+    case "extension":
+      if (!base || !property) { console.error("--base and --property required for extension"); usage(); }
+      verifier = new ExtensionVerifier(base, property);
+      break;
+    case "multi": {
+      if (!objectivesStr) { console.error("--objectives required for multi"); usage(); }
+      const objectives = objectivesStr.split(",").map((s) => {
+        const [t, o] = s.split(":");
+        if (!t || !o) { console.error(`Invalid objective format: "${s}" (expected target:op)`); usage(); }
+        return { target: t, forwardOp: o };
+      });
+      verifier = new MultiObjectiveVerifier(objectives);
+      break;
+    }
+    case "fixed-point":
+      if (!target || !op) { console.error("--target and --op required for fixed-point"); usage(); }
+      verifier = new FixedPointVerifier(target, op);
+      break;
+    case "factorization":
+      if (!target) { console.error("--target required for factorization"); usage(); }
+      verifier = new FactorizationVerifier(target, op ?? "tensor");
+      break;
+    case "interpolation":
+      if (!base || !target) { console.error("--base and --target required for interpolation"); usage(); }
+      verifier = new InterpolationVerifier(base, target);
+      break;
+    case "optimization":
+      if (!target || !op || !property) { console.error("--target, --op, and --property required for optimization"); usage(); }
+      verifier = new OptimizationVerifier(op, target, property);
+      break;
+    default:
+      console.error(`Unknown problem type: ${problemType}`);
+      usage();
+  }
+
+  return { verifier, solverOpts, repoRoot };
+}
+
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
 
   if (args.length === 0 || args[0] === "--help" || args[0] === "-h") usage();
 
-  // Check for ANTHROPIC_API_KEY early
   if (!process.env.ANTHROPIC_API_KEY) {
     console.error("Error: ANTHROPIC_API_KEY environment variable is not set.");
     process.exit(1);
   }
 
-  const targetName = args[0];
-  let repoRoot: string | undefined;
-
   // Handle "list" command
-  if (targetName === "list") {
-    const client = new CatlabClient(repoRoot);
+  if (args[0] === "list") {
+    const client = new CatlabClient();
     await listTheories(client);
     client.kill();
     return;
   }
 
-  if (args.length < 2) usage();
-  const forwardOp = args[1] as SolverOptions["forwardOp"];
-
-  // Parse optional flags
-  const options: SolverOptions = { forwardOp };
-  for (let i = 2; i < args.length; i++) {
-    switch (args[i]) {
-      case "--style":
-        options.stylePrompt = args[++i];
-        break;
-      case "--rounds":
-        options.maxRounds = parseInt(args[++i], 10);
-        break;
-      case "--timeout":
-        options.leanTimeoutMs = parseInt(args[++i], 10);
-        break;
-      case "--lean":
-        repoRoot = args[++i];
-        break;
-      default:
-        console.error(`Unknown option: ${args[i]}`);
-        usage();
-    }
-  }
+  const { verifier, solverOpts, repoRoot } = buildVerifier(args);
 
   // ── Run the solver ────────────────────────────────────────────────────────
   const catlab = new CatlabClient(repoRoot);
   const llm = new LLMClient();
-  const solver = new InverseProblemSolver(catlab, llm);
+  const solver = new GenericSolver(catlab, llm, verifier);
 
   let exitCode = 0;
   try {
-    const result = await solver.solve(targetName, options);
-
-    // Print the result JSON to stdout for piping / further processing
+    const result = await solver.solve(solverOpts);
     console.log(JSON.stringify(result, null, 2));
 
     if (!result.success) {
       console.error(`\n[solver] Failed after ${result.rounds} rounds.`);
       if (result.history.length > 0) {
         const last = result.history[result.history.length - 1];
-        console.error(`[solver] Best attempt: "${last.candidate.name}"`);
+        const name = (last.payload as Record<string, unknown>)?.name ?? "?";
+        console.error(`[solver] Best attempt: "${name}"`);
         console.error(`[solver] Final status: ${last.result.verificationStatus}`);
       }
       exitCode = 1;

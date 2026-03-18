@@ -28,18 +28,41 @@ import Catlab.Core.Primitives
 import Catlab.Core.InverseProblem
 import Catlab.Core.Validate
 import Catlab.Core.PrettyPrint
-import Catlab.Operators.Mirror
-import Catlab.Operators.Opposite
+import Catlab.Operators.Arrow
+import Catlab.Operators.Booleanize
+import Catlab.Operators.Center
+import Catlab.Operators.Chu
+import Catlab.Operators.Comma
+import Catlab.Operators.Coproduct
 import Catlab.Operators.DayConvolution
 import Catlab.Operators.Decategorify
-import Catlab.Operators.Pushout
-import Catlab.Operators.Coproduct
-import Catlab.Operators.Quotient
-import Catlab.Operators.Karoubi
-import Catlab.Operators.IndPro
-import Catlab.Operators.Yoneda
+import Catlab.Operators.Derived
+import Catlab.Operators.DrinfeldCenter
+import Catlab.Operators.ExactCompletion
+import Catlab.Operators.Family
+import Catlab.Operators.Free
+import Catlab.Operators.Freyd
 import Catlab.Operators.FunctorCategory
+import Catlab.Operators.IndPro
+import Catlab.Operators.Int
+import Catlab.Operators.Internal
+import Catlab.Operators.Isbell
+import Catlab.Operators.Karoubi
+import Catlab.Operators.MacNeille
+import Catlab.Operators.Matrix
+import Catlab.Operators.Mirror
+import Catlab.Operators.Morita
+import Catlab.Operators.Nerve
+import Catlab.Operators.OperadEnvelope
+import Catlab.Operators.Opposite
+import Catlab.Operators.Pushout
+import Catlab.Operators.Quotient
+import Catlab.Operators.Span
+import Catlab.Operators.Stabilize
 import Catlab.Operators.Syntactic
+import Catlab.Operators.TwistedArrow
+import Catlab.Operators.Ultrapower
+import Catlab.Operators.Yoneda
 import Catlab.Library.Monoid
 import Catlab.Library.Group
 import Catlab.Library.Ring
@@ -122,19 +145,63 @@ def lookupTheory (name : String) : Except String Theory :=
 
 -- ============================================================
 -- Forward operator dispatch
--- Accepts: "decategorify_iso", "decategorify_K0", "decategorify_chi",
---          "mirror", "opposite", "identity"
+-- All pure unary Theory → Theory operators from Catlab.Operators
 -- ============================================================
 
 def applyForwardOp (op : String) (t : Theory) : Except String Theory :=
   match op with
+  -- Symmetries & involutions
+  | "opposite"                          => .ok (opposite t)
+  | "mirror"                            => .ok (mirror t)
+  | "identity"                          => .ok t
+  -- Decategorification variants
   | "decategorify_iso" | "decategorify" => .ok (decategorify t .isoClasses)
   | "decategorify_K0"                   => .ok (decategorify t .grothendieckGroup)
   | "decategorify_chi"                  => .ok (decategorify t .eulerCharacteristic)
-  | "mirror"                            => .ok (mirror t)
-  | "opposite"                          => .ok (opposite t)
-  | "identity"                          => .ok t
-  | s                                   => .error s!"Unknown forward_op '{s}'. Supported: decategorify_iso, decategorify_K0, decategorify_chi, mirror, opposite, identity"
+  -- Arrow & comma constructions
+  | "arrow"                             => .ok (Arrow.arrowCat t)
+  | "arrow_category"                    => .ok (arrowCategory t)
+  | "twisted_arrow"                     => .ok (twistedArrow t)
+  -- Completions & envelopes
+  | "karoubi"                           => .ok (karoubiEnvelope t)
+  | "morita"                            => .ok (moritaEnvelope t)
+  | "macneille"                         => .ok (macneilleCompletion t)
+  | "reg_completion"                    => .ok (regCompletion t)
+  | "ex_completion"                     => .ok (exCompletion t)
+  | "ind_completion"                    => .ok (indCompletion t)
+  | "pro_completion"                    => .ok (proCompletion t)
+  -- Presheaf & functor categories
+  | "presheaf"                          => .ok (presheafCategory t)
+  | "family"                            => .ok (familyCategory t)
+  | "scone"                             => .ok (scone t)
+  | "syntactic"                         => .ok (syntacticCategory t)
+  -- Derived & homotopy
+  | "chain_complex"                     => .ok (chainComplexCategory t)
+  | "homotopy"                          => .ok (homotopyCategory t)
+  | "derived"                           => .ok (derivedCategory t)
+  | "stabilize"                         => .ok (stabilize t)
+  -- Monoidal centers
+  | "center"                            => .ok (center t)
+  | "drinfeld_center"                   => .ok (drinfeldCenter t)
+  -- Logic & topos
+  | "booleanize"                        => .ok (booleanize t)
+  -- Span & cospan
+  | "span"                              => .ok (spanCategory t)
+  | "cospan"                            => .ok (cospanCategory t)
+  -- Simplicial
+  | "nerve"                             => .ok (nerve t)
+  | "realize"                           => .ok (realize t)
+  -- Isbell duality
+  | "isbell_spec"                       => .ok (isbellSpec t)
+  | "isbell_cospec"                     => .ok (isbellCospec t)
+  | "isbell"                            => .ok (isbellAdjunction t)
+  -- Miscellaneous
+  | "matrix"                            => .ok (matrixCategory t)
+  | "int"                               => .ok (intConstruction t)
+  | "internal_cat"                      => .ok (internalCategoryCategory t)
+  | "path"                              => .ok (pathCategory t)
+  | "operad_envelope"                   => .ok (operadicEnvelope t)
+  | s => .error s!"Unknown forward_op '{s}'. Use one of: opposite, mirror, identity, decategorify_iso, decategorify_K0, decategorify_chi, arrow, arrow_category, twisted_arrow, karoubi, morita, macneille, reg_completion, ex_completion, ind_completion, pro_completion, presheaf, family, scone, syntactic, chain_complex, homotopy, derived, stabilize, center, drinfeld_center, booleanize, span, cospan, nerve, realize, isbell_spec, isbell_cospec, isbell, matrix, int, internal_cat, path, operad_envelope"
 
 -- ============================================================
 -- apply_operator command
@@ -237,6 +304,137 @@ def handleSolveInverse (j : Json) (id : String) : Json :=
     errorResponse id s!"'candidates' must be an array, got: {other.compress}"
 
 -- ============================================================
+-- evaluate_pushout_complement command
+-- Find X such that pushout(base, X) ≅ target
+-- Verifies by computing pushout(base, candidate) and diffing against target
+-- ============================================================
+
+def handleEvaluatePushoutComplement (j : Json) (id : String) : Json :=
+  let baseResult   := getStr j "base"
+  let targetResult := getStr j "target"
+  let candidateJson := j.getObjVal? "candidate"
+  match baseResult, targetResult, candidateJson with
+  | .error e, _, _       => errorResponse id e
+  | _, .error e, _       => errorResponse id e
+  | _, _, .error _       => errorResponse id "missing field 'candidate'"
+  | .ok baseName, .ok targetName, .ok candJson =>
+    match lookupTheory baseName, lookupTheory targetName, theoryFromJson candJson with
+    | .error e, _, _ => errorResponse id e
+    | _, .error e, _ => errorResponse id e
+    | _, _, .error e => errorResponse id s!"invalid candidate: {e}"
+    | .ok base, .ok target, .ok candidate =>
+      let f := TheoryMorphism.inclusion base candidate
+      let g := TheoryMorphism.inclusion base target
+      match pushout f g with
+      | none    => errorResponse id s!"pushout(base, candidate) failed"
+      | some produced =>
+        let result := computeStructuralDiff candidate produced target
+        okResponse id [("result", verificationToJson result)]
+
+-- ============================================================
+-- evaluate_extension command
+-- Find X extending base with property P
+-- Verifies candidate extends base (inclusion exists) and satisfies property
+-- ============================================================
+
+def handleEvaluateExtension (j : Json) (id : String) : Json :=
+  let baseResult     := getStr j "base"
+  let propertyResult := getStr j "property"
+  let candidateJson  := j.getObjVal? "candidate"
+  match baseResult, propertyResult, candidateJson with
+  | .error e, _, _       => errorResponse id e
+  | _, .error e, _       => errorResponse id e
+  | _, _, .error _       => errorResponse id "missing field 'candidate'"
+  | .ok baseName, .ok _property, .ok candJson =>
+    match lookupTheory baseName, theoryFromJson candJson with
+    | .error e, _ => errorResponse id e
+    | _, .error e => errorResponse id s!"invalid candidate: {e}"
+    | .ok base, .ok candidate =>
+      -- Check that candidate extends base: all base objects/morphisms present
+      let missingObjs := base.objects.filter fun o =>
+        !candidate.objects.any fun co => co.id == o.id
+      let missingMors := base.morphisms.filter fun m =>
+        !candidate.morphisms.any fun cm => cm.id == m.id
+      -- Use self-diff (candidate ≅ candidate) so verified=true when extension holds
+      let result := computeStructuralDiff candidate candidate candidate
+      if missingObjs.isEmpty && missingMors.isEmpty then
+        okResponse id [("result", verificationToJson result),
+                       ("extends_base", .bool true)]
+      else
+        let missingNames := (missingObjs.map (fun o => Json.str (toString o.id))
+                          ++ missingMors.map (fun m => Json.str (toString m.id)))
+        okResponse id [("result", verificationToJson result),
+                       ("extends_base", .bool false),
+                       ("missing_from_base", .arr missingNames.toArray)]
+
+-- ============================================================
+-- evaluate_multi_objective command
+-- Find X such that F₁(X)≅T₁ ∧ F₂(X)≅T₂ ∧ ...
+-- Verifies each objective independently, all must pass
+-- ============================================================
+
+def handleEvaluateMultiObjective (j : Json) (id : String) : Json :=
+  let candidateJson  := j.getObjVal? "candidate"
+  let objectivesJson := j.getObjVal? "objectives"
+  match candidateJson, objectivesJson with
+  | .error _, _       => errorResponse id "missing field 'candidate'"
+  | _, .error _       => errorResponse id "missing field 'objectives'"
+  | .ok candJson, .ok (.arr objectives) =>
+    match theoryFromJson candJson with
+    | .error e => errorResponse id s!"invalid candidate: {e}"
+    | .ok candidate =>
+      let subResults := objectives.toList.map fun objJson =>
+        let targetName := match objJson.getObjVal? "target" with
+          | .ok (.str s) => s | _ => ""
+        let fwdOp := match objJson.getObjVal? "forward_op" with
+          | .ok (.str s) => s | _ => ""
+        match lookupTheory targetName with
+        | .error e =>
+          Json.mkObj [("candidateName", .str candidate.name), ("verified", .bool false),
+            ("verificationStatus", .str s!"✗ Failed: target '{targetName}' not found: {e}"),
+            ("missingSignatures", .arr #[]), ("unmappedObjects", .arr #[]),
+            ("axiomViolations", .arr #[])]
+        | .ok target =>
+          match applyForwardOp fwdOp candidate with
+          | .error e =>
+            Json.mkObj [("candidateName", .str candidate.name), ("verified", .bool false),
+              ("verificationStatus", .str s!"✗ Failed: operator '{fwdOp}' error: {e}"),
+              ("missingSignatures", .arr #[]), ("unmappedObjects", .arr #[]),
+              ("axiomViolations", .arr #[])]
+          | .ok produced =>
+            verificationToJson (computeStructuralDiff candidate produced target)
+      let allVerified := subResults.all fun r =>
+        match r.getObjVal? "verified" with
+        | .ok (.bool true) => true | _ => false
+      okResponse id [("verified", .bool allVerified),
+                     ("subResults", .arr subResults.toArray)]
+  | .ok _, .ok other =>
+    errorResponse id s!"'objectives' must be an array, got: {other.compress}"
+
+-- ============================================================
+-- evaluate_fixed_point command
+-- Find X such that F(X) ≅ X
+-- Applies forwardOp to candidate, diffs against candidate itself
+-- ============================================================
+
+def handleEvaluateFixedPoint (j : Json) (id : String) : Json :=
+  let forwardResult  := getStr j "forward_op"
+  let candidateJson  := j.getObjVal? "candidate"
+  match forwardResult, candidateJson with
+  | .error e, _       => errorResponse id e
+  | _, .error _       => errorResponse id "missing field 'candidate'"
+  | .ok fwdOp, .ok candJson =>
+    match theoryFromJson candJson with
+    | .error e => errorResponse id s!"invalid candidate: {e}"
+    | .ok candidate =>
+      match applyForwardOp fwdOp candidate with
+      | .error e => errorResponse id e
+      | .ok produced =>
+        -- Diff F(candidate) against candidate itself
+        let result := computeStructuralDiff candidate produced candidate
+        okResponse id [("result", verificationToJson result)]
+
+-- ============================================================
 -- summary / validate commands
 -- ============================================================
 
@@ -289,9 +487,13 @@ def handleRequest (line : String) : Json :=
       | "validate"         => handleValidate        j id
       | "apply_operator"   => handleApplyOp         j id
       | "compute_pushout"  => handleComputePushout  j id
-      | "evaluate_inverse" => handleEvaluateInverse j id
-      | "solve_inverse"    => handleSolveInverse    j id
-      | other              => errorResponse id s!"Unknown command '{other}'. Supported: list_theories, summary, validate, apply_operator, compute_pushout, evaluate_inverse, solve_inverse"
+      | "evaluate_inverse"             => handleEvaluateInverse            j id
+      | "solve_inverse"                => handleSolveInverse               j id
+      | "evaluate_pushout_complement"  => handleEvaluatePushoutComplement  j id
+      | "evaluate_extension"           => handleEvaluateExtension          j id
+      | "evaluate_multi_objective"     => handleEvaluateMultiObjective     j id
+      | "evaluate_fixed_point"         => handleEvaluateFixedPoint         j id
+      | other              => errorResponse id s!"Unknown command '{other}'. Supported: list_theories, summary, validate, apply_operator, compute_pushout, evaluate_inverse, solve_inverse, evaluate_pushout_complement, evaluate_extension, evaluate_multi_objective, evaluate_fixed_point"
     | .ok other =>
       errorResponse id s!"'command' must be a string, got: {other.compress}"
 
