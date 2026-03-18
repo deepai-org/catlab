@@ -22,6 +22,7 @@ import type {
   Verifier,
   SolverOptions,
   SolverResult,
+  SolverProgressEvent,
   HistoryEntry,
 } from "./types";
 
@@ -98,10 +99,13 @@ export class GenericSolver {
     const timeoutMs     = options.leanTimeoutMs  ?? 30_000;
 
     const history: HistoryEntry[] = [];
+    const emit = (ev: Omit<SolverProgressEvent, "maxRounds">) =>
+      options.onProgress?.({ ...ev, maxRounds } as SolverProgressEvent);
 
     // ── Preflight: get problem spec from verifier ───────────────────────
     console.error(`[solver:INIT] Running verifier preflight...`);
     const spec = await this.verifier.preflight(this.catlab, timeoutMs);
+    emit({ phase: "init", round: 0, message: `Solver initialized: ${spec.kind} problem, up to ${maxRounds} rounds` });
     if (options.stylePrompt) {
       spec.stylePrompt = options.stylePrompt;
     }
@@ -202,6 +206,11 @@ export class GenericSolver {
         );
         // Print the full candidate JSON so we can inspect what the LLM proposed
         console.error(`\n── candidate JSON ──\n${JSON.stringify(payload, null, 2)}\n── end candidate ──`);
+        emit({
+          phase: "generating", round: round + 1,
+          message: `Round ${round + 1}: candidate ${summarizePayload(payload)}`,
+          candidate: payload,
+        });
         phase = "VERIFYING";
       }
 
@@ -280,11 +289,19 @@ export class GenericSolver {
         if (lastResult.verified) {
           const name = (payload as Record<string, unknown>)?.name ?? "solution";
           console.error(`\n✅ ${tag("SUCCESS", round, maxRounds)} "${name}"`);
+          emit({ phase: "success", round, message: `Verified "${name}" in ${round} round(s)`, candidate: payload });
           phase = "SUCCESS";
         } else if (round >= maxRounds) {
           console.error(`\n❌ [solver:EXHAUSTED] max rounds reached`);
+          emit({ phase: "exhausted", round, message: `Exhausted ${round} rounds without verified solution` });
           phase = "EXHAUSTED";
         } else {
+          const feedbackText = formatFeedback(lastResult, payload);
+          emit({
+            phase: "verifying", round,
+            message: `Round ${round}: ${lastResult.verificationStatus}`,
+            feedback: feedbackText,
+          });
           phase = "GENERATING";
         }
       }

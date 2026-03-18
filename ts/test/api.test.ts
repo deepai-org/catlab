@@ -265,16 +265,18 @@ if (hasApiKey) {
     assertEq(agent.historyLength, 0, "should have empty history after reset");
   });
 
-  test("HTTP POST /api/chat processes message", async () => {
-    const { status, body } = await fetchJson("/api/chat", {
+  test("HTTP POST /api/chat streams SSE events", async () => {
+    const res = await fetch(`${baseUrl}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: "List all available theories", sessionId: "test-session" }),
     });
-    assertEq(status, 200, "status should be 200");
-    assert(Array.isArray(body.events), "should have events array");
-    assert(body.events.length > 0, "should have at least one event");
-    const doneEvent = body.events.find((e: any) => e.type === "done");
+    assertEq(res.status, 200, "status should be 200");
+    assert(res.headers.get("content-type")?.includes("text/event-stream") === true, "should be SSE");
+    const text = await res.text();
+    const events = text.split("\n").filter(l => l.startsWith("data: ")).map(l => JSON.parse(l.slice(6)));
+    assert(events.length > 0, "should have at least one event");
+    const doneEvent = events.find((e: any) => e.type === "done");
     assert(doneEvent !== undefined, "should have done event");
   });
 
@@ -289,12 +291,12 @@ if (hasApiKey) {
   });
 
   test("HTTP POST /api/chat rejects empty message", async () => {
-    const { status } = await fetchJson("/api/chat", {
+    const res = await fetch(`${baseUrl}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: "", sessionId: "test-session" }),
     });
-    assertEq(status, 400, "status should be 400");
+    assertEq(res.status, 400, "status should be 400");
   });
 } else {
   console.log("\n  (Skipping ChatAgent tests — ANTHROPIC_API_KEY not set)\n");

@@ -300,6 +300,19 @@ export interface SolverOptions {
   leanTimeoutMs?: number;
   /** Run post-solve reflection step. Default: false */
   reflect?: boolean;
+  /** Called with progress events during the solve loop */
+  onProgress?: (event: SolverProgressEvent) => void;
+}
+
+export interface SolverProgressEvent {
+  phase: "init" | "generating" | "verifying" | "success" | "exhausted";
+  round: number;
+  maxRounds: number;
+  message: string;
+  /** Candidate theory when available */
+  candidate?: unknown;
+  /** Verification feedback when available */
+  feedback?: string;
 }
 
 /** One entry per *verification attempt* (not per retry). */

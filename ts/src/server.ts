@@ -183,8 +183,21 @@ export async function handleRequest(
           return;
         }
         const agent = getChatAgent(sessionId);
-        const events = await agent.processMessage(message);
-        sendJson(res, 200, { events });
+
+        // SSE streaming: send events as they arrive
+        res.writeHead(200, {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+          "Access-Control-Allow-Origin": "*",
+        });
+
+        const sendSSE = (event: unknown) => {
+          res.write(`data: ${JSON.stringify(event)}\n\n`);
+        };
+
+        await agent.processMessage(message, sendSSE);
+        res.end();
         return;
       }
       case "chatReset": {

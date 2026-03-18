@@ -278,21 +278,18 @@
     color: var(--accent);
   }
 
-  /* ── Workbench: Graph View ──────────────────────── */
+  /* ── Workbench: Timeline View ──────────────────────── */
   .workbench {
     display: none;
     width: 100%;
     height: 100%;
+    overflow-y: auto;
     position: relative;
+    padding: 16px 20px;
   }
   .workbench.active { display: block; }
   .inventory.active { display: block; }
   .inventory:not(.active) { display: none; }
-
-  .workbench canvas {
-    width: 100%;
-    height: 100%;
-  }
 
   .workbench-empty {
     position: absolute;
@@ -309,41 +306,128 @@
   }
   .workbench-empty p { font-size: 13px; }
 
-  /* ── Graph Nodes ────────────────────────────────── */
-  .graph-container {
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
+  /* ── Timeline ────────────────────────────────────── */
+  .timeline {
     position: relative;
+    padding-left: 24px;
   }
-  .graph-node {
+  .timeline::before {
+    content: '';
     position: absolute;
-    padding: 10px 16px;
-    border-radius: 8px;
-    border: 2px solid;
+    left: 8px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--border);
+  }
+  .timeline-step {
+    position: relative;
+    margin-bottom: 16px;
+    animation: fadeIn 0.3s ease;
+  }
+  .timeline-step::before {
+    content: '';
+    position: absolute;
+    left: -20px;
+    top: 14px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid var(--bg);
+  }
+  .timeline-step-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
     background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: border-color 0.15s;
     font-size: 12px;
+  }
+  .timeline-step-header:hover {
+    border-color: var(--accent);
+  }
+  .timeline-step.expanded .timeline-step-header {
+    border-color: var(--accent);
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  .timeline-step-op {
+    color: var(--orange);
     font-weight: 600;
-    cursor: grab;
-    user-select: none;
-    transition: box-shadow 0.15s;
-    z-index: 2;
+    font-style: italic;
   }
-  .graph-node:hover {
-    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-  }
-  .graph-node .node-label {
+  .timeline-step-arrow { color: var(--text-dim); }
+  .timeline-step-input { color: var(--blue); }
+  .timeline-step-result { color: var(--green); font-weight: 700; }
+  .timeline-step-meta {
+    margin-left: auto;
     font-size: 10px;
     color: var(--text-dim);
-    margin-top: 2px;
   }
-  svg.graph-edges {
-    position: absolute;
-    top: 0; left: 0;
+  .timeline-step-body {
+    display: none;
+    border: 1px solid var(--accent);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    background: var(--surface2);
+    padding: 12px;
+    overflow-x: auto;
+  }
+  .timeline-step.expanded .timeline-step-body {
+    display: block;
+  }
+  .timeline-step-expand {
+    color: var(--text-dim);
+    font-size: 10px;
+    transition: transform 0.15s;
+  }
+  .timeline-step.expanded .timeline-step-expand {
+    transform: rotate(90deg);
+  }
+
+  /* ── Commutative Diagram ─────────────────────────── */
+  .cd-container {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .cd-diagram {
+    flex: 1;
+    min-width: 280px;
+  }
+  .cd-diagram svg {
     width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: 1;
+    max-height: 300px;
+  }
+  .cd-details {
+    flex: 0 0 220px;
+    font-size: 11px;
+  }
+  .cd-details h4 {
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 8px 0 4px;
+  }
+  .cd-details h4:first-child { margin-top: 0; }
+  .cd-details ul {
+    list-style: none;
+    padding: 0;
+  }
+  .cd-details li {
+    padding: 2px 0;
+    color: var(--text);
+  }
+  .cd-details .morph-arrow {
+    color: var(--cyan);
+    font-size: 10px;
   }
 
   /* ── Chat Pane ──────────────────────────────────── */
@@ -395,6 +479,85 @@
     padding: 2px 6px;
     border-radius: 3px;
     font-size: 12px;
+  }
+  /* Markdown rendered content in chat */
+  .chat-msg h1, .chat-msg h2, .chat-msg h3, .chat-msg h4 {
+    margin: 8px 0 4px;
+    font-size: 13px;
+    color: var(--accent);
+  }
+  .chat-msg h1 { font-size: 15px; }
+  .chat-msg h2 { font-size: 14px; }
+  .chat-msg ul, .chat-msg ol {
+    padding-left: 18px;
+    margin: 4px 0;
+  }
+  .chat-msg li { margin: 2px 0; }
+  .chat-msg pre {
+    background: var(--surface2);
+    padding: 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    overflow-x: auto;
+    margin: 6px 0;
+  }
+  .chat-msg code {
+    background: var(--surface2);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 12px;
+  }
+  .chat-msg pre code {
+    background: none;
+    padding: 0;
+  }
+  .chat-msg table {
+    border-collapse: collapse;
+    margin: 6px 0;
+    font-size: 11px;
+  }
+  .chat-msg th, .chat-msg td {
+    border: 1px solid var(--border);
+    padding: 4px 8px;
+  }
+  .chat-msg th {
+    background: var(--surface2);
+    color: var(--text-dim);
+  }
+  .chat-msg blockquote {
+    border-left: 3px solid var(--accent);
+    padding-left: 10px;
+    margin: 6px 0;
+    color: var(--text-dim);
+  }
+  .chat-msg p { margin: 4px 0; }
+  .thinking-block {
+    margin: 6px 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 11px;
+    overflow: hidden;
+  }
+  .thinking-block summary {
+    padding: 6px 10px;
+    cursor: pointer;
+    color: var(--text-dim);
+    background: var(--surface2);
+    font-style: italic;
+    user-select: none;
+  }
+  .thinking-block summary:hover { color: var(--text); }
+  .thinking-content {
+    padding: 8px 10px;
+    color: var(--text-dim);
+    white-space: pre-wrap;
+    max-height: 300px;
+    overflow-y: auto;
+    font-size: 11px;
+    line-height: 1.5;
+  }
+  .solver-progress {
+    margin: 4px 0;
   }
   .chat-msg .highlight {
     color: var(--accent);
@@ -561,6 +724,7 @@
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
 
@@ -594,12 +758,10 @@
 
     <!-- WORKBENCH MODE -->
     <div class="workbench" id="workbench">
-      <svg class="graph-edges" id="graphEdges"></svg>
-      <div class="graph-container" id="graphContainer">
-        <div class="workbench-empty" id="workbenchEmpty">
-          <div class="icon">&#x2693;</div>
-          <p>Ask the chat to combine theories or apply operators.<br>The result graph will appear here.</p>
-        </div>
+      <div class="timeline" id="timeline"></div>
+      <div class="workbench-empty" id="workbenchEmpty">
+        <div class="icon">&#x2693;</div>
+        <p>Ask the chat to combine theories or apply operators.<br>Results will appear here as a computation timeline.</p>
       </div>
     </div>
   </div>
@@ -1061,7 +1223,7 @@ async function runReaction(op, theoryA, theoryB) {
         <em style="color:var(--text-dim)">Switch to Workbench mode to see the graph.</em>
       `);
 
-      addGraphNode(name, op, theoryA, theoryB);
+      addTimelineStep(theory, name);
     } else {
       const errMsg = result.data.error || result.data.message || 'Unknown error';
       updateChat(msgId, `
@@ -1077,10 +1239,9 @@ async function runReaction(op, theoryA, theoryB) {
   }
 }
 
-// ── WORKBENCH GRAPH ───────────────────────────────────────────────────────────
+// ── WORKBENCH: TIMELINE + COMMUTATIVE DIAGRAMS ───────────────────────────────
 
-// Graph model: nodes + edges with live redraw on drag
-const graph = { nodes: [], edges: [], nextId: 0, reactionCount: 0 };
+let timelineCount = 0;
 
 function switchToWorkbench() {
   document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
@@ -1089,151 +1250,228 @@ function switchToWorkbench() {
   document.getElementById('workbench').classList.add('active');
 }
 
-function addGraphNode(resultName, op, inputA, inputB) {
-  const container = document.getElementById('graphContainer');
+// Resolve an ExprJson to a human-readable string
+function exprToStr(expr) {
+  if (!expr) return '?';
+  if (typeof expr === 'string') return expr;
+  if (expr.atom) return expr.atom;
+  if (expr.prod) return exprToStr(expr.prod[0]) + ' × ' + exprToStr(expr.prod[1]);
+  if (expr.tensor) return exprToStr(expr.tensor[0]) + ' ⊗ ' + exprToStr(expr.tensor[1]);
+  if (expr.coprod) return exprToStr(expr.coprod[0]) + ' + ' + exprToStr(expr.coprod[1]);
+  if (expr.hom) return '[' + exprToStr(expr.hom[0]) + ', ' + exprToStr(expr.hom[1]) + ']';
+  if (expr.comp) return exprToStr(expr.comp[0]) + ' ∘ ' + exprToStr(expr.comp[1]);
+  if (expr.id) return 'id(' + exprToStr(expr.id) + ')';
+  return JSON.stringify(expr);
+}
+
+// Find the primary declared object an expression refers to.
+// For products like {prod: ["X", "X"]} returns "X" (first component found in object set).
+// For "terminal"/"initial" returns null.
+function exprPrimaryObject(expr, objSet) {
+  if (!expr) return null;
+  if (typeof expr === 'string') return objSet.has(expr) ? expr : null;
+  if (expr.atom) return objSet.has(expr.atom) ? expr.atom : null;
+  if (expr.prod) return exprPrimaryObject(expr.prod[0], objSet) || exprPrimaryObject(expr.prod[1], objSet);
+  if (expr.tensor) return exprPrimaryObject(expr.tensor[0], objSet) || exprPrimaryObject(expr.tensor[1], objSet);
+  if (expr.coprod) return exprPrimaryObject(expr.coprod[0], objSet) || exprPrimaryObject(expr.coprod[1], objSet);
+  if (expr.hom) return exprPrimaryObject(expr.hom[0], objSet) || exprPrimaryObject(expr.hom[1], objSet);
+  if (expr.id) return exprPrimaryObject(expr.id, objSet);
+  return null;
+}
+
+// Build an SVG commutative diagram from a theory
+function renderCommutativeDiagram(theory) {
+  const objects = theory.objects || [];
+  const morphisms = theory.morphisms || [];
+  const axioms = theory.axioms || [];
+
+  if (objects.length === 0 && morphisms.length === 0) {
+    return '<div style="color:var(--text-dim);font-size:11px;padding:8px">No objects or morphisms to diagram.</div>';
+  }
+
+  // Only declared objects become diagram nodes
+  const objSet = new Set(objects.map(o => o.name));
+  const nodeList = objects.map(o => o.name);
+  const n = nodeList.length;
+
+  // Map each morphism to source/target declared objects
+  const edges = [];
+  for (const m of morphisms) {
+    const src = exprPrimaryObject(m.domain, objSet);
+    const tgt = exprPrimaryObject(m.codomain, objSet);
+    if (src && tgt) {
+      edges.push({ name: m.name, from: src, to: tgt });
+    }
+  }
+
+  if (n === 0) return '';
+
+  // Layout
+  const padding = 60;
+  const nodeR = 22;
+  let W, H;
+  const positions = {};
+
+  if (n === 1) {
+    W = 240; H = 160;
+    positions[nodeList[0]] = { x: W / 2, y: H / 2 };
+  } else if (n === 2) {
+    W = 300; H = 160;
+    positions[nodeList[0]] = { x: padding + nodeR, y: H / 2 };
+    positions[nodeList[1]] = { x: W - padding - nodeR, y: H / 2 };
+  } else if (n <= 4) {
+    W = 300; H = 240;
+    const cols = 2, rows = Math.ceil(n / 2);
+    const gapX = (W - 2 * padding) / (cols - 1 || 1);
+    const gapY = (H - 2 * padding) / (rows - 1 || 1);
+    nodeList.forEach((name, i) => {
+      const col = i % cols, row = Math.floor(i / cols);
+      positions[name] = { x: padding + col * gapX, y: padding + row * gapY };
+    });
+  } else {
+    W = 360; H = 360;
+    const cxc = W / 2, cyc = H / 2;
+    const R = Math.min(W, H) / 2 - padding;
+    nodeList.forEach((name, i) => {
+      const angle = -Math.PI / 2 + (2 * Math.PI * i) / n;
+      positions[name] = { x: cxc + R * Math.cos(angle), y: cyc + R * Math.sin(angle) };
+    });
+  }
+
+  // SVG
+  const uid = 'cd' + timelineCount;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="font-family:inherit">`;
+  svg += `<defs>
+    <marker id="${uid}-arr" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#56d4dd"/>
+    </marker>
+  </defs>`;
+
+  // Count edges per pair for parallel offset
+  const edgeTotal = {};
+  for (const e of edges) {
+    const key = [e.from, e.to].sort().join('|');
+    edgeTotal[key] = (edgeTotal[key] || 0) + 1;
+  }
+  const edgeCur = {};
+
+  for (const e of edges) {
+    const key = [e.from, e.to].sort().join('|');
+    edgeCur[key] = (edgeCur[key] || 0);
+    const idx = edgeCur[key]++;
+    const total = edgeTotal[key];
+    const p1 = positions[e.from];
+    const p2 = positions[e.to];
+    if (!p1 || !p2) continue;
+
+    if (e.from === e.to) {
+      // Self-loop — stagger multiple
+      const x = p1.x, y = p1.y;
+      const la = (-90 + idx * 50) * Math.PI / 180;
+      const c1x = x + 50 * Math.cos(la - 0.5);
+      const c1y = y + 50 * Math.sin(la - 0.5);
+      const c2x = x + 50 * Math.cos(la + 0.5);
+      const c2y = y + 50 * Math.sin(la + 0.5);
+      const sx = x + nodeR * Math.cos(la - 0.4);
+      const sy = y + nodeR * Math.sin(la - 0.4);
+      const ex = x + nodeR * Math.cos(la + 0.4);
+      const ey = y + nodeR * Math.sin(la + 0.4);
+      const lx = x + 38 * Math.cos(la);
+      const ly = y + 38 * Math.sin(la);
+      svg += `<path d="M${sx},${sy} C${c1x},${c1y} ${c2x},${c2y} ${ex},${ey}" stroke="#56d4dd" stroke-width="1.5" fill="none" marker-end="url(#${uid}-arr)" opacity="0.6"/>`;
+      svg += `<text x="${lx}" y="${ly}" text-anchor="middle" fill="#56d4dd" font-size="9" font-style="italic" dominant-baseline="middle">${escHtml(e.name)}</text>`;
+    } else {
+      const dx = p2.x - p1.x, dy = p2.y - p1.y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const nx = -dy / len, ny = dx / len;
+      const spread = 18;
+      const offset = (idx - (total - 1) / 2) * spread;
+      const mx = (p1.x + p2.x) / 2 + nx * offset;
+      const my = (p1.y + p2.y) / 2 + ny * offset;
+      const shrink = nodeR + 4;
+      const sx = p1.x + (dx / len) * shrink;
+      const sy = p1.y + (dy / len) * shrink;
+      const ex = p2.x - (dx / len) * shrink;
+      const ey = p2.y - (dy / len) * shrink;
+      svg += `<path d="M${sx},${sy} Q${mx},${my} ${ex},${ey}" stroke="#56d4dd" stroke-width="1.5" fill="none" marker-end="url(#${uid}-arr)" opacity="0.6"/>`;
+      const lx = (sx + 2 * mx + ex) / 4;
+      const ly = (sy + 2 * my + ey) / 4 - 5;
+      svg += `<text x="${lx}" y="${ly}" text-anchor="middle" fill="#56d4dd" font-size="9" font-style="italic">${escHtml(e.name)}</text>`;
+    }
+  }
+
+  // Draw declared object nodes
+  for (const name of nodeList) {
+    const p = positions[name];
+    svg += `<circle cx="${p.x}" cy="${p.y}" r="${nodeR}" fill="#161b22" stroke="#e6edf3" stroke-width="2"/>`;
+    const label = name.length > 8 ? name.slice(0, 7) + '…' : name;
+    svg += `<text x="${p.x}" y="${p.y + 1}" text-anchor="middle" fill="#e6edf3" font-size="11" font-weight="700" dominant-baseline="middle">${escHtml(label)}</text>`;
+    if (name.length > 8) {
+      svg += `<text x="${p.x}" y="${p.y + nodeR + 12}" text-anchor="middle" fill="#8b949e" font-size="8">${escHtml(name)}</text>`;
+    }
+  }
+
+  svg += '</svg>';
+
+  // Details panel
+  let details = '<div class="cd-details">';
+  details += `<h4>Doctrine</h4><div style="color:var(--green)">${escHtml(theory.doctrine || '?')}</div>`;
+  details += `<h4>Objects (${objects.length})</h4><ul>`;
+  for (const o of objects) {
+    details += `<li>${escHtml(o.name)}${o.description ? ' <span style="color:var(--text-dim)">— ' + escHtml(o.description) + '</span>' : ''}</li>`;
+  }
+  details += '</ul>';
+  details += `<h4>Morphisms (${morphisms.length})</h4><ul>`;
+  for (const m of morphisms) {
+    details += `<li>${escHtml(m.name)} <span class="morph-arrow">${exprToStr(m.domain)} → ${exprToStr(m.codomain)}</span></li>`;
+  }
+  details += '</ul>';
+  if (axioms.length > 0) {
+    details += `<h4>Axioms (${axioms.length})</h4><ul>`;
+    for (const a of axioms) {
+      details += `<li>${escHtml(a.name)}: <span style="color:var(--text-dim)">${exprToStr(a.lhs)} = ${exprToStr(a.rhs)}</span></li>`;
+    }
+    details += '</ul>';
+  }
+  details += '</div>';
+
+  return `<div class="cd-container"><div class="cd-diagram">${svg}</div>${details}</div>`;
+}
+
+function addTimelineStep(theory, label) {
+  const timeline = document.getElementById('timeline');
   const empty = document.getElementById('workbenchEmpty');
   if (empty) empty.style.display = 'none';
+
+  timelineCount++;
+  const step = document.createElement('div');
+  step.className = 'timeline-step';
+
+  const name = theory.name || label || 'result';
+  const objs = (theory.objects || []).length;
+  const morphs = (theory.morphisms || []).length;
+  const axioms = (theory.axioms || []).length;
+
+  step.innerHTML = `
+    <div class="timeline-step-header">
+      <span class="timeline-step-expand">\u25B6</span>
+      <span class="timeline-step-result">${escHtml(name)}</span>
+      <span class="timeline-step-meta">${escHtml(theory.doctrine || '')} \u2022 ${objs} obj \u2022 ${morphs} morph \u2022 ${axioms} ax</span>
+    </div>
+    <div class="timeline-step-body">
+      ${renderCommutativeDiagram(theory)}
+    </div>
+  `;
+
+  step.querySelector('.timeline-step-header').addEventListener('click', () => {
+    step.classList.toggle('expanded');
+  });
+
+  timeline.appendChild(step);
   switchToWorkbench();
 
-  graph.reactionCount++;
-  const row = graph.reactionCount;
-  const baseY = 40 + (row - 1) * 120;
-  const baseX = 60;
-
-  const ensureNode = (name, x, y, color) => {
-    const existing = graph.nodes.find(n => n.name === name && !n.isOp);
-    if (existing) return existing;
-    const id = graph.nextId++;
-    const el = makeNodeEl(id, name, x, y, color, false);
-    container.appendChild(el);
-    const node = { id, name, x, y, el, color, isOp: false };
-    graph.nodes.push(node);
-    return node;
-  };
-
-  const nA = ensureNode(inputA, baseX, baseY, '#388bfd');
-  let nB = null;
-  if (inputB && inputB !== inputA) {
-    nB = ensureNode(inputB, baseX, baseY + 60, '#388bfd');
-  } else if (inputB) {
-    nB = nA;
-  }
-
-  const opId = graph.nextId++;
-  const opX = baseX + 280;
-  const opY = nB && nB !== nA ? baseY + 30 : baseY;
-  const opEl = makeNodeEl(opId, op, opX, opY, '#d29922', true);
-  container.appendChild(opEl);
-  graph.nodes.push({ id: opId, name: op, x: opX, y: opY, el: opEl, color: '#d29922', isOp: true });
-
-  const resId = graph.nextId++;
-  const resX = baseX + 540;
-  const resY = opY;
-  const resEl = makeNodeEl(resId, resultName, resX, resY, '#3fb950', false);
-  container.appendChild(resEl);
-  graph.nodes.push({ id: resId, name: resultName, x: resX, y: resY, el: resEl, color: '#3fb950', isOp: false });
-
-  graph.edges.push({ from: nA.id, to: opId });
-  if (nB) graph.edges.push({ from: nB.id, to: opId });
-  graph.edges.push({ from: opId, to: resId });
-  redrawEdges();
-}
-
-function makeNodeEl(id, name, x, y, color, isOp) {
-  const div = document.createElement('div');
-  div.className = 'graph-node';
-  div.dataset.nodeId = id;
-  div.style.left = x + 'px';
-  div.style.top = y + 'px';
-  div.style.borderColor = color;
-  div.style.color = color;
-  div.textContent = name;
-  if (isOp) {
-    div.style.borderRadius = '20px';
-    div.style.padding = '8px 14px';
-    div.style.fontSize = '11px';
-    div.style.fontStyle = 'italic';
-  }
-
-  let dragging = false, dx, dy;
-  div.addEventListener('mousedown', e => {
-    dragging = true;
-    dx = e.clientX - div.offsetLeft;
-    dy = e.clientY - div.offsetTop;
-    div.style.cursor = 'grabbing';
-    div.style.zIndex = '10';
-    e.preventDefault();
-    e.stopPropagation();
-  });
-  document.addEventListener('mousemove', e => {
-    if (!dragging) return;
-    const nx = e.clientX - dx;
-    const ny = e.clientY - dy;
-    div.style.left = nx + 'px';
-    div.style.top = ny + 'px';
-    const node = graph.nodes.find(n => n.id === id);
-    if (node) { node.x = nx; node.y = ny; }
-    redrawEdges();
-  });
-  document.addEventListener('mouseup', () => {
-    if (!dragging) return;
-    dragging = false;
-    div.style.cursor = 'grab';
-    div.style.zIndex = '2';
-  });
-  return div;
-}
-
-function nodeCenter(node) {
-  const w = node.el.offsetWidth || 80;
-  const h = node.el.offsetHeight || 32;
-  return { x: node.x + w / 2, y: node.y + h / 2 };
-}
-
-function edgePoint(node, target) {
-  const w = node.el.offsetWidth || 80;
-  const h = node.el.offsetHeight || 32;
-  const cx = node.x + w / 2, cy = node.y + h / 2;
-  const dx = target.x - cx, dy = target.y - cy;
-  if (!dx && !dy) return { x: cx, y: cy };
-  const sx = (w / 2) / (Math.abs(dx) || 1);
-  const sy = (h / 2) / (Math.abs(dy) || 1);
-  const s = Math.min(sx, sy);
-  return { x: cx + dx * s, y: cy + dy * s };
-}
-
-function redrawEdges() {
-  const svg = document.getElementById('graphEdges');
-  svg.innerHTML = '';
-  const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-  const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
-  marker.setAttribute('id', 'ah');
-  marker.setAttribute('markerWidth', '8');
-  marker.setAttribute('markerHeight', '6');
-  marker.setAttribute('refX', '7');
-  marker.setAttribute('refY', '3');
-  marker.setAttribute('orient', 'auto');
-  const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-  poly.setAttribute('points', '0 0, 8 3, 0 6');
-  poly.setAttribute('fill', '#8b949e');
-  marker.appendChild(poly);
-  defs.appendChild(marker);
-  svg.appendChild(defs);
-
-  for (const e of graph.edges) {
-    const fn = graph.nodes.find(n => n.id === e.from);
-    const tn = graph.nodes.find(n => n.id === e.to);
-    if (!fn || !tn) continue;
-    const fc = nodeCenter(fn), tc = nodeCenter(tn);
-    const s = edgePoint(fn, tc), d = edgePoint(tn, fc);
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', `M${s.x},${s.y} L${d.x},${d.y}`);
-    path.setAttribute('stroke', '#8b949e');
-    path.setAttribute('stroke-width', '2');
-    path.setAttribute('fill', 'none');
-    path.setAttribute('marker-end', 'url(#ah)');
-    svg.appendChild(path);
-  }
+  // Auto-expand the latest step
+  step.classList.add('expanded');
 }
 
 // ── CHAT ──────────────────────────────────────────────────────────────────────
@@ -1321,69 +1559,107 @@ const SESSION_ID = 'studio-' + Date.now();
 
 async function processUserMessage(text) {
   const msgId = addChat('assistant', `<div class="status-bar"><div class="spinner"></div> Thinking...</div>`);
+  let html = '';
+  let gotEvents = false;
+
+  function appendEvent(ev) {
+    gotEvents = true;
+    switch (ev.type) {
+      case 'status':
+        // Update the spinner status text live
+        updateChat(msgId, html + `<div class="status-bar"><div class="spinner"></div> ${escHtml(ev.content)}</div>`);
+        return; // don't persist status in html
+      case 'solver_progress': {
+        const sp = ev.solverProgress;
+        let badge = '';
+        if (sp.phase === 'generating') badge = `<div class="status-bar"><div class="spinner"></div> 🔄 ${escHtml(ev.content)}</div>`;
+        else if (sp.phase === 'verifying') badge = `<div class="status-bar"><div class="spinner"></div> ❌ ${escHtml(ev.content)}</div>`;
+        else if (sp.phase === 'success') badge = `<div class="status-bar">✅ ${escHtml(ev.content)}</div>`;
+        else if (sp.phase === 'exhausted') badge = `<div class="status-bar">❌ ${escHtml(ev.content)}</div>`;
+        else badge = `<div class="status-bar"><div class="spinner"></div> ${escHtml(ev.content)}</div>`;
+        // Replace previous solver_progress line if any
+        html = html.replace(/<div class="solver-progress">[\s\S]*?<\/div>/, '');
+        html += `<div class="solver-progress">${badge}</div>`;
+        updateChat(msgId, html);
+        return;
+      }
+      case 'thinking':
+        html += `<details class="thinking-block"><summary>Thinking</summary><div class="thinking-content">${escHtml(ev.content)}</div></details>`;
+        break;
+      case 'text':
+        html += formatLLMText(ev.content);
+        break;
+      case 'theory':
+        if (ev.theory) {
+          html += renderTheoryCard(ev.theory);
+          addTimelineStep(ev.theory, ev.content);
+        }
+        break;
+      case 'error':
+        html += `<span style="color:var(--red)">${escHtml(ev.content)}</span><br>`;
+        break;
+      case 'done':
+        return;
+    }
+    updateChat(msgId, html);
+  }
 
   try {
-    const res = await apiPost('/api/chat', {
-      message: text,
-      sessionId: SESSION_ID,
+    const res = await fetch(`${API_BASE}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text, sessionId: SESSION_ID }),
     });
 
-    if (res.status !== 200 || !res.data.events) {
-      updateChat(msgId, `<span style="color:var(--red)">Error:</span> ${escHtml(res.data.error || 'Unknown error')}<br><em style="color:var(--text-dim)">Make sure ANTHROPIC_API_KEY is set and the server is running.</em>`);
+    if (!res.ok) {
+      const errBody = await res.text();
+      updateChat(msgId, `<span style="color:var(--red)">Error ${res.status}:</span> ${escHtml(errBody)}<br><em style="color:var(--text-dim)">Make sure ANTHROPIC_API_KEY is set and the server is running.</em>`);
       return;
     }
 
-    // Render events — skip status events (tool call spinners) in final output
-    let html = '';
-    for (const ev of res.data.events) {
-      switch (ev.type) {
-        case 'status':
-          // Don't render status bars in final output — they were intermediate
-          break;
-        case 'text':
-          html += formatLLMText(ev.content);
-          break;
-        case 'theory':
-          if (ev.theory) {
-            html += renderTheoryCard(ev.theory);
-            addGraphNode(ev.theory.name || ev.content, 'result', ev.content, null);
-          }
-          break;
-        case 'error':
-          html += `<span style="color:var(--red)">${escHtml(ev.content)}</span><br>`;
-          break;
-        case 'done':
-          break;
+    // Read SSE stream
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      // Parse SSE events from buffer
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // keep incomplete line in buffer
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const ev = JSON.parse(line.slice(6));
+            appendEvent(ev);
+          } catch (e) { /* ignore parse errors */ }
+        }
       }
     }
 
-    if (!html.trim()) {
-      html = '<em style="color:var(--text-dim)">No response from agent.</em>';
+    if (!gotEvents || !html.trim()) {
+      updateChat(msgId, '<em style="color:var(--text-dim)">No response from agent.</em>');
     }
-
-    updateChat(msgId, html);
   } catch (e) {
     updateChat(msgId, `<span style="color:var(--red)">Connection error:</span> ${escHtml(e.message)}<br><em style="color:var(--text-dim)">Make sure the server is running: <span class="code">cd ts && npm run studio</span></em>`);
   }
 }
 
 function formatLLMText(text) {
-  // Simple markdown → HTML
+  if (typeof marked !== 'undefined' && marked.parse) {
+    return marked.parse(text);
+  }
+  // Fallback if marked.js not loaded
   return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    // Code blocks
-    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre style="background:var(--surface2);padding:8px;border-radius:4px;font-size:11px;overflow-x:auto;margin:6px 0">$2</pre>')
-    // Inline code
-    .replace(/`([^`]+)`/g, '<span class="code">$1</span>')
-    // Bold
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre>$2</pre>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    // Italic
     .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-    // Line breaks
-    .replace(/\n\n/g, '<br><br>')
-    .replace(/\n/g, '<br>');
+    .replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>');
 }
 
 function renderTheoryCard(theory) {
