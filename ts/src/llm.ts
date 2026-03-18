@@ -163,6 +163,8 @@ export class LLMClient {
   private messages: Anthropic.MessageParam[] = [];
   private tool: Anthropic.Tool | undefined;
   private toolName: string = "propose_theory";
+  /** Pending tool_use_id from the last assistant response (needs a tool_result). */
+  private pendingToolUseId: string | undefined;
 
   constructor(apiKey?: string) {
     this.client = new Anthropic({ apiKey: apiKey ?? process.env.ANTHROPIC_API_KEY });
@@ -171,6 +173,7 @@ export class LLMClient {
   /** Reset conversation state (called at start of each solve). */
   resetConversation(): void {
     this.messages = [];
+    this.pendingToolUseId = undefined;
   }
 
   /**
@@ -208,6 +211,9 @@ export class LLMClient {
   /**
    * Rounds 2+: refine a previous proposal given feedback text.
    * The conversation history is preserved so thinking carries over.
+   *
+   * Combines the tool_result (for the prior tool_use) and the feedback
+   * into a single user message to maintain proper turn alternation.
    */
   async refineWithFeedback(
     spec: ProblemSpec,
@@ -217,15 +223,35 @@ export class LLMClient {
   ): Promise<unknown> {
     const style = spec.stylePrompt ? `\nStyle guidance: ${spec.stylePrompt}` : "";
 
-    // The feedback goes as a tool_result for the previous tool_use,
-    // then a new user message asking for refinement.
-    const feedbackMessage =
+    const feedbackText2 =
       `Round ${round}: Your previous proposal failed verification.\n\n` +
       feedbackText +
       `\nPlease provide a corrected answer that fixes ALL of the above errors. ` +
       `Think carefully about what went wrong and why before proposing.${style}`;
 
-    return this.callWithHistory(feedbackMessage);
+    // Combine tool_result + feedback into one user message (proper turn alternation)
+    if (this.pendingToolUseId) {
+      this.messages.push({
+        role: "user",
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: this.pendingToolUseId,
+            content: feedbackText,
+          } as any,
+          {
+            type: "text",
+            text: feedbackText2,
+          },
+        ],
+      });
+      this.pendingToolUseId = undefined;
+    } else {
+      // No pending tool_use (shouldn't happen, but handle gracefully)
+      this.messages.push({ role: "user", content: feedbackText2 });
+    }
+
+    return this.callApi();
   }
 
   /**
@@ -246,8 +272,23 @@ export class LLMClient {
       `4. **What specific changes to the system prompt would help future solvers?**\n` +
       `5. **What "dictionary" or "recipe" did you discover?**`;
 
-    // Add user message to the existing conversation
-    this.messages.push({ role: "user", content: prompt });
+    // Close out any pending tool_result before adding the reflection prompt
+    if (this.pendingToolUseId) {
+      this.messages.push({
+        role: "user",
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: this.pendingToolUseId,
+            content: "Verification passed.",
+          } as any,
+          { type: "text", text: prompt },
+        ],
+      });
+      this.pendingToolUseId = undefined;
+    } else {
+      this.messages.push({ role: "user", content: prompt });
+    }
 
     // For reflection, don't force tool use — let it respond with text
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -277,18 +318,31 @@ export class LLMClient {
   }
 
   /**
-   * Core: call Claude with the full conversation history, preserving thinking blocks.
-   * Appends user message, gets response, appends assistant response (with thinking).
+   * Append a user message then call the API.
+   * Used by generateInitial (round 1).
    */
   private async callWithHistory(userPrompt: string): Promise<unknown> {
-    // Append user message
     this.messages.push({ role: "user", content: userPrompt });
+    return this.callApi();
+  }
 
+  /**
+   * Core API call: sends the current conversation history to Claude,
+   * appends the assistant response, and extracts the tool payload.
+   *
+   * Does NOT manage user messages — callers must push their own
+   * user message before calling this method.
+   *
+   * If the assistant responds with a tool_use block, stores the
+   * tool_use_id in pendingToolUseId so the next refineWithFeedback()
+   * can include the tool_result in its user message.
+   */
+  private async callApi(): Promise<unknown> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const stream = this.client.messages.stream({
       model: "claude-sonnet-4-6",
-      max_tokens: 16000,
-      thinking: { type: "enabled", budget_tokens: 2048 },
+      max_tokens: 32000,
+      thinking: { type: "enabled", budget_tokens: 10000 },
       tools: [this.tool!],
       tool_choice: { type: "auto" },
       system: [
@@ -302,7 +356,13 @@ export class LLMClient {
     } as any);
 
     const message = await stream.finalMessage();
-    console.error(`[llm] stop_reason=${message.stop_reason} usage=${JSON.stringify(message.usage)}`);
+    const u = message.usage as unknown as Record<string, unknown>;
+    console.error(
+      `[llm] stop_reason=${message.stop_reason}` +
+      ` in=${u.input_tokens} out=${u.output_tokens}` +
+      ` cache_read=${u.cache_read_input_tokens ?? 0}` +
+      ` cache_create=${u.cache_creation_input_tokens ?? 0}`,
+    );
 
     // Append assistant response to history (includes thinking + tool_use blocks)
     this.messages.push({ role: "assistant", content: message.content as any });
@@ -326,17 +386,9 @@ export class LLMClient {
       console.error(`[llm] tool input keys: ${keys.join(", ")}`);
       console.error(`[llm] preview: ${JSON.stringify(parsed).slice(0, 400)}`);
 
-      // Append tool_result as user message so the conversation stays valid
-      // for subsequent rounds. The result is a placeholder — the real feedback
-      // comes in the next refineWithFeedback() call's user message.
-      this.messages.push({
-        role: "user",
-        content: [{
-          type: "tool_result",
-          tool_use_id: toolUse.id,
-          content: "Submitted to CAS for verification. See next message for results.",
-        }],
-      } as any);
+      // Store the pending tool_use_id — refineWithFeedback will include
+      // the tool_result in its combined user message.
+      this.pendingToolUseId = toolUse.id;
 
       return parsed;
     }
@@ -352,7 +404,6 @@ export class LLMClient {
       try {
         const parsed = JSON.parse(jsonMatch[1].trim());
         console.error(`[llm] extracted JSON from text response (no tool_use block)`);
-        // Still add a synthetic tool_result to keep conversation valid
         return parsed;
       } catch {
         // Fall through to error
