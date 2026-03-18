@@ -33,6 +33,9 @@ import {
   ModelFindingVerifier,
   SubobjectVerifier,
   SynthesisVerifier,
+  QuotientVerifier,
+  DecompositionVerifier,
+  RelaxationVerifier,
 } from "./verifiers";
 import type { Verifier, SolverOptions } from "./types";
 
@@ -57,6 +60,9 @@ Problem types:
   model-finding         generate a concrete instance of a theory
   subobject             find sub-theory of target satisfying property P
   synthesis             find morphism composition source → target in theory
+  quotient              find minimal quotient of base satisfying property P
+  decompose             decompose target into independent components
+  relax                 find X closest to target satisfying property P
 
 Problem arguments:
   --target <name>       Target theory name
@@ -209,6 +215,18 @@ function buildVerifier(args: string[]): {
     case "synthesis":
       if (!target || !source || !base) { console.error("--base (theory), --source, and --target required for synthesis"); usage(); }
       verifier = new SynthesisVerifier(base, source, target);
+      break;
+    case "quotient":
+      if (!base || !property) { console.error("--base and --property required for quotient"); usage(); }
+      verifier = new QuotientVerifier(base, property);
+      break;
+    case "decompose":
+      if (!target) { console.error("--target required for decompose"); usage(); }
+      verifier = new DecompositionVerifier(target);
+      break;
+    case "relax":
+      if (!target || !property) { console.error("--target and --property required for relax"); usage(); }
+      verifier = new RelaxationVerifier(target, property);
       break;
     default:
       console.error(`Unknown problem type: ${problemType}`);

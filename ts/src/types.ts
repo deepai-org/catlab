@@ -160,6 +160,23 @@ export type CatlabCommand =
       command: "evaluate_synthesis";
       theory: string;
       candidate: TheoryJson;
+    }
+  | {
+      command: "evaluate_quotient";
+      base: string;
+      property: string;
+      candidate: TheoryJson;
+    }
+  | {
+      command: "evaluate_decomposition";
+      target: string;
+      candidate: TheoryJson;
+    }
+  | {
+      command: "evaluate_relaxation";
+      target: string;
+      property: string;
+      candidate: TheoryJson;
     };
 
 export type CatlabRequest = CatlabCommand & { id: string };

@@ -938,6 +938,198 @@ export class SynthesisVerifier implements Verifier {
   }
 }
 
+// ── 14. Quotient verifier ───────────────────────────────────────────────────
+
+/**
+ * Find minimal congruence ∼ on base such that base/∼ satisfies property P.
+ */
+export class QuotientVerifier implements Verifier {
+  constructor(
+    private baseName: string,
+    private property: string,
+  ) {}
+
+  async preflight(catlab: CatlabClient, timeoutMs: number): Promise<ProblemSpec> {
+    const base = await fetchTheorySummary(catlab, this.baseName, timeoutMs);
+
+    return {
+      kind: "quotient",
+      problemDescription:
+        `Find a **quotient** of "${this.baseName}" that satisfies the property **"${this.property}"**.\n\n` +
+        `Your candidate should be a theory with the same objects as "${this.baseName}" but with ` +
+        `some morphisms identified (collapsed) and/or additional axioms that enforce the congruence. ` +
+        `The result should be the minimal quotient satisfying the property.`,
+      hint:
+        `**Strategy for quotient:**\n` +
+        `1. Keep ALL objects from "${this.baseName}".\n` +
+        `2. Keep all morphisms, but add axioms that identify (equate) some of them.\n` +
+        `3. The new axioms define the congruence ∼.\n` +
+        `4. Verify the property "${this.property}" holds in the quotient.`,
+      contextJson:
+        `## Base Theory: "${this.baseName}"\n\n\`\`\`json\n${base.json}\n\`\`\`\n\n` +
+        `## Required Property: "${this.property}"`,
+    };
+  }
+
+  async verify(
+    catlab: CatlabClient,
+    payload: unknown,
+    timeoutMs: number,
+  ): Promise<VerificationResult> {
+    const candidate = payload as TheoryJson;
+    const res = await catlab.request(
+      {
+        command: "evaluate_quotient",
+        base: this.baseName,
+        property: this.property,
+        candidate,
+      },
+      timeoutMs,
+    );
+    if (res.status === "error") throw new Error(`Lean error: ${res.message}`);
+
+    const result = res.result!;
+    const isQuotient = (res as any).is_quotient === true;
+
+    if (!isQuotient) {
+      result.verified = false;
+      result.verificationStatus = `✗ Failed: candidate is missing objects from "${this.baseName}"`;
+      result.feedbackStrings = [
+        `A quotient must keep ALL objects from the base theory.`,
+        `Missing: ${((res as any).missing_objects ?? []).join(", ")}`,
+      ];
+    }
+
+    return result;
+  }
+}
+
+// ── 15. Decomposition verifier ──────────────────────────────────────────────
+
+/**
+ * Find a set of components Xᵢ such that ⨁ Xᵢ ≅ target.
+ */
+export class DecompositionVerifier implements Verifier {
+  constructor(private targetName: string) {}
+
+  async preflight(catlab: CatlabClient, timeoutMs: number): Promise<ProblemSpec> {
+    const target = await fetchTheorySummary(catlab, this.targetName, timeoutMs);
+
+    return {
+      kind: "decomposition",
+      problemDescription:
+        `**Decompose** "${this.targetName}" into independent components.\n\n` +
+        `Find a theory that, when viewed as a coproduct (disjoint union) of sub-theories, ` +
+        `is structurally equivalent to "${this.targetName}". The candidate should make the ` +
+        `decomposition explicit through its structure.`,
+      hint:
+        `**Strategy for decomposition:**\n` +
+        `1. Identify independent "clusters" of generators in the target.\n` +
+        `2. Each cluster should be self-contained (axioms only reference that cluster).\n` +
+        `3. The union of all clusters must reconstruct the full target.\n` +
+        `4. Submit the reassembled theory — the CAS verifies it matches the target.`,
+      contextJson:
+        `## Target Theory: "${this.targetName}"\n\n\`\`\`json\n${target.json}\n\`\`\``,
+    };
+  }
+
+  async verify(
+    catlab: CatlabClient,
+    payload: unknown,
+    timeoutMs: number,
+  ): Promise<VerificationResult> {
+    const candidate = payload as TheoryJson;
+    const res = await catlab.request(
+      {
+        command: "evaluate_decomposition",
+        target: this.targetName,
+        candidate,
+      },
+      timeoutMs,
+    );
+    if (res.status === "error") throw new Error(`Lean error: ${res.message}`);
+    return res.result!;
+  }
+}
+
+// ── 16. Relaxation verifier ─────────────────────────────────────────────────
+
+/**
+ * Find X minimizing edit distance to target while satisfying property P.
+ */
+export class RelaxationVerifier implements Verifier {
+  private bestDistance = Infinity;
+
+  constructor(
+    private targetName: string,
+    private property: string,
+  ) {}
+
+  async preflight(catlab: CatlabClient, timeoutMs: number): Promise<ProblemSpec> {
+    const target = await fetchTheorySummary(catlab, this.targetName, timeoutMs);
+
+    return {
+      kind: "relaxation",
+      problemDescription:
+        `Find a theory X that satisfies **"${this.property}"** while being as close as possible ` +
+        `to "${this.targetName}".\n\n` +
+        `The CAS will compare your candidate structurally against "${this.targetName}" and report ` +
+        `an edit distance. You want to minimize this distance while satisfying the property.`,
+      hint:
+        `**Strategy for relaxation:**\n` +
+        `1. Start with "${this.targetName}" as a base.\n` +
+        `2. Make the minimal changes needed to satisfy "${this.property}".\n` +
+        `3. Each round, the CAS reports edit distance — try to reduce it.\n` +
+        `4. Prefer adding/modifying axioms over changing generators.`,
+      contextJson:
+        `## Target Theory: "${this.targetName}"\n\n\`\`\`json\n${target.json}\n\`\`\`\n\n` +
+        `## Required Property: "${this.property}"`,
+    };
+  }
+
+  async verify(
+    catlab: CatlabClient,
+    payload: unknown,
+    timeoutMs: number,
+  ): Promise<VerificationResult> {
+    const candidate = payload as TheoryJson;
+    const res = await catlab.request(
+      {
+        command: "evaluate_relaxation",
+        target: this.targetName,
+        property: this.property,
+        candidate,
+      },
+      timeoutMs,
+    );
+    if (res.status === "error") throw new Error(`Lean error: ${res.message}`);
+
+    const result = res.result!;
+    const editDist = (res as any).edit_distance ?? Infinity;
+
+    if (result.verified && editDist < this.bestDistance) {
+      this.bestDistance = editDist;
+    }
+
+    result.feedbackStrings = [
+      `Edit distance from target: ${editDist}`,
+      `Best distance so far: ${this.bestDistance === Infinity ? "none" : this.bestDistance}`,
+      ...(result.feedbackStrings ?? []),
+    ];
+
+    return result;
+  }
+
+  formatFeedback(result: VerificationResult, _payload: unknown): string {
+    const lines: string[] = [];
+    if (result.feedbackStrings) {
+      for (const fb of result.feedbackStrings) lines.push(`• ${fb}`);
+    }
+    lines.push("\n" + formatStructuralDiff(result));
+    return lines.join("\n");
+  }
+}
+
 // ── Inverse problem descriptions ────────────────────────────────────────────
 
 function describeInverseProblem(

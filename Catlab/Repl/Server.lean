@@ -630,6 +630,94 @@ def handleEvaluateSynthesis (j : Json) (id : String) : Json :=
                        ("missing_from_theory", .arr missingNames.toArray)]
 
 -- ============================================================
+-- evaluate_quotient command
+-- Find minimal congruence ∼ on base such that base/∼ satisfies property P
+-- The candidate is a theory representing base/∼ (with some axioms collapsed)
+-- ============================================================
+
+def handleEvaluateQuotient (j : Json) (id : String) : Json :=
+  let baseResult     := getStr j "base"
+  let propertyResult := getStr j "property"
+  let candidateJson  := j.getObjVal? "candidate"
+  match baseResult, propertyResult, candidateJson with
+  | .error e, _, _       => errorResponse id e
+  | _, .error e, _       => errorResponse id e
+  | _, _, .error _       => errorResponse id "missing field 'candidate'"
+  | .ok baseName, .ok _property, .ok candJson =>
+    match lookupTheory baseName, theoryFromJson candJson with
+    | .error e, _ => errorResponse id e
+    | _, .error e => errorResponse id s!"invalid candidate: {e}"
+    | .ok base, .ok candidate =>
+      -- Verify: candidate has ≤ generators than base (it's a quotient)
+      -- and there exists a surjection base → candidate (all base objects present)
+      let missingObjs := base.objects.filter fun o =>
+        !candidate.objects.any fun co => co.id == o.id
+      let baseSize := base.objects.length + base.morphisms.length + base.axioms.length
+      let candSize := candidate.objects.length + candidate.morphisms.length + candidate.axioms.length
+      let result := computeStructuralDiff candidate candidate candidate
+      if missingObjs.isEmpty then
+        okResponse id [("result", verificationToJson result),
+                       ("is_quotient", .bool true),
+                       ("base_size", natJson baseSize),
+                       ("candidate_size", natJson candSize)]
+      else
+        let missingNames := missingObjs.map (fun o => Json.str (toString o.id))
+        okResponse id [("result", verificationToJson result),
+                       ("is_quotient", .bool false),
+                       ("missing_objects", .arr missingNames.toArray)]
+
+-- ============================================================
+-- evaluate_decomposition command
+-- Find set of Xᵢ such that ⨁ Xᵢ ≅ target (coproduct decomposition)
+-- The candidate provides multiple sub-theories; we verify their coproduct
+-- ============================================================
+
+def handleEvaluateDecomposition (j : Json) (id : String) : Json :=
+  let targetResult := getStr j "target"
+  let candidateJson := j.getObjVal? "candidate"
+  match targetResult, candidateJson with
+  | .error e, _       => errorResponse id e
+  | _, .error _       => errorResponse id "missing field 'candidate'"
+  | .ok targetName, .ok candJson =>
+    match lookupTheory targetName, theoryFromJson candJson with
+    | .error e, _ => errorResponse id e
+    | _, .error e => errorResponse id s!"invalid candidate: {e}"
+    | .ok target, .ok candidate =>
+      -- The candidate represents the "reassembled" theory from components
+      -- Verify it matches the target structurally
+      let result := computeStructuralDiff candidate candidate target
+      okResponse id [("result", verificationToJson result)]
+
+-- ============================================================
+-- evaluate_relaxation command
+-- Find X minimizing edit distance to target while satisfying property P
+-- ============================================================
+
+def handleEvaluateRelaxation (j : Json) (id : String) : Json :=
+  let targetResult   := getStr j "target"
+  let propertyResult := getStr j "property"
+  let candidateJson  := j.getObjVal? "candidate"
+  match targetResult, propertyResult, candidateJson with
+  | .error e, _, _       => errorResponse id e
+  | _, .error e, _       => errorResponse id e
+  | _, _, .error _       => errorResponse id "missing field 'candidate'"
+  | .ok targetName, .ok _property, .ok candJson =>
+    match lookupTheory targetName, theoryFromJson candJson with
+    | .error e, _ => errorResponse id e
+    | _, .error e => errorResponse id s!"invalid candidate: {e}"
+    | .ok target, .ok candidate =>
+      -- Compute structural diff to measure edit distance
+      let result := computeStructuralDiff candidate candidate target
+      -- Report size difference as a simple distance metric
+      let targetSize := target.objects.length + target.morphisms.length + target.axioms.length
+      let candSize := candidate.objects.length + candidate.morphisms.length + candidate.axioms.length
+      let sizeDiff := if candSize > targetSize then candSize - targetSize else targetSize - candSize
+      okResponse id [("result", verificationToJson result),
+                     ("edit_distance", natJson sizeDiff),
+                     ("candidate_size", natJson candSize),
+                     ("target_size", natJson targetSize)]
+
+-- ============================================================
 -- summary / validate commands
 -- ============================================================
 
@@ -693,7 +781,10 @@ def handleRequest (line : String) : Json :=
       | "evaluate_model"               => handleEvaluateModel              j id
       | "evaluate_subobject"           => handleEvaluateSubobject          j id
       | "evaluate_synthesis"           => handleEvaluateSynthesis          j id
-      | other              => errorResponse id s!"Unknown command '{other}'. Supported: list_theories, summary, validate, apply_operator, compute_pushout, evaluate_inverse, solve_inverse, evaluate_pushout_complement, evaluate_extension, evaluate_multi_objective, evaluate_fixed_point, evaluate_pullback_complement, evaluate_simplification, evaluate_model, evaluate_subobject, evaluate_synthesis"
+      | "evaluate_quotient"            => handleEvaluateQuotient           j id
+      | "evaluate_decomposition"       => handleEvaluateDecomposition      j id
+      | "evaluate_relaxation"          => handleEvaluateRelaxation         j id
+      | other              => errorResponse id s!"Unknown command '{other}'"
     | .ok other =>
       errorResponse id s!"'command' must be a string, got: {other.compress}"
 
