@@ -117,7 +117,7 @@ evaluateAll (target := TheoryOfJonesPolynomial)
 
 ## Library
 
-34 library theories covering algebra, topology, logic, and higher category theory:
+33 registered library theories covering algebra, topology, logic, and higher category theory (plus `InfinityCategory`, defined but not yet registered in the REPL):
 
 **Algebra:** Monoid, Group, AbelianGroup, Ring, CommutativeRing, Semiring, Module, HopfAlgebra, LieAlgebra, DifferentialGradedAlgebra
 
@@ -151,7 +151,7 @@ Every theory produced by every operator must pass all five checks. This is enfor
 |---|---|---|---|
 | **Library validation** | All 33 library theories pass `validate` | 33 | **33/33** |
 | **Unary operators × theories** | 15 operators × 33 theories | 495 | **495/495** |
-| **Binary operators × theory pairs** | product, coproduct, tensor × 6×6 pairs | 108 | 36/108 (advisory) |
+| **Binary operators × theory pairs** | product, coproduct, tensor × 6×6 pairs | 108 | **108/108** |
 | **Involution: opposite²** | `opposite(opposite(t))` preserves object/morphism/axiom counts | 33 | **33/33** |
 | **Involution: mirror²** | `mirror(mirror(t))` preserves counts | 33 | **33/33** |
 | **Involution validation** | `opposite²(t)` and `mirror²(t)` pass `validate` | 66 | **66/66** |
@@ -166,7 +166,7 @@ Every theory produced by every operator must pass all five checks. This is enfor
 | **Category D** | Tier 2 combinators × 33×33 pairs; algebraic laws (pushout over ⊥ = coproduct) | ~1200 | all pass |
 | **Properties** | Mathematical laws: mirror involution, tensor commutativity, Morita reflexivity | ~50 | all pass |
 
-**Total: ~4,300 assertions, 0 hard failures.**
+**Total: ~4,300 assertions, 0 failures.**
 
 ### What the Tests Catch
 
@@ -177,11 +177,7 @@ The test suite is designed to catch specific classes of bugs that arise in categ
 - **Duplicate names under iteration.** Applying `karoubi(karoubi(t))` — the second application re-derives generators that already exist from the first. Caught by the idempotency test.
 - **Generator loss.** An operator that should enrich a theory (add structure) accidentally drops original objects, morphisms, or axioms. Caught by monotonicity and axiom preservation tests.
 - **Interaction bugs.** `center(opposite(t))` might be valid even though `center(t)` and `opposite(t)` are individually valid — the composition can expose assumptions about expression shapes. Caught by composition chain tests.
-- **Compound domain fragility.** Operators that iterate over `t.morphisms` and use `f.domain.toName` to construct new names break when `f.domain` is a product expression like `M × M` rather than a simple atom. This is the root cause of the 72 advisory binary operator failures — surfaced by the test suite for future work.
-
-### Advisory Failures
-
-The 72 binary operator failures (product and tensor) stem from a known structural issue: these operators create morphism pairs `(f, g)` whose domains reference compound expression names (e.g. `(M×M, M×M)`) that aren't declared as objects. Fixing this requires either creating product objects for all compound expression pairs or restructuring how product categories handle non-atomic domains. This is tracked as future work.
+- **Compound domain handling.** Binary operators (product, tensor) must correctly handle morphisms with compound domains like `M × M`. Product uses `Expr.prod` to preserve compound structure (atoms resolve recursively). Tensor filters interchange axioms to endomorphisms of the base object. Both tag component generators with `inl`/`inr` to avoid name collisions when combining theories that share names.
 
 ---
 
@@ -311,7 +307,7 @@ catlab-solve --problem compose \
 
 # ── Options ────────────────────────────────────────────────
 catlab-solve Monoid opposite --rounds 5 --style "keep it simple"
-catlab-solve list  # list all 34 available theories
+catlab-solve list  # list all 33 available theories
 ```
 
 Output goes to stderr (progress logs) and stdout (final JSON result).
@@ -334,7 +330,16 @@ Core/
   Pipeline.lean       — operator pipeline execution
 
 Operators/            — 66 categorical construction operators
-Library/              — 34 named theory instances
+Library/              — 33 registered theory instances (+ InfinityCategory)
 Repl/                 — REPL server (Protocol.lean, Server.lean)
 Tests/                — test suite (Categories A–D, InverseProblem)
+
+studio/               — CatLab Studio web UI
+ts/                   — TypeScript orchestrator (LLM ↔ CAS solver)
 ```
+
+---
+
+## CatLab Studio
+
+`studio/` contains a web UI for interacting with CatLab via an LLM-driven chat agent backed by the CAS. It provides real-time streaming of solver events via SSE, structured theory visualization, and a periodic table layout of all library theories grouped by domain.
