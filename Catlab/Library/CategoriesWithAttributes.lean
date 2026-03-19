@@ -102,8 +102,9 @@ def TheoryOfCategoriesWithAttributes : Theory :=
 
       -- ── Pairing universality: π ∘ ⟨σ,t⟩ = σ ─────────────────────────
       { id := gid "pair_proj"
-        leftPath  := .comp (.atom (gid "pair_sub")) (.atom (gid "proj"))
-        rightPath := .comp (.prod (.id Sub) (.atom (gid "tm_attr"))) (.atom (gid "proj"))
+        leftPath  := .comp (.prod (.atom (gid "pair_sub")) (.atom (gid "proj")))
+                           (.atom (gid "comp_sub"))
+        rightPath := .id Sub
         description := "π ∘ ⟨σ, t⟩ = σ" },
 
       -- ── Identity substitution is neutral ──────────────────────────────

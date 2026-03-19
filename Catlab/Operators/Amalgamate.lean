@@ -79,9 +79,14 @@ def amalgamateOver (t1 t2 : Theory) (identifications : List (Name × Name)) : Th
     { m with
       domain   := m.domain.mapNames renameT2
       codomain := m.codomain.mapNames renameT2 }
-  -- Rewrite t2 axioms
+  -- Rewrite t2 axioms, prefixing IDs that collide with t1
+  let t1AxNames := t1.axioms.map (·.id.name)
   let renamedT2Axs := t2.axioms.map fun ax =>
+    let axName := if t1AxNames.any (· == ax.id.name)
+      then .nested (.root t2.name) ax.id.name.toString  -- prefix with t2 theory name
+      else ax.id.name
     { ax with
+      id        := { ax.id with name := axName }
       leftPath  := ax.leftPath.mapNames renameT2
       rightPath := ax.rightPath.mapNames renameT2 }
   { name     := s!"{t1.name}⊕{t2.name}"

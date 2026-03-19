@@ -94,14 +94,15 @@ def TheoryOfDerivator : Theory :=
     axioms := [
       -- ── Restriction preserves identity ───────────────────────────────
       { id := gid "restr_id"
-        leftPath  := .comp (.atom (gid "ident")) (.atom (gid "restr"))
-        rightPath := .atom (gid "ident")
+        leftPath  := .comp (.prod (.atom (gid "ident")) (.id Sh)) (.atom (gid "restr"))
+        rightPath := .comp (.atom (gid "restr")) (.atom (gid "ident"))
         description := "u*(id_X) = id_{u*(X)}" },
 
       -- ── Restriction preserves composition ────────────────────────────
       { id := gid "restr_comp"
-        leftPath  := .comp (.atom (gid "comp")) (.atom (gid "restr"))
-        rightPath := .comp (.atom (gid "restr")) (.atom (gid "comp"))
+        leftPath  := .comp (.prod (.atom (gid "comp")) (.id Sh)) (.atom (gid "restr"))
+        rightPath := .comp (.prod (.atom (gid "restr")) (.atom (gid "restr")))
+                           (.atom (gid "comp"))
         description := "u*(f ∘ g) = u*(f) ∘ u*(g)" },
 
       -- ── Left Kan ∘ restriction = id (counit-unit triangle) ───────────
@@ -112,7 +113,7 @@ def TheoryOfDerivator : Theory :=
 
       -- ── Right Kan ∘ restriction = id (unit-counit triangle) ──────────
       { id := gid "right_kan_triangle"
-        leftPath  := .comp (.atom (gid "right_unit")) (.atom (gid "right_kan"))
+        leftPath  := .comp (.prod (.atom (gid "right_unit")) (.id Sh)) (.atom (gid "right_kan"))
         rightPath := .id Obj
         description := "Right Kan triangle: id → u* ∘ u_*" },
 

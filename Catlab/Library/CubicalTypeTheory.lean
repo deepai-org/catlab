@@ -103,18 +103,21 @@ def TheoryOfCubicalTypeTheory : Theory :=
     axioms := [
       -- ── Endpoint reduction ────────────────────────────────────────────
       { id := gid "path_app_0"
-        leftPath  := .comp (.atom (gid "refl")) (.atom (gid "path_app"))
-        rightPath := .comp (.atom (gid "i0")) (.atom (gid "tm_ty"))
+        leftPath  := .comp (.prod (.atom (gid "refl")) (.atom (gid "i0")))
+                           (.atom (gid "path_app"))
+        rightPath := .id Tm
         description := "(λi. x) @ 0 = x  (left endpoint)" },
 
       { id := gid "path_app_1"
-        leftPath  := .comp (.atom (gid "refl")) (.atom (gid "path_app"))
-        rightPath := .comp (.atom (gid "i1")) (.atom (gid "tm_ty"))
+        leftPath  := .comp (.prod (.atom (gid "refl")) (.atom (gid "i1")))
+                           (.atom (gid "path_app"))
+        rightPath := .id Tm
         description := "(λi. x) @ 1 = x  (right endpoint)" },
 
       -- ── β-rule for path abstraction ───────────────────────────────────
       { id := gid "path_beta"
-        leftPath  := .comp (.atom (gid "path_lam")) (.atom (gid "path_app"))
+        leftPath  := .comp (.prod (.atom (gid "path_lam")) (.id I))
+                           (.atom (gid "path_app"))
         rightPath := .id Tm
         description := "(λi. t) @ i = t  (path β-rule)" },
 

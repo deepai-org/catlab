@@ -122,7 +122,7 @@ def TheoryOfHoTT : Theory :=
       -- tm_ty(t[σ]) = (tm_ty t)[σ]  (substitution respects typing)
       { id := gid "subst_ty"
         leftPath  := .comp (.atom (gid "tm_subst")) (.atom (gid "tm_ty"))
-        rightPath := .comp (.atom (gid "tm_ty")) (.atom (gid "ty_subst"))
+        rightPath := .comp (.prod (.atom (gid "tm_ty")) (.id Ctx)) (.atom (gid "ty_subst"))
         description := "ty(t[σ]) = (ty t)[σ]" },
 
       -- ── Identity type axioms ────────────────────────────────────────
@@ -134,14 +134,14 @@ def TheoryOfHoTT : Theory :=
 
       -- J computation: J(C, d, refl(x)) = d
       { id := gid "J_beta"
-        leftPath  := .comp (.atom (gid "refl")) (.atom (gid "J_elim"))
+        leftPath  := .comp (.prod (.atom (gid "refl")) (.id Tm)) (.atom (gid "J_elim"))
         rightPath := .id Tm
         description := "J(C, d, refl x) = d  (J-β rule)" },
 
       -- ── Π type axioms ───────────────────────────────────────────────
       -- β rule: app(lam(t), a) = t[a]
       { id := gid "pi_beta"
-        leftPath  := .comp (.atom (gid "lam")) (.atom (gid "app"))
+        leftPath  := .comp (.prod (.atom (gid "lam")) (.id Tm)) (.atom (gid "app"))
         rightPath := .id Tm
         description := "β-rule: app(λx.t, a) = t[a/x]" },
 
@@ -154,7 +154,7 @@ def TheoryOfHoTT : Theory :=
       -- ── Univalence ──────────────────────────────────────────────────
       -- ua is a section of transport: transport(ua(e)) = e
       { id := gid "ua_section"
-        leftPath  := .comp (.atom (gid "ua")) (.atom (gid "J_elim"))
+        leftPath  := .comp (.prod (.atom (gid "ua")) (.id Tm)) (.atom (gid "J_elim"))
         rightPath := .id Tm
         description := "Univalence: ua is a section of the transport map" }
     ] }

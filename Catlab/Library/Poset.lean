@@ -14,7 +14,9 @@ def TheoryOfPosets : Theory :=
     objects := [{ id := gid "P", description := "The carrier set" }]
     morphisms := [
       { id := gid "≤", domain := .prod P P, codomain := P,
-        description := "Partial order: P × P → Prop (represented as P)" }
+        description := "Partial order: P × P → Prop (represented as P)" },
+      { id := gid "eq", domain := .prod P P, codomain := P,
+        description := "Equality: P × P → Prop (represented as P)" }
     ]
     axioms := [
       { id := gid "refl"

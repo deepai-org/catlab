@@ -138,8 +138,10 @@ def TheoryOfInfinityTwoCategory : Theory :=
 
       -- ── Interchange law ───────────────────────────────────────────────
       { id := gid "interchange"
-        leftPath  := .comp (.atom (gid "comp1h")) (.atom (gid "comp1v"))
-        rightPath := .comp (.atom (gid "comp1v")) (.atom (gid "comp1h"))
+        leftPath  := .comp (.prod (.atom (gid "comp1h")) (.atom (gid "comp1h")))
+                           (.atom (gid "comp1v"))
+        rightPath := .comp (.prod (.atom (gid "comp1v")) (.atom (gid "comp1v")))
+                           (.atom (gid "comp1h"))
         description := "(α ∙ β) ∘ (γ ∙ δ) = (α ∘ γ) ∙ (β ∘ δ)" }
     ] }
 

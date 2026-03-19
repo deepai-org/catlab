@@ -87,8 +87,8 @@ def TheoryOfCohesiveHoTT : Theory :=
         description := "ε ∘ δ = id  (left comonad law for ♭)" },
 
       { id := gid "flat_comonad_right"
-        leftPath  := .comp (.atom (gid "flat_comult"))
-                           (.comp (.atom (gid "flat_ty")) (.atom (gid "flat_counit")))
+        leftPath  := .comp (.prod (.atom (gid "flat_comult")) (.atom (gid "flat_counit")))
+                           (.atom (gid "flat_counit"))
         rightPath := .id Tm
         description := "♭ε ∘ δ = id  (right comonad law for ♭)" },
 
@@ -99,22 +99,22 @@ def TheoryOfCohesiveHoTT : Theory :=
         description := "μ ∘ η = id  (left monad law for ♯)" },
 
       { id := gid "sharp_monad_right"
-        leftPath  := .comp (.comp (.atom (gid "sharp_ty")) (.atom (gid "sharp_unit")))
+        leftPath  := .comp (.prod (.atom (gid "sharp_unit")) (.atom (gid "sharp_unit")))
                            (.atom (gid "sharp_mult"))
         rightPath := .id Tm
         description := "μ ∘ ♯η = id  (right monad law for ♯)" },
 
       -- ── ∫ ⊣ ♭ adjunction triangle: unit ∘ counit = id ───────────────
       { id := gid "shape_flat_triangle"
-        leftPath  := .comp (.atom (gid "shape_flat_unit"))
-                           (.atom (gid "shape_flat_counit"))
+        leftPath  := .comp (.prod (.atom (gid "shape_flat_unit")) (.atom (gid "shape_flat_counit")))
+                           (.id Tm)
         rightPath := .id Ty
         description := "∫ ⊣ ♭ triangle identity" },
 
       -- ── ♭ ⊣ ♯ adjunction triangle ────────────────────────────────────
       { id := gid "flat_sharp_triangle"
-        leftPath  := .comp (.atom (gid "flat_sharp_unit"))
-                           (.atom (gid "flat_sharp_counit"))
+        leftPath  := .comp (.prod (.atom (gid "flat_sharp_unit")) (.atom (gid "flat_sharp_counit")))
+                           (.id Tm)
         rightPath := .id Ty
         description := "♭ ⊣ ♯ triangle identity" },
 

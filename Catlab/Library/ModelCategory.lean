@@ -89,14 +89,15 @@ def TheoryOfModelCategory : Theory :=
     axioms := [
       -- ── Two-out-of-three (M2): encoded for g ∘ f, g ─────────────────
       { id := gid "two_of_three"
-        leftPath  := .comp (.atom (gid "we_incl")) (.atom (gid "comp"))
-        rightPath := .comp (.atom (gid "comp")) (.atom (gid "we_incl"))
+        leftPath  := .comp (.prod (.atom (gid "we_incl")) (.atom (gid "we_incl")))
+                           (.atom (gid "comp"))
+        rightPath := .atom (gid "we_incl")
         description := "Two-out-of-three: W closed under composition" },
 
       -- ── Factorization coherence: tgt(i) = src(p) ────────────────────
       { id := gid "fact_coherence"
-        leftPath  := .comp (.atom (gid "fact_i")) (.atom (gid "tgt"))
-        rightPath := .comp (.atom (gid "fact_p")) (.atom (gid "src"))
+        leftPath  := .comp (.atom (gid "fact_i")) (.comp (.atom (gid "cof_incl")) (.atom (gid "tgt")))
+        rightPath := .comp (.atom (gid "fact_p")) (.comp (.atom (gid "fib_incl")) (.atom (gid "src")))
         description := "Factorization: tgt(i) = src(p) (middle object)" },
 
       -- ── Identities are cofibrations ───────────────────────────────────

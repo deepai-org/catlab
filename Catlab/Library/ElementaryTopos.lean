@@ -91,16 +91,15 @@ def TheoryOfElementaryTopos : Theory :=
 
       -- eval ∘ ⟨curry(f), id⟩ = f  (the counit of the Cartesian closed adjunction)
       { id := gid "curry_eval"
-        leftPath  := .comp (.atom (gid "curry")) (.atom (gid "eval"))
+        leftPath  := .comp (.prod (.atom (gid "curry")) (.id Ob)) (.atom (gid "eval"))
         rightPath := .id Mor
         description := "eval ∘ (curry(f) × id) = f" },
 
-      -- Pullback square for subobject classifier: χ_m ∘ m = ⊤ ∘ !
-      -- (encoded as: char_map composed with truth = the classifying pullback)
-      { id := gid "char_pullback"
-        leftPath  := .comp (.atom (gid "char_map")) (.atom (gid "truth"))
-        rightPath := .comp (.atom (gid "char_map")) (.atom (gid "tgt"))
-        description := "Characteristic map pullback: χ_m ∘ ⊤ = χ_m ∘ tgt" }
+      -- Characteristic map target: tgt(χ_m) = Ω
+      { id := gid "char_tgt"
+        leftPath  := .comp (.atom (gid "char_map")) (.atom (gid "tgt"))
+        rightPath := .atom (gid "Omega_obj")
+        description := "tgt(χ_m) = Ω" }
     ] }
 
 end CatLab.Library

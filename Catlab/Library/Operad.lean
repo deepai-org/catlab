@@ -71,7 +71,7 @@ def TheoryOfMulticategory : Theory :=
         description := "id_B ∘ f = f  (left unit)" },
 
       { id := gid "right_unit"
-        leftPath  := .comp (.atom (gid "unit_op")) (.atom (gid "comp_op"))
+        leftPath  := .comp (.prod (.id Op) (.atom (gid "unit_op"))) (.atom (gid "comp_op"))
         rightPath := .id Op
         description := "f ∘ᵢ id_{Aᵢ} = f  (right unit)" },
 
@@ -108,7 +108,7 @@ private def plainOperad : Theory :=
     ]
     axioms := [
       { id := gid "unit_left"
-        leftPath  := .comp (.atom (gid "unit1")) (.atom (gid "comp_op"))
+        leftPath  := .comp (.prod (.atom (gid "unit1")) (.id Op)) (.atom (gid "comp_op"))
         rightPath := .id Op
         description := "id ∘ f = f" },
       { id := gid "assoc_op"

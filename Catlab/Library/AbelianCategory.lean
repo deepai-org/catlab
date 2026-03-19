@@ -110,14 +110,14 @@ def TheoryOfAbelianCategory : Theory :=
 
       -- ── Bilinear composition: (f+g) ∘ h = f∘h + g∘h ──────────────────
       { id := gid "bilinear_right"
-        leftPath  := .comp (.atom (gid "add_mor")) (.atom (gid "comp"))
+        leftPath  := .comp (.prod (.atom (gid "add_mor")) (.id Mor)) (.atom (gid "comp"))
         rightPath := .comp (.prod (.atom (gid "comp")) (.atom (gid "comp")))
                            (.atom (gid "add_mor"))
         description := "(f+g) ∘ h = f∘h + g∘h  (right bilinearity)" },
 
       -- ── Kernel: ker_inc ∘ f = 0 ──────────────────────────────────────
       { id := gid "ker_zero"
-        leftPath  := .comp (.atom (gid "ker_inc")) (.atom (gid "comp"))
+        leftPath  := .comp (.prod (.atom (gid "ker_inc")) (.id Mor)) (.atom (gid "comp"))
         rightPath := .atom (gid "zero_mor")
         description := "ker(f) ↪ A →^f B  has ker_inc ∘ f = 0" },
 
@@ -129,18 +129,21 @@ def TheoryOfAbelianCategory : Theory :=
 
       -- ── Biproduct projections: π₁ ∘ ι₁ = id ──────────────────────────
       { id := gid "biproduct_left"
-        leftPath  := .comp (.atom (gid "inl")) (.atom (gid "outl"))
-        rightPath := .id Ob
+        leftPath  := .comp (.prod (.atom (gid "inl")) (.atom (gid "outl")))
+                           (.atom (gid "comp"))
+        rightPath := .atom (gid "ident")
         description := "π₁ ∘ ι₁ = id_A" },
 
       { id := gid "biproduct_right"
-        leftPath  := .comp (.atom (gid "inr")) (.atom (gid "outr"))
-        rightPath := .id Ob
+        leftPath  := .comp (.prod (.atom (gid "inr")) (.atom (gid "outr")))
+                           (.atom (gid "comp"))
+        rightPath := .atom (gid "ident")
         description := "π₂ ∘ ι₂ = id_B" },
 
       -- ── Biproduct mixed: π₁ ∘ ι₂ = 0 ────────────────────────────────
       { id := gid "biproduct_mixed"
-        leftPath  := .comp (.atom (gid "inr")) (.atom (gid "outl"))
+        leftPath  := .comp (.prod (.atom (gid "inr")) (.atom (gid "outl")))
+                           (.atom (gid "comp"))
         rightPath := .atom (gid "zero_mor")
         description := "π₁ ∘ ι₂ = 0  (mixed biproduct)" },
 

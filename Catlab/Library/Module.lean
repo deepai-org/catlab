@@ -24,6 +24,8 @@ def TheoryOfModules (ringName : String := "R") : Theory :=
         description := "Negation: M → M" },
       { id := gid "smul", domain := .prod R MO, codomain := MO,
         description := s!"Scalar multiplication: {ringName} × M → M" },
+      { id := gid "mul", domain := .prod R R, codomain := R,
+        description := s!"Ring multiplication: {ringName} × {ringName} → {ringName}" },
       { id := gid "swap", domain := .prod MO MO, codomain := .prod MO MO,
         description := "Symmetry: M × M → M × M" }
     ]

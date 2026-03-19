@@ -80,53 +80,64 @@ def TheoryOfSymmetricMonoidalCategory : Theory :=
     axioms := [
       -- ── Associator is a natural isomorphism ───────────────────────────
       { id := gid "assoc_iso"
-        leftPath  := .comp (.atom (gid "assoc")) (.atom (gid "assoc_inv"))
-        rightPath := .id Ob
+        leftPath  := .comp (.prod (.atom (gid "assoc")) (.atom (gid "assoc_inv")))
+                           (.atom (gid "comp"))
+        rightPath := .atom (gid "ident")
         description := "α ∘ α⁻¹ = id  (associator isomorphism)" },
 
       -- ── Unitor isomorphisms ───────────────────────────────────────────
       { id := gid "l_unitor_iso"
-        leftPath  := .comp (.atom (gid "l_unitor")) (.atom (gid "l_unitor_inv"))
-        rightPath := .id Ob
+        leftPath  := .comp (.prod (.atom (gid "l_unitor")) (.atom (gid "l_unitor_inv")))
+                           (.atom (gid "comp"))
+        rightPath := .atom (gid "ident")
         description := "λ ∘ λ⁻¹ = id" },
 
       { id := gid "r_unitor_iso"
-        leftPath  := .comp (.atom (gid "r_unitor")) (.atom (gid "r_unitor_inv"))
-        rightPath := .id Ob
+        leftPath  := .comp (.prod (.atom (gid "r_unitor")) (.atom (gid "r_unitor_inv")))
+                           (.atom (gid "comp"))
+        rightPath := .atom (gid "ident")
         description := "ρ ∘ ρ⁻¹ = id" },
 
-      -- ── Triangle: ρ_A ⊗ id_B = (id_A ⊗ λ_B) ∘ α_{A,I,B} ─────────────
+      -- ── Triangle: (id⊗λ) ∘ α = ρ⊗id ─────────────────────────────────
       { id := gid "triangle"
-        leftPath  := .comp (.atom (gid "assoc")) (.atom (gid "l_unitor"))
+        leftPath  := .comp (.prod (.atom (gid "assoc")) (.atom (gid "l_unitor")))
+                           (.atom (gid "comp"))
         rightPath := .atom (gid "r_unitor")
         description := "Triangle coherence: (id⊗λ) ∘ α = ρ⊗id" },
 
-      -- ── Pentagon: α(A,B,C⊗D) ∘ α(A⊗B,C,D) = ... ─────────────────────
+      -- ── Pentagon coherence ─────────────────────────────────────────────
       { id := gid "pentagon"
-        leftPath  := .comp (.atom (gid "assoc"))
-                           (.comp (.atom (gid "assoc")) (.atom (gid "assoc")))
-        rightPath := .comp (.atom (gid "assoc")) (.atom (gid "assoc"))
+        leftPath  := .comp (.prod (.atom (gid "assoc"))
+                                  (.comp (.prod (.atom (gid "assoc")) (.atom (gid "assoc")))
+                                         (.atom (gid "comp"))))
+                           (.atom (gid "comp"))
+        rightPath := .comp (.prod (.atom (gid "assoc")) (.atom (gid "assoc")))
+                           (.atom (gid "comp"))
         description := "Pentagon coherence for α" },
 
       -- ── Symmetry is involutive ────────────────────────────────────────
       { id := gid "symm_invol"
-        leftPath  := .comp (.atom (gid "symm")) (.atom (gid "symm"))
-        rightPath := .id Mor
+        leftPath  := .comp (.prod (.atom (gid "symm")) (.atom (gid "symm")))
+                           (.atom (gid "comp"))
+        rightPath := .atom (gid "ident")
         description := "σ_{B,A} ∘ σ_{A,B} = id  (symmetry involutive)" },
 
-      -- ── Hexagon: α ∘ σ ∘ α = (σ ⊗ id) ∘ α ∘ (id ⊗ σ) ──────────────
+      -- ── Hexagon coherence ─────────────────────────────────────────────
       { id := gid "hexagon"
-        leftPath  := .comp (.atom (gid "symm")) (.atom (gid "assoc"))
-        rightPath := .comp (.atom (gid "assoc"))
-                           (.comp (.atom (gid "symm")) (.atom (gid "assoc")))
+        leftPath  := .comp (.prod (.atom (gid "symm")) (.atom (gid "assoc")))
+                           (.atom (gid "comp"))
+        rightPath := .comp (.prod (.atom (gid "assoc"))
+                                  (.comp (.prod (.atom (gid "symm")) (.atom (gid "assoc")))
+                                         (.atom (gid "comp"))))
+                           (.atom (gid "comp"))
         description := "Hexagon coherence for σ and α" },
 
       -- ── Functoriality of ⊗ ───────────────────────────────────────────
       { id := gid "tensor_comp"
-        leftPath  := .comp (.atom (gid "tensor_mor"))
-                           (.comp (.atom (gid "tensor_mor")) (.atom (gid "comp")))
-        rightPath := .comp (.prod (.atom (gid "comp")) (.atom (gid "comp")))
+        leftPath  := .comp (.prod (.atom (gid "comp")) (.atom (gid "comp")))
                            (.atom (gid "tensor_mor"))
+        rightPath := .comp (.prod (.atom (gid "tensor_mor")) (.atom (gid "tensor_mor")))
+                           (.atom (gid "comp"))
         description := "(f∘g) ⊗ (h∘k) = (f⊗h) ∘ (g⊗k)  (bifunctoriality)" }
     ] }
 

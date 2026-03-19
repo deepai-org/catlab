@@ -133,7 +133,8 @@ def TheoryOfLinearLogic : Theory :=
 
       -- ── Cut elimination (identity): cut with id = id ──────────────────
       { id := gid "cut_id"
-        leftPath  := .comp (.atom (gid "id_proof")) (.atom (gid "cut"))
+        leftPath  := .comp (.prod (.atom (gid "id_proof")) (.id Proof))
+                           (.atom (gid "cut"))
         rightPath := .id Proof
         description := "cut(id_A, f) = f" },
 

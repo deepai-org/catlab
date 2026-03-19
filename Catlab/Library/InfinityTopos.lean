@@ -123,15 +123,17 @@ def TheoryOfInfinityTopos : Theory :=
       -- colim is left adjoint to the constant-diagram functor (encoded by
       -- the counit: colim ∘ const = id on Ob up to homotopy)
       { id := gid "colim_const"
-        leftPath  := .comp (.atom (gid "colim")) (.atom (gid "lim"))
-        rightPath := .id Ob
-        description := "Colimits are left adjoint to limits (counit)" },
+        leftPath  := .comp (.prod (.atom (gid "colim")) (.atom (gid "lim")))
+                           (.atom (gid "hom_space"))
+        rightPath := .id Spc
+        description := "Colimits are left adjoint to limits (adjunction)" },
 
       -- ── Descent axiom ───────────────────────────────────────────────
       -- Pullback of a colimit diagram = colimit of the pulled-back diagram
       { id := gid "descent_axiom"
         leftPath  := .comp (.atom (gid "descent")) (.atom (gid "colim"))
-        rightPath := .comp (.atom (gid "pullback_obj")) (.atom (gid "colim"))
+        rightPath := .comp (.prod (.atom (gid "pullback_obj")) (.id Spc))
+                           (.atom (gid "colim"))
         description := "Descent: f*(colim D) ≅ colim(f* ∘ D)" }
     ] }
 

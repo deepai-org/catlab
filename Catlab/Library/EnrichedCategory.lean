@@ -105,7 +105,8 @@ def TheoryOfEnrichedCategory : Theory :=
       -- ── Hom-object source: C(A,B) is a V-object ─────────────────────
       { id := gid "hom_v_obj"
         leftPath  := .comp (.atom (gid "comp_v")) (.atom (gid "v_tgt"))
-        rightPath := .comp (.atom (gid "hom")) (.atom (gid "v_tensor"))
+        rightPath := .comp (.prod (.atom (gid "hom")) (.atom (gid "hom")))
+                           (.atom (gid "v_tensor"))
         description := "tgt(∘_{A,B,C}) = C(B,C) ⊗ C(A,B)" },
 
       -- ── V is itself a category ────────────────────────────────────────
