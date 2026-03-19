@@ -105,15 +105,18 @@ const candidateSchema = {
 };
 
 const operatorEnum =
-  "Operators: adjunction, algebraize, amalgamate, arrow, artin_gluing, assembly, " +
-  "booleanize, bousfield, center, change_of_base, chu, cleavage, collage, comma, " +
-  "coproduct, core, cwf, day_convolution, decategorify, derived, dialectica, " +
-  "drinfeld_center, eilenberg_moore, ends_coends, exact_completion, factorization, " +
-  "family, fractions, free, freyd, functor_category, grothendieck, ind_pro, int, " +
-  "internal, isbell, kan, karoubi, kleisli, lawvere, limits, localize, macneille, " +
-  "matrix, mirror, monad, morita, nerve, operad_envelope, opposite, per, product, " +
-  "pushout, quotient, realizability, sheafify, skolem, slice, span, stabilize, " +
-  "subcategory, syntactic, tripos_to_topos, twisted_arrow, ultrapower, yoneda";
+  "Operators: adjunction, arrow, arrow_category, artin_gluing, assembly, " +
+  "booleanize, bousfield, center, change_of_base, chain_complex, chu, cleavage, " +
+  "collage, comma, core, coproduct, cwf, day_convolution, decategorify_iso, " +
+  "decategorify_K0, decategorify_chi, derived, dialectica, drinfeld_center, " +
+  "eilenberg_moore, ends_coends, ex_completion, factorization, family, fractions, " +
+  "free, freyd, functor_category, grothendieck, homotopy, ind_completion, int, " +
+  "internal_cat, isbell, isbell_spec, isbell_cospec, kan, left_kan, right_kan, " +
+  "karoubi, kleisli, lawvere, limits, localize, macneille, matrix, mirror, monad, " +
+  "morita, nerve, operad_envelope, opposite, path, per, presheaf, product, " +
+  "pro_completion, quotient, realize, realizability, reg_completion, scone, " +
+  "sheafify, skolem, slice, span, cospan, stabilize, subcategory, syntactic, " +
+  "tripos_to_topos, twisted_arrow, ultrapower, yoneda";
 
 // ── CAS tools available to the LLM ──────────────────────────────────────────
 
