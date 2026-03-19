@@ -237,6 +237,48 @@ def boundedNormalize (axioms : List Generator2) (e : Expr) (maxDepth : Nat) : Ex
       | some e' => go e' (depth + 1)
   go e 0
 
+/-- Generate both orientations of each axiom (for equational closure).
+    Filters to closed axioms only. Deduplicates symmetric axioms. -/
+private def bothOrientations (axioms : List Generator2) : List Generator2 :=
+  axioms.foldl (fun acc ax =>
+    if !ax.quantifiers.isEmpty then acc   -- skip quantified
+    else if ax.leftPath == ax.rightPath then acc  -- trivial
+    else
+      let fwd := ax
+      let bwd := { ax with leftPath := ax.rightPath, rightPath := ax.leftPath }
+      acc ++ [fwd, bwd]
+  ) []
+
+/-- Bounded equational closure: try to show lhs = rhs by exploring
+    rewrite paths from BOTH expressions using both axiom orientations,
+    checking for intersection. Uses a visited set to prevent cycles.
+    Returns `true` if the expressions are provably equal. -/
+def boundedEquationalCheck (axioms : List Generator2) (lhs rhs : Expr)
+    (maxDepth : Nat := 50) : Bool :=
+  let biAxioms := bothOrientations axioms
+  -- BFS from lhs, collecting all reachable normal forms
+  let rec expandFrom (frontier : List Expr) (visited : List Expr)
+      (depth : Nat) : List Expr :=
+    if depth >= maxDepth then visited
+    else
+      let next := frontier.foldl (fun acc e =>
+        biAxioms.foldl (fun acc2 ax =>
+          match rewriteStep [ax] e with
+          | some e' =>
+            if visited.any (· == e') || acc2.any (· == e') then acc2
+            else e' :: acc2
+          | none => acc2
+        ) acc
+      ) []
+      if next.isEmpty then visited
+      else expandFrom next (visited ++ next) (depth + 1)
+  -- Check if any form reachable from lhs equals any form reachable from rhs
+  let fromLhs := lhs :: expandFrom [lhs] [lhs] 0
+  fromLhs.any (· == rhs) ||
+    -- Also expand from rhs and check intersection
+    let fromRhs := rhs :: expandFrom [rhs] [rhs] 0
+    fromLhs.any fun l => fromRhs.any fun r => l == r
+
 -- ============================================================
 -- Permutation helpers
 -- ============================================================
@@ -405,12 +447,17 @@ def computeStructuralDiff
           let (rhsNorm, rhsD) := boundedNormalize oriented rhsTrans maxDepth
           if lhsNorm == rhsNorm then none   -- verified by rewriting
           else
-            let depth := max lhsD rhsD
-            let status : VerificationStatus :=
-              if depth >= maxDepth then .Timeout maxDepth
-              else .Failed s!"LHS→{lhsNorm.toName}, RHS→{rhsNorm.toName}"
-            some { sourceAxiom := ax, lhsReduced := lhsNorm, rhsReduced := rhsNorm,
-                   depthUsed := depth, status }
+            -- Equational closure fallback: try bidirectional rewriting
+            -- from the normal forms (bounded, with cycle detection)
+            if boundedEquationalCheck produced.axioms lhsNorm rhsNorm 30
+            then none   -- verified by equational closure
+            else
+              let depth := max lhsD rhsD
+              let status : VerificationStatus :=
+                if depth >= maxDepth then .Timeout maxDepth
+                else .Failed s!"LHS→{lhsNorm.toName}, RHS→{rhsNorm.toName}"
+              some { sourceAxiom := ax, lhsReduced := lhsNorm, rhsReduced := rhsNorm,
+                     depthUsed := depth, status }
 
   -- ── Overall status ────────────────────────────────────────────────────────
   let hasTimeout := axiomViolations.any fun v =>

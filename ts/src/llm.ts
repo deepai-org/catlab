@@ -50,7 +50,7 @@ The CAS checks axioms by **normalizing both sides using all axioms as rewrite ru
 
 1. **Axioms cannot be omitted even if logically derivable.** The CAS uses term-rewriting, not full equational reasoning. Every target axiom must hold as a rewriting identity.
 2. **Compositions may collapse.** \`comp([f, f])\` may simplify to \`f\` if axioms allow it. The normal form shown in error messages is ground truth — write your axiom to produce exactly that equation.
-3. **Same-shaped morphisms are position-normalized.** When two morphisms share the same domain/codomain type (e.g. \`mul: R×R→R\` and \`add: R×R→R\`), the CAS may normalize one to the other (the earlier morphism in the list wins). Axioms referencing the "later" morphism may need to be re-expressed using the canonical (earlier) one.
+3. **Same-shaped morphisms are position-normalized — in YOUR axioms too.** When two morphisms share the same domain/codomain type (e.g. \`mul: R×R→R\` and \`add: R×R→R\`), the CAS normalizes the later one to the earlier one EVERYWHERE — in target axioms AND in your own candidate axioms. If you define \`mul\` after \`add\` with the same type, all uses of \`mul\` in your axioms are silently rewritten to \`add\` before verification. Write axioms using the canonical (earlier) morphism name. This means you cannot add a morphism as a "placeholder" for another structure if it has the same type as an existing one — it will vanish.
 4. **Commutativity cascades.** Adding \`f = swap ∘ f\` causes the normalizer to rewrite \`f\` throughout all axioms. Downstream axioms referencing \`f\` inside \`prod(...)\` expressions will have their normal forms changed. You must restate those axioms using the post-normalization shapes.
 5. **When the CAS diff says "LHS reduced to X, RHS reduced to Y" — take X and Y literally as the axiom you need.** Don't try to mechanically derive them from the target theory's axiom text. The error message IS the axiom; encode it directly.
 
@@ -102,7 +102,7 @@ The CAS checks if the target's morphisms are **embeddable** into your theory via
 | \`internal_cat\` | Internal categories Cat(C). Categories internal to C. |
 | \`path\` | Path category / free category on a graph. |
 | \`operad_envelope\` | Operadic envelope. From a multicategory to a monoidal category. |
-| \`tensor\` | Tensor product of Lawvere theories. X-morphisms become \`f⊗id_Y\`, Y-morphisms become \`id_X⊗g\`. Cross-distributivity axioms are NOT auto-generated — they must appear explicitly in one factor. Normal forms in error messages are in the post-tensor theory; substitute \`f⊗id → f\` to find the pre-tensor axiom needed. |
+| \`tensor\` | Tensor product of Lawvere theories. X-morphisms become \`f⊗id_Y\`, Y-morphisms become \`id_X⊗g\`. Cross-distributivity axioms are NOT auto-generated — they must appear explicitly in one factor. Normal forms in error messages are in the post-tensor theory; substitute \`f⊗id → f\` to find the pre-tensor axiom needed. **Warning:** If X has morphisms f and g with identical domain/codomain types, g is position-normalized to f — you cannot use g as a "placeholder" for Y's structure in cross-axioms. Write cross-axioms using only X's canonical morphisms (e.g. \`(id×add)∘add = (add×add)∘add\`). |
 | \`pullback\` | Fibered product of two theories over a shared base. \`X ×_B Y\` has all generators/axioms from both X and Y with shared base identified. |
 | \`drop_inverses\` | Removes inverse morphisms from a theory. If the theory has no categorical inverses, this is a no-op (identity). |
 
@@ -116,6 +116,20 @@ The CAS checks if the target's morphisms are **embeddable** into your theory via
 | \`identity\` | preserved | preserved | preserved | preserved |
 
 Key insight for \`opposite\`: endomorphisms (\`f: A→A\`) are self-dual. \`comp([f, f])\` under opposite is \`comp([f, f])\` — symmetric lists are preserved.
+
+### Worked Example: \`opposite\` Applied to Monoid → CoMonoid
+
+**Input (Monoid):**
+- \`μ: M×M → M\` (multiplication), \`η: 1 → M\` (unit)
+- Axiom \`assoc\`: \`comp([prod([μ, id(M)]), μ]) = comp([prod([id(M), μ]), μ])\`
+
+**Output (\`opposite(Monoid)\` = CoMonoid):**
+- \`δ: M → M×M\` (comultiplication — μ flipped), \`ε: M → 1\` (counit — η flipped)
+- Axiom \`coassoc\`: \`comp([δ, prod([δ, id(M)])]) = comp([δ, prod([id(M), δ])])\`
+
+**How it transforms:** Each \`comp([e1, e2])\` becomes \`comp([opp(e2), opp(e1)])\`. Each morphism \`f: A→B\` becomes \`f': B→A\`. Apply recursively into \`prod\` arguments: \`prod([opp(e1), opp(e2)])\`.
+
+**To find X such that \`opposite(X) ≅ Target\`:** Take each target axiom, replace morphisms with their domain/codomain-flipped versions, and reverse every \`comp\` list (applying recursively into \`prod\`).
 
 ## Property Glossary
 
