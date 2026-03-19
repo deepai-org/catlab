@@ -61,8 +61,12 @@ def chainComplexCategory (t : Theory) (maxDeg : Nat := 3) : Theory :=
         rightPath := .id (dGradedAtom baseName (deg - 2))  -- zero map represented as id on codomain
         description := s!"d∘d = 0: d_{deg-1} ∘ d_{deg} = 0 for {a.id.name}" : Generator2 }
 
-  -- Chain maps: for each morphism f : A → B, create graded components f_n : Ch(A)_n → Ch(B)_n
-  let chainMaps := t.morphisms.flatMap fun f =>
+  -- Chain maps: for each morphism f : A → B (atomic endpoints), create graded components
+  let atomicMorphisms := t.morphisms.filter fun f =>
+    match f.domain, f.codomain with
+    | .atom _, .atom _ => true
+    | _, _ => false
+  let chainMaps := atomicMorphisms.flatMap fun f =>
     let domName := f.domain.toName
     let codName := f.codomain.toName
     let chDom := Name.app (.root "Ch") domName
@@ -74,7 +78,7 @@ def chainComplexCategory (t : Theory) (maxDeg : Nat := 3) : Theory :=
         description := s!"Chain map Ch({f.id.name})_{n}" : Generator1 }
 
   -- Chain map commutativity: f_{n-1} ∘ d^A_n = d^B_n ∘ f_n
-  let chainMapAxioms := t.morphisms.flatMap fun f =>
+  let chainMapAxioms := atomicMorphisms.flatMap fun f =>
     let domName := f.domain.toName
     let codName := f.codomain.toName
     let chDom := Name.app (.root "Ch") domName
@@ -119,8 +123,11 @@ def homotopyCategory (t : Theory) (maxDeg : Nat := 3) : Theory :=
           description := s!"Homotopy h_{n} : {a.id.name}_{n} → {b.id.name}_{n+1}" : Generator1 }
 
   -- Homotopy equivalence axioms: if f ~ g via h, then f = g in K(C)
-  -- For each morphism f in the base, add that f is identified with any homotopic map
-  let homotopyAxioms := t.morphisms.flatMap fun f =>
+  let atomicMorphisms := t.morphisms.filter fun f =>
+    match f.domain, f.codomain with
+    | .atom _, .atom _ => true
+    | _, _ => false
+  let homotopyAxioms := atomicMorphisms.flatMap fun f =>
     let domName := f.domain.toName
     let codName := f.codomain.toName
     let chDom := Name.app (.root "Ch") domName
@@ -157,9 +164,13 @@ def homotopyCategory (t : Theory) (maxDeg : Nat := 3) : Theory :=
 def derivedCategory (t : Theory) (maxDeg : Nat := 3) : Theory :=
   let kc := homotopyCategory t maxDeg
   let degrees := List.range (maxDeg + 1)
+  let atomicMorphisms := t.morphisms.filter fun f =>
+    match f.domain, f.codomain with
+    | .atom _, .atom _ => true
+    | _, _ => false
 
   -- Quasi-isomorphism markers: for each morphism f, add a formal inverse qis(f)⁻¹
-  let qisInverses := t.morphisms.flatMap fun f =>
+  let qisInverses := atomicMorphisms.flatMap fun f =>
     let domName := f.domain.toName
     let codName := f.codomain.toName
     let chDom := Name.app (.root "Ch") domName
@@ -172,7 +183,7 @@ def derivedCategory (t : Theory) (maxDeg : Nat := 3) : Theory :=
         description := s!"Quasi-iso inverse qis({f.id.name})⁻¹ at degree {n}" : Generator1 }
 
   -- Invertibility axioms: f ∘ qis(f)⁻¹ = id and qis(f)⁻¹ ∘ f = id at each degree
-  let qisLeftInv := t.morphisms.flatMap fun f =>
+  let qisLeftInv := atomicMorphisms.flatMap fun f =>
     let domName := f.domain.toName
     let chDom := Name.app (.root "Ch") domName
     degrees.map fun n =>
@@ -183,7 +194,7 @@ def derivedCategory (t : Theory) (maxDeg : Nat := 3) : Theory :=
         rightPath := .id (dGradedAtom chDom n)
         description := s!"qis⁻¹ ∘ f = id at degree {n}" : Generator2 }
 
-  let qisRightInv := t.morphisms.flatMap fun f =>
+  let qisRightInv := atomicMorphisms.flatMap fun f =>
     let codName := f.codomain.toName
     let chCod := Name.app (.root "Ch") codName
     degrees.map fun n =>
@@ -215,14 +226,14 @@ def derivedCategory (t : Theory) (maxDeg : Nat := 3) : Theory :=
 
   -- Distinguished triangles: for each morphism f : A → B,
   -- we get A → B → Cone(f) → A[1]
-  let coneObjects := t.morphisms.flatMap fun f =>
+  let coneObjects := atomicMorphisms.flatMap fun f =>
     let baseName := Name.app (.root "Cone") f.id.name
     degrees.map fun n =>
       { id := dGradedId baseName n
         description := s!"Mapping cone Cone({f.id.name})_{n}" : Generator0 }
 
   -- Cone inclusion: B → Cone(f)
-  let coneInclusions := t.morphisms.flatMap fun f =>
+  let coneInclusions := atomicMorphisms.flatMap fun f =>
     let codName := f.codomain.toName
     let chCod := Name.app (.root "Ch") codName
     let coneName := Name.app (.root "Cone") f.id.name
@@ -233,7 +244,7 @@ def derivedCategory (t : Theory) (maxDeg : Nat := 3) : Theory :=
         description := s!"Cone inclusion ι : {codName}_{n} → Cone({f.id.name})_{n}" : Generator1 }
 
   -- Cone projection: Cone(f) → A[1]
-  let coneProjections := t.morphisms.flatMap fun f =>
+  let coneProjections := atomicMorphisms.flatMap fun f =>
     let domName := f.domain.toName
     let chDom := Name.app (.root "Ch") domName
     let coneName := Name.app (.root "Cone") f.id.name
@@ -245,7 +256,7 @@ def derivedCategory (t : Theory) (maxDeg : Nat := 3) : Theory :=
         description := s!"Cone projection π : Cone({f.id.name})_{n} → {domName}[1]_{n}" : Generator1 }
 
   -- Triangle exactness: the sequence A → B → Cone(f) → A[1] is a distinguished triangle
-  let triangleAxioms := t.morphisms.flatMap fun f =>
+  let triangleAxioms := atomicMorphisms.flatMap fun f =>
     let domName := f.domain.toName
     let codName := f.codomain.toName
     let coneName := Name.app (.root "Cone") f.id.name
