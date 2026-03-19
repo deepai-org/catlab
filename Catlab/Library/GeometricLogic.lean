@@ -123,16 +123,25 @@ def TheoryOfGeometricLogic : Theory :=
         rightPath := .id Form
         description := "⊤ ∧ φ = φ" },
 
-      -- ── Frame distributivity: φ ∧ (⋁ᵢ ψᵢ) = ⋁ᵢ (φ ∧ ψᵢ) ─────────────
+      -- ── Frame distributivity: meet(id, inf_join) ; meet = inf_join ; meet
+      -- i.e. φ ∧ (⋁ᵢ ψᵢ) = ⋁ᵢ (φ ∧ ψᵢ)
+      -- Both sides: Form × Form → Form
       { id := gid "frame_distrib"
-        leftPath  := .comp (.atom (gid "inf_join")) (.atom (gid "meet"))
-        rightPath := .comp (.atom (gid "meet")) (.atom (gid "inf_join"))
+        leftPath  := .comp (.prod (.id Form) (.atom (gid "inf_join")))
+                           (.atom (gid "meet"))
+        rightPath := .comp (.atom (gid "meet"))
+                           (.atom (gid "inf_join"))
         description := "Geometric distributivity: φ ∧ ⋁ᵢψᵢ = ⋁ᵢ(φ∧ψᵢ)" },
 
-      -- ── Frobenius (∃ distributes over ∧) ──────────────────────────────
+      -- ── Frobenius (∃ distributes over ∧ when variable not free in φ)
+      -- Both sides: Form × Form × Ctx → Form
+      -- LHS: (φ, ψ, x) ↦ ∃x.(φ ∧ ψ)  = meet ; exists
+      -- RHS: (φ, ψ, x) ↦ φ ∧ ∃x.ψ    = (id × exists) ; meet
       { id := gid "frobenius"
-        leftPath  := .comp (.atom (gid "exists")) (.atom (gid "meet"))
-        rightPath := .comp (.atom (gid "meet")) (.atom (gid "exists"))
+        leftPath  := .comp (.prod (.atom (gid "meet")) (.id Ctx))
+                           (.atom (gid "exists"))
+        rightPath := .comp (.prod (.id Form) (.atom (gid "exists")))
+                           (.atom (gid "meet"))
         description := "Frobenius: ∃x.(φ∧ψ) = φ ∧ ∃x.ψ  (x not free in φ)" }
     ] }
 

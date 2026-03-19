@@ -36,7 +36,8 @@ export async function listTheories(
 ): Promise<ApiResult<{ theories: string[] }>> {
   try {
     const res = unwrap(await client.request({ command: "list_theories" }, timeoutMs));
-    return ok({ theories: res.theories ?? [] });
+    const r = res as any;
+    return ok({ theories: r.theories ?? [], metas: r.metas ?? [], groups: r.groups ?? [] });
   } catch (e) {
     return err(500, (e as Error).message);
   }
@@ -48,7 +49,8 @@ export async function listOperators(
 ): Promise<ApiResult<{ operators: unknown[] }>> {
   try {
     const res = unwrap(await client.request({ command: "list_operators" }, timeoutMs));
-    return ok({ operators: res.operators ?? [] });
+    const r = res as any;
+    return ok({ operators: r.operators ?? [], groups: r.groups ?? [] });
   } catch (e) {
     return err(500, (e as Error).message);
   }

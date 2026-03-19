@@ -36,6 +36,13 @@ private def negationMorphisms (t : Theory) : List Generator1 :=
     The resulting doctrine is set to CartesianClosed with a "Boolean" constraint,
     reflecting that all Heyting structure has collapsed. -/
 def booleanize (t : Theory) : Theory :=
+  -- Derived objects: ¬A and ¬¬A for each object A
+  let negObjects := t.objects.flatMap fun obj =>
+    let notId : GeneratorId := { name := .neg obj.id.name, kind := .sort }
+    let notNotId : GeneratorId := { name := .neg (.neg obj.id.name), kind := .sort }
+    [ { id := notId, description := s!"¬{obj.id}" : Generator0 },
+      { id := notNotId, description := s!"¬¬{obj.id}" : Generator0 } ]
+
   -- Double negation elimination: for each object A, a morphism ¬¬A → A
   let dneObjects := t.objects.map fun obj =>
     let a := Expr.atom obj.id
@@ -97,6 +104,7 @@ def booleanize (t : Theory) : Theory :=
     name := s!"Bool({t.name})"
     doctrine := { doctrine := .CartesianClosed
                   constraints := ["Boolean", "¬¬-stable"] }
+    objects := t.objects ++ negObjects
     morphisms := t.morphisms ++ dneObjects ++ emObjects
     axioms := t.axioms ++ dneAxioms ++ emAxioms ++ involutivityAxioms }
 

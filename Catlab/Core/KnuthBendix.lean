@@ -38,7 +38,7 @@ abbrev Substitution := List (String × Expr)
 partial def applySubst (σ : Substitution) (e : Expr) : Expr :=
   match e with
   | .var n => match σ.find? (·.1 == n) with
-    | some (_, v) => applySubst σ v  -- apply transitively
+    | some (_, v) => v  -- single substitution step (no transitive chase)
     | none => e
   | .atom _ | .unit | .terminal | .initial => e
   | .id obj => .id (applySubst σ obj)
@@ -504,8 +504,8 @@ partial def completeLoop
       -- (first iteration or after inter-reduction cleared pending)
       let (cps, ctr) := newCriticalPairs rules [] varCounter
       let normalizedCps := cps.filterMap fun eq =>
-        let l := normalize rules eq.lhs 500
-        let r := normalize rules eq.rhs 500
+        let l := normalize rules eq.lhs 200
+        let r := normalize rules eq.rhs 200
         if l == r then none
         else some ({ lhs := l, rhs := r } : Equation)
       if normalizedCps.isEmpty then
@@ -536,8 +536,8 @@ partial def completeLoop
     Returns a confluent terminating rewrite system, or failure. -/
 def complete
     (equations : List Equation)
-    (maxRules : Nat := 200)
-    (maxIterations : Nat := 100)
+    (maxRules : Nat := 50)
+    (maxIterations : Nat := 30)
     : CompletionResult :=
   let initRules := equations.filterMap orient
   let unorientable := equations.filter fun eq => (orient eq).isNone
@@ -562,11 +562,15 @@ def axiomsToEquations (axioms : List Generator2) : List Equation :=
     Falls back to simple orientation if completion fails. -/
 def completeTheory (axioms : List Generator2) : List Rule :=
   let eqs := axiomsToEquations axioms
-  match complete eqs with
-  | .success rules => rules
-  | .failure _ partialRules =>
-    if partialRules.isEmpty then eqs.filterMap orient
-    else partialRules
+  -- Guard: skip KB completion for large theories (critical pair explosion)
+  if eqs.length > 10 then
+    eqs.filterMap orient
+  else
+    match complete eqs (maxRules := 30) (maxIterations := 15) with
+    | .success rules => rules
+    | .failure _ partialRules =>
+      if partialRules.isEmpty then eqs.filterMap orient
+      else partialRules
 
 /-- Normalize an expression using KB-completed rules from a theory's axioms. -/
 def kbNormalize (axioms : List Generator2) (e : Expr) (fuel : Nat := 1000) : Expr :=

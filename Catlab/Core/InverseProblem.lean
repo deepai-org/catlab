@@ -33,7 +33,7 @@
 
 import Catlab.Core.Theory
 import Catlab.Core.Equality
-import Catlab.Core.KnuthBendix
+-- import Catlab.Core.KnuthBendix  -- DISABLED: KB completion has perf issues (see TODO above)
 import Batteries.Data.HashMap
 
 namespace CatLab
@@ -431,6 +431,16 @@ def computeStructuralDiff
           match fullNameMap[n]? with
           | some n' => n'
           | none    => n
+      -- NOTE: KB completion (KnuthBendix.completeTheory) is implemented but
+      -- currently DISABLED due to performance issues — critical pair computation
+      -- diverges on our theory sizes, pegging CPU at 100% indefinitely. The
+      -- unify/criticalPairsFrom functions need proper depth limits or a different
+      -- overlap strategy before KB can be safely enabled. See KnuthBendix.lean.
+      --
+      -- TODO: Fix KB completion performance, then re-enable here as:
+      --   let kbRules := KnuthBendix.completeTheory produced.axioms
+      --   ... normalize with kbRules as first pass ...
+      let oriented := orientAxioms produced.axioms
       target.axioms.filterMap fun ax =>
         let lhsTrans := translate ax.leftPath
         let rhsTrans := translate ax.rightPath
@@ -442,27 +452,20 @@ def computeStructuralDiff
           (pax.leftPath == rhsTrans && pax.rightPath == lhsTrans)
         if directlyPresent then none   -- trivially satisfied as a stated axiom
         else
-          -- KB completion: normalize both sides to confluent normal forms.
-          -- If KB succeeds, this is a decision procedure (no false negatives).
-          if KnuthBendix.kbEqual produced.axioms lhsTrans rhsTrans
-          then none   -- verified by KB normalization
+          -- Bounded L→R rewriting (size-oriented axioms)
+          let (lhsNorm, lhsD) := boundedNormalize oriented lhsTrans maxDepth
+          let (rhsNorm, rhsD) := boundedNormalize oriented rhsTrans maxDepth
+          if lhsNorm == rhsNorm then none
           else
-            -- Fallback: try bounded rewriting (in case KB completion failed
-            -- and we're using partial rules that miss some rewrites)
-            let oriented := orientAxioms produced.axioms
-            let (lhsNorm, lhsD) := boundedNormalize oriented lhsTrans maxDepth
-            let (rhsNorm, rhsD) := boundedNormalize oriented rhsTrans maxDepth
-            if lhsNorm == rhsNorm then none
-            else
-              if boundedEquationalCheck produced.axioms lhsNorm rhsNorm 30
-              then none
-              else
-                let depth := max lhsD rhsD
-                let status : VerificationStatus :=
-                  if depth >= maxDepth then .Timeout maxDepth
-                  else .Failed s!"LHS→{lhsNorm.toName}, RHS→{rhsNorm.toName}"
-                some { sourceAxiom := ax, lhsReduced := lhsNorm, rhsReduced := rhsNorm,
-                       depthUsed := depth, status }
+            -- NOTE: boundedEquationalCheck (bidirectional BFS) is DISABLED —
+            -- it diverges on theories with same-shaped morphisms, generating
+            -- exponential frontiers. TODO: fix with proper visited HashSet.
+            let depth := max lhsD rhsD
+              let status : VerificationStatus :=
+                if depth >= maxDepth then .Timeout maxDepth
+                else .Failed s!"LHS→{lhsNorm.toName}, RHS→{rhsNorm.toName}"
+              some { sourceAxiom := ax, lhsReduced := lhsNorm, rhsReduced := rhsNorm,
+                     depthUsed := depth, status }
 
   -- ── Overall status ────────────────────────────────────────────────────────
   let hasTimeout := axiomViolations.any fun v =>

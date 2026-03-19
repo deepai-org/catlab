@@ -1018,6 +1018,18 @@ function fillSlot(name, type) {
   }
 }
 
+document.getElementById('slotA').addEventListener('click', () => {
+  if (!selectionMode || selectionMode.type === 'unary') return;
+  selectionMode.activeSlot = 'A';
+  document.getElementById('slotA').classList.add('active-slot');
+  document.getElementById('slotB').classList.remove('active-slot');
+});
+document.getElementById('slotB').addEventListener('click', () => {
+  if (!selectionMode || selectionMode.type === 'unary') return;
+  selectionMode.activeSlot = 'B';
+  document.getElementById('slotB').classList.add('active-slot');
+  document.getElementById('slotA').classList.remove('active-slot');
+});
 document.getElementById('cancelBtn').addEventListener('click', cancelSelection);
 function cancelSelection() {
   selectionMode = null;
@@ -1074,8 +1086,8 @@ async function runReaction(op, theoryA, theoryB) {
   try {
     let result;
     if (theoryB) {
-      // Binary: use pushout with Basic as base
-      result = await apiPost('/api/pushout', { theory1: theoryA, theory2: theoryB, base: 'Basic' });
+      // Binary: use the selected operator (pushout with configurable base)
+      result = await apiPost('/api/pushout', { theory1: theoryA, theory2: theoryB, base: 'Basic', operator: casOp });
     } else {
       // Unary: apply operator
       result = await apiPost('/api/operator/apply', { operator: casOp, theory: theoryA });
@@ -1361,7 +1373,22 @@ const MORPH_COLORS = ['#56d4dd','#388bfd','#3fb950','#bc8cff','#f778ba','#d29922
 function renderWiringDiagram(theory, objNames) {
   const objects = theory.objects || [];
   const morphisms = theory.morphisms || [];
-  if (morphisms.length === 0) return '';
+  if (morphisms.length === 0 && objects.length === 0) return '';
+
+  // Discrete category: show objects as labeled dots
+  if (morphisms.length === 0) {
+    const W = 600, H = 50;
+    const spacing = W / (objects.length + 1);
+    let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="font-family:inherit;max-height:60px;width:100%">`;
+    objects.forEach((o, i) => {
+      const x = spacing * (i + 1);
+      const color = objColor(o.name, objNames);
+      svg += `<circle cx="${x}" cy="25" r="5" fill="${color}" opacity="0.8"/>`;
+      svg += `<text x="${x}" y="42" text-anchor="middle" fill="${color}" font-size="9" font-weight="700">${escHtml(o.name)}</text>`;
+    });
+    svg += '</svg>';
+    return `<div class="wiring-wrap">${svg}</div>`;
+  }
 
   const uid = 'wd' + (++wiringCounter);
 
@@ -1373,13 +1400,13 @@ function renderWiringDiagram(theory, objNames) {
   }
   const slots = [...slotSet];
 
-  const railH = 30;
-  const padL = 70;
-  const padR = 20;
-  const selfLoopH = 24;
-  const padT = 8 + selfLoopH;
-  const padB = 10;
-  const W = 600;
+  const railH = 40;
+  const padL = 90;
+  const padR = 30;
+  const selfLoopH = 28;
+  const padT = 12 + selfLoopH;
+  const padB = 14;
+  const W = 700;
   const H = padT + slots.length * railH + padB;
   const railX0 = padL;
   const railX1 = W - padR;
@@ -1390,11 +1417,12 @@ function renderWiringDiagram(theory, objNames) {
   const morphCount = morphisms.length;
   const morphSpacing = (railX1 - railX0) / (morphCount + 1);
 
-  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="font-family:inherit;max-height:140px;width:100%">`;
+  const maxH = Math.max(200, slots.length * 50);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="font-family:inherit;max-height:${maxH}px;width:100%">`;
 
   svg += '<defs>';
   MORPH_COLORS.forEach((c, i) => {
-    svg += `<marker id="${uid}-ma${i}" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto"><polygon points="0 0,6 2,0 4" fill="${c}"/></marker>`;
+    svg += `<marker id="${uid}-ma${i}" markerWidth="8" markerHeight="5" refX="7" refY="2.5" orient="auto"><polygon points="0 0,8 2.5,0 5" fill="${c}"/></marker>`;
   });
   svg += '</defs>';
 
@@ -1403,8 +1431,8 @@ function renderWiringDiagram(theory, objNames) {
     svg += `<line x1="${railX0}" y1="${y}" x2="${railX1}" y2="${y}" stroke="#30363d" stroke-width="1" stroke-dasharray="2,3"/>`;
     const isObj = objects.some(o => o.name === s);
     const labelColor = isObj ? objColor(s, objNames) : '#8b949e';
-    const label = s.length > 8 ? s.slice(0, 7) + '\u2026' : s;
-    svg += `<text x="${railX0 - 6}" y="${y + 3}" text-anchor="end" fill="${labelColor}" font-size="9" font-weight="${isObj ? '700' : '400'}">${escHtml(label)}</text>`;
+    const label = s.length > 10 ? s.slice(0, 9) + '\u2026' : s;
+    svg += `<text x="${railX0 - 8}" y="${y + 4}" text-anchor="end" fill="${labelColor}" font-size="12" font-weight="${isObj ? '700' : '400'}">${escHtml(label)}</text>`;
   }
 
   morphisms.forEach((m, mi) => {
@@ -1423,16 +1451,16 @@ function renderWiringDiagram(theory, objNames) {
       const arcH = 18;
       const sx = x - arcW;
       const ex = x + arcW;
-      svg += `<path class="wire-path" d="M${sx},${y1} C${sx},${y1 - arcH} ${ex},${y1 - arcH} ${ex},${y1}" stroke="${color}" stroke-width="1.5" fill="none" stroke-opacity="0.6" marker-end="url(#${markerId})"/>`;
-      svg += `<text class="wire-label" x="${x}" y="${y1 - arcH - 3}" text-anchor="middle" fill="${color}" font-size="8" fill-opacity="0.8" font-style="italic">${escHtml(m.name)}</text>`;
+      svg += `<path class="wire-path" d="M${sx},${y1} C${sx},${y1 - arcH} ${ex},${y1 - arcH} ${ex},${y1}" stroke="${color}" stroke-width="1.5" fill="none" stroke-opacity="0.7" marker-end="url(#${markerId})"/>`;
+      svg += `<text class="wire-label" x="${x}" y="${y1 - arcH - 4}" text-anchor="middle" fill="${color}" font-size="11" fill-opacity="0.9" font-style="italic">${escHtml(m.name)}</text>`;
     } else {
       const arrY = y2 > y1 ? y2 - 3 : y2 + 3;
-      svg += `<line class="wire-path" x1="${x}" y1="${y1}" x2="${x}" y2="${arrY}" stroke="${color}" stroke-width="1.5" stroke-opacity="0.6" marker-end="url(#${markerId})"/>`;
+      svg += `<line class="wire-path" x1="${x}" y1="${y1}" x2="${x}" y2="${arrY}" stroke="${color}" stroke-width="1.5" stroke-opacity="0.7" marker-end="url(#${markerId})"/>`;
       const ly = (y1 + y2) / 2;
-      svg += `<text class="wire-label" x="${x + 6}" y="${ly + 3}" fill="${color}" font-size="8" fill-opacity="0.8" font-style="italic">${escHtml(m.name)}</text>`;
+      svg += `<text class="wire-label" x="${x + 7}" y="${ly + 4}" fill="${color}" font-size="11" fill-opacity="0.9" font-style="italic">${escHtml(m.name)}</text>`;
     }
 
-    svg += `<circle cx="${x}" cy="${y1}" r="2" fill="${color}" opacity="0.8"/>`;
+    svg += `<circle cx="${x}" cy="${y1}" r="3" fill="${color}" opacity="0.9"/>`;
     svg += '</g>';
   });
 
@@ -1679,7 +1707,7 @@ function renderTheoryView(theory) {
   for (const m of morphisms) {
     const entries = morphAxioms[m.name] || [];
     const tags = uniqueTags(entries);
-    const morphId = 'morph-' + escHtml(m.name).replace(/\s/g, '-');
+    const morphId = 'morph-' + (++wiringCounter) + '-' + escHtml(m.name).replace(/\s/g, '-');
 
     html += `<tr class="morph-row" data-morph="${escHtml(m.name)}" data-morph-id="${morphId}">`;
     html += `<td class="morph-name">${escHtml(m.name)}</td>`;
@@ -1889,15 +1917,21 @@ const SESSION_ID = 'studio-' + Date.now();
 
 async function processUserMessage(text) {
   const msgId = addChat('assistant', `<div class="status-bar"><div class="spinner"></div> Thinking...</div>`);
-  let html = '';
+  let html = '';          // non-text HTML blocks (thinking, theory, solver_progress, etc.)
+  let rawText = '';       // accumulated raw LLM text (parsed to markdown only on render)
   let gotEvents = false;
+
+  function renderFull() {
+    const textHtml = rawText ? formatLLMText(rawText) : '';
+    return html + textHtml;
+  }
 
   function appendEvent(ev) {
     gotEvents = true;
     switch (ev.type) {
       case 'status':
         // Update the spinner status text live
-        updateChat(msgId, html + `<div class="status-bar"><div class="spinner"></div> ${escHtml(ev.content)}</div>`);
+        updateChat(msgId, renderFull() + `<div class="status-bar"><div class="spinner"></div> ${escHtml(ev.content)}</div>`);
         return; // don't persist status in html
       case 'solver_progress': {
         const sp = ev.solverProgress;
@@ -1910,20 +1944,20 @@ async function processUserMessage(text) {
         // Replace previous solver_progress line if any
         html = html.replace(/<div class="solver-progress">[\s\S]*?<\/div>/, '');
         html += `<div class="solver-progress">${badge}</div>`;
-        updateChat(msgId, html);
+        updateChat(msgId, renderFull());
         return;
       }
       case 'thinking':
         html += `<details class="thinking-block"><summary>Thinking</summary><div class="thinking-content">${escHtml(ev.content)}</div></details>`;
         break;
       case 'text':
-        html += formatLLMText(ev.content);
+        rawText += ev.content;  // accumulate raw text, parse on render
         break;
       case 'theory':
         if (ev.theory) {
           html += renderTheoryCard(ev.theory);
           addTimelineStep(ev.theory, ev.content);
-          updateChat(msgId, html);
+          updateChat(msgId, renderFull());
           const msgEl = document.getElementById(msgId);
           if (msgEl) wireInteractivity(msgEl);
           return;
@@ -1935,7 +1969,7 @@ async function processUserMessage(text) {
       case 'done':
         return;
     }
-    updateChat(msgId, html);
+    updateChat(msgId, renderFull());
   }
 
   try {
@@ -1974,7 +2008,7 @@ async function processUserMessage(text) {
       }
     }
 
-    if (!gotEvents || !html.trim()) {
+    if (!gotEvents || (!html.trim() && !rawText.trim())) {
       updateChat(msgId, '<em style="color:var(--text-dim)">No response from agent.</em>');
     }
   } catch (e) {
@@ -2036,6 +2070,8 @@ async function initFromServer() {
     }));
   } catch (e) {
     console.warn('Could not fetch from CAS server:', e.message);
+    // Show offline banner so users know the backend isn't running
+    addChat('system', `<span style="color:var(--orange)">CAS server is offline.</span> Inventory will be empty. Start the server with: <span class="code">cd ts && npm run studio</span>`);
   }
 
   renderInventory();
