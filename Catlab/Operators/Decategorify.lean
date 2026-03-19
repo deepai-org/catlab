@@ -48,13 +48,14 @@ def decategorify (t : Theory) (strategy : DecatStrategy := .isoClasses) : Theory
     let genIdx := t.generatorIndex
     let decatAxioms := t.axioms.filterMap fun ax =>
       let atomIds := ax.leftPath.atomIds ++ ax.rightPath.atomIds
-      let referencesMorphism := atomIds.any fun a =>
-        genIdx[a.name]? == some .morphism || a.kind == .morphism
-      if referencesMorphism then none
-      else some { id := gid s!"decat_{ax.id.name}"
-                  leftPath := ax.leftPath
-                  rightPath := ax.rightPath
-                  description := s!"Decategorified: {ax.description}" }
+      -- Skip axioms that reference any generators (morphisms or raw objects)
+      -- since the decat theory renames objects to [X] and drops morphisms
+      if atomIds.isEmpty then
+        some { id := gid s!"decat_{ax.id.name}"
+               leftPath := ax.leftPath
+               rightPath := ax.rightPath
+               description := s!"Decategorified: {ax.description}" }
+      else none
     { name := s!"Decat({t.name})"
       doctrine := { doctrine := .Category }
       objects := decat0
