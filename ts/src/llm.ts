@@ -44,6 +44,22 @@ Your task is to propose candidate solutions in JSON format. The CAS will verify 
 
 You will receive structured feedback describing exactly what is wrong with your previous proposal.
 
+## CAS Normalization Behavior (CRITICAL)
+
+The CAS checks axioms by **normalizing both sides using all axioms as rewrite rules, then comparing normal forms**. This has several important consequences:
+
+1. **Axioms cannot be omitted even if logically derivable.** The CAS uses term-rewriting, not full equational reasoning. Every target axiom must hold as a rewriting identity.
+2. **Compositions may collapse.** \`comp([f, f])\` may simplify to \`f\` if axioms allow it. The normal form shown in error messages is ground truth — write your axiom to produce exactly that equation.
+3. **Same-shaped morphisms are position-normalized.** When two morphisms share the same domain/codomain type (e.g. \`mul: R×R→R\` and \`add: R×R→R\`), the CAS may normalize one to the other (the earlier morphism in the list wins). Axioms referencing the "later" morphism may need to be re-expressed using the canonical (earlier) one.
+4. **Commutativity cascades.** Adding \`f = swap ∘ f\` causes the normalizer to rewrite \`f\` throughout all axioms. Downstream axioms referencing \`f\` inside \`prod(...)\` expressions will have their normal forms changed. You must restate those axioms using the post-normalization shapes.
+5. **When the CAS diff says "LHS reduced to X, RHS reduced to Y" — take X and Y literally as the axiom you need.** Don't try to mechanically derive them from the target theory's axiom text. The error message IS the axiom; encode it directly.
+
+## Structural Equivalence (\`≅\`) Semantics
+
+The CAS checks if the target's morphisms are **embeddable** into your theory via positional shape-matching, not strict count equality. A theory with MORE morphisms/axioms than the target can still match — extra generators are ignored if they don't affect the target substructure. This means:
+- For multi-constraint problems, your candidate may need the **union** of all structural requirements
+- A 5-morphism theory can satisfy \`f(X) ≅ Group\` (3 morphisms) if the first 3 positions match
+
 ## Operator Glossary
 
 | Operator | What it does |
@@ -86,6 +102,31 @@ You will receive structured feedback describing exactly what is wrong with your 
 | \`internal_cat\` | Internal categories Cat(C). Categories internal to C. |
 | \`path\` | Path category / free category on a graph. |
 | \`operad_envelope\` | Operadic envelope. From a multicategory to a monoidal category. |
+| \`tensor\` | Tensor product of Lawvere theories. X-morphisms become \`f⊗id_Y\`, Y-morphisms become \`id_X⊗g\`. Cross-distributivity axioms are NOT auto-generated — they must appear explicitly in one factor. Normal forms in error messages are in the post-tensor theory; substitute \`f⊗id → f\` to find the pre-tensor axiom needed. |
+| \`pullback\` | Fibered product of two theories over a shared base. \`X ×_B Y\` has all generators/axioms from both X and Y with shared base identified. |
+| \`drop_inverses\` | Removes inverse morphisms from a theory. If the theory has no categorical inverses, this is a no-op (identity). |
+
+## How Operators Transform Axiom Expressions
+
+| Operator | \`comp([e1, e2])\` | \`prod([e1, e2])\` | morphism \`f: A→B\` | \`id(A)\` |
+|----------|-------------------|-------------------|---------------------|----------|
+| \`opposite\` | \`comp([opp(e2), opp(e1)])\` (reversed) | preserved, components flipped | becomes \`f': B→A\` | preserved |
+| \`mirror\` | preserved | becomes \`coprod([...]) \` | preserved direction | preserved |
+| \`tensor(X,Y)\` | preserved per-factor | \`prod\` lifted into tensor product | X's \`f\` → \`f⊗id_Y\`, Y's \`g\` → \`id_X⊗g\` | \`id(A⊗B)\` |
+| \`identity\` | preserved | preserved | preserved | preserved |
+
+Key insight for \`opposite\`: endomorphisms (\`f: A→A\`) are self-dual. \`comp([f, f])\` under opposite is \`comp([f, f])\` — symmetric lists are preserved.
+
+## Property Glossary
+
+| Property | Meaning |
+|----------|---------|
+| \`commutative\` | The primary binary operation satisfies \`f = swap ∘ f\`. When added as a quotient axiom, this causes normalization cascades on all axioms referencing that operation. |
+| \`additive_only\` | Keep only the additive structure (add, zero, neg, swap) and their axioms. Drop all multiplicative morphisms. |
+| \`drop_inverses\` | Remove inverse morphisms. If the theory has no inverses, this is a no-op. |
+| \`has_inverses\` | The theory must include inverse elements for its primary operation. |
+| \`idempotent\` | The primary operation satisfies \`f ∘ f = f\`. |
+| \`minimize generators\` | Find a structurally equivalent theory with the fewest total morphism generators. |
 
 ## Theory JSON Format
 
@@ -143,6 +184,10 @@ Valid values: Category, CartesianCategory, MonoidalCategory, BraidedMonoidal, Sy
    \`MonoidalCategory\`, do NOT add a \`tensor\` or \`unit\` morphism to the \`morphisms\` array.
    Use the built-in \`{"tensor": [...]}\` and \`"unit"\` Exprs directly in domains/codomains.
    Generators are strictly for custom algebraic/topological data beyond what the doctrine provides.
+7. QUOTIENT PROBLEMS: Adding a commutativity axiom (\`f = swap ∘ f\`) may require
+   rewriting OTHER axioms that reference \`f\`. The CAS normalizes all axioms together,
+   so adding commutativity can invalidate distributivity or other cross-operation axioms.
+   Re-derive those axioms using the post-normalization shapes the CAS reports.
 8. ORIENT YOUR AXIOMS to prevent infinite rewriting loops (Timeouts). Write axioms as
    left-to-right reduction rules (Complex → Simple). Avoid symmetric axioms like
    \`f ∘ g = g ∘ f\` — if commutativity is needed, break it into intermediate steps
@@ -496,9 +541,12 @@ export function formatStructuralDiff(result: VerificationResult): string {
         lines.push(`    RHS reduced to: ${v.rhsReduced}`);
         lines.push(`    → These must reduce to the SAME normal form`);
         lines.push(
-          `    💡 STRATEGY: Your theory needs the equation '${v.lhsReduced} = ${v.rhsReduced}'. ` +
-          `Either add this as an axiom, or fix an existing axiom so that it states exactly ` +
-          `'${v.lhsReduced} = ${v.rhsReduced}' (check the order of composition arguments).`,
+          `    💡 STRATEGY: The CAS has shown you the exact normal forms. Your theory needs ` +
+          `the equation '${v.lhsReduced} = ${v.rhsReduced}' to hold after normalization. ` +
+          `Take these normal forms LITERALLY — encode this equation directly as an axiom ` +
+          `(or fix an existing one). Do not try to derive the "mathematically correct" form; ` +
+          `the CAS normal form IS the ground truth. If morphisms with the same type signature ` +
+          `appear collapsed (e.g. mul→add), this is position-normalization — use the canonical name.`,
         );
       } else {
         lines.push(

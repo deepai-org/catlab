@@ -9,19 +9,28 @@ export $(cat .env | xargs)
 ROUNDS=5
 TIMEOUT=60000
 RESULTS_DIR="/tmp/catlab-test-results"
-rm -rf "$RESULTS_DIR"
-mkdir -p "$RESULTS_DIR"
+REFLECT_DIR="/tmp/catlab-test-reflections"
+rm -rf "$RESULTS_DIR" "$REFLECT_DIR"
+mkdir -p "$RESULTS_DIR" "$REFLECT_DIR"
 
 run_test() {
   local id="$1"
   local label="$2"
   shift 2
   local outfile="$RESULTS_DIR/$id.txt"
+  local reflectfile="$REFLECT_DIR/$id.txt"
 
-  output=$(node dist/index.js "$@" --rounds "$ROUNDS" --timeout "$TIMEOUT" 2>&1 || true)
+  output=$(node dist/index.js "$@" --rounds "$ROUNDS" --timeout "$TIMEOUT" --reflect 2>&1 || true)
 
   status=$(echo "$output" | grep -E '(✅|❌|EXHAUSTED|Fatal)' | head -1)
   rounds=$(echo "$output" | sed -n 's/.*round \([0-9]*\)\/.*/\1/p' | tail -1)
+
+  # Capture reflection output
+  reflection=$(echo "$output" | sed -n '/\[solver:REFLECT\] Suggestions:/,/^\[/{ /\[solver:REFLECT\] Suggestions:/d; /^\[/d; p; }')
+  if [ -n "$reflection" ]; then
+    echo "── $label (round $rounds) ──" > "$reflectfile"
+    echo "$reflection" >> "$reflectfile"
+  fi
 
   if echo "$status" | grep -q '✅'; then
     echo "✅ $label (round $rounds)" > "$outfile"
@@ -70,3 +79,12 @@ done
 
 echo ""
 echo "TOTAL: $pass pass, $fail fail out of 18"
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "REFLECTIONS:"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+for f in $(ls "$REFLECT_DIR"/*.txt 2>/dev/null | sort); do
+  cat "$f"
+  echo ""
+done

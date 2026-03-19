@@ -171,6 +171,7 @@ function buildVerifier(args: string[]): {
         case "--rounds":  solverOpts.maxRounds = parseInt(args[++i], 10); break;
         case "--timeout": solverOpts.leanTimeoutMs = parseInt(args[++i], 10); break;
         case "--lean":    repoRoot = args[++i]; break;
+        case "--reflect": solverOpts.reflect = true; break;
         default: console.error(`Unknown option: ${args[i]}`); usage();
       }
     }
@@ -208,6 +209,7 @@ function buildVerifier(args: string[]): {
       case "--rounds":     solverOpts.maxRounds = parseInt(args[++i], 10); break;
       case "--timeout":    solverOpts.leanTimeoutMs = parseInt(args[++i], 10); break;
       case "--lean":       repoRoot = args[++i]; break;
+      case "--reflect":    solverOpts.reflect = true; break;
       default: console.error(`Unknown option: ${args[i]}`); usage();
     }
   }
