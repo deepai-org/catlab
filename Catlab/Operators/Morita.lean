@@ -84,11 +84,10 @@ def moritaEnvelope (t : Theory) : Theory :=
       rightPath := .atom m.id
       description := s!"Idempotence: {m.id.name} ∘ {m.id.name} = {m.id.name}" }
 
-  { name := s!"Cauchy({t.name})"
-    doctrine := t.doctrine
-    objects := t.objects ++ trivialObjects ++ splitObjects
-    morphisms := t.morphisms ++ retractions ++ sections
-    axioms := t.axioms ++ factorAxioms ++ retractionAxioms ++ idempotenceAxioms }
+  (Theory.mk' s!"Cauchy({t.name})" t.doctrine
+    (t.objects ++ trivialObjects ++ splitObjects)
+    (t.morphisms ++ retractions ++ sections)
+    (t.axioms ++ factorAxioms ++ retractionAxioms ++ idempotenceAxioms)).dedup
 
 instance : BEq CompletedSignature where
   beq a b := a.numObjects == b.numObjects &&

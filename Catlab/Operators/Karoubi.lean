@@ -57,10 +57,9 @@ def karoubiEnvelope (t : Theory) : Theory :=
       rightPath := Expr.id (.atom (gid s!"({m.id.name}_split)"))
       description := s!"Retraction axiom: r ∘ s = id" }
 
-  { name := s!"Split({t.name})"
-    doctrine := t.doctrine
-    objects := t.objects ++ trivialObjects ++ endoObjects
-    morphisms := t.morphisms ++ splitMorphisms
-    axioms := t.axioms ++ factorAxioms ++ retractionAxioms }
+  (Theory.mk' s!"Split({t.name})" t.doctrine
+    (t.objects ++ trivialObjects ++ endoObjects)
+    (t.morphisms ++ splitMorphisms)
+    (t.axioms ++ factorAxioms ++ retractionAxioms)).dedup
 
 end CatLab

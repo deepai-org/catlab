@@ -331,6 +331,19 @@ def mk' (name : String) (doctrine : DoctrineContext)
     (equivalences : List (Expr × Expr) := []) : Theory :=
   { name, doctrine, objects, morphisms, axioms, functors, natTrans, equivalences }
 
+/-- Remove duplicate generators by name, keeping the first occurrence. -/
+def dedup (t : Theory) : Theory :=
+  let dedup0 := t.objects.foldl (fun (acc : List Generator0 × Std.HashMap Name Bool) x =>
+    if acc.2[x.id.name]? == some true then acc
+    else (x :: acc.1, acc.2.insert x.id.name true)) ([], {})
+  let dedup1 := t.morphisms.foldl (fun (acc : List Generator1 × Std.HashMap Name Bool) x =>
+    if acc.2[x.id.name]? == some true then acc
+    else (x :: acc.1, acc.2.insert x.id.name true)) ([], {})
+  let dedup2 := t.axioms.foldl (fun (acc : List Generator2 × Std.HashMap Name Bool) x =>
+    if acc.2[x.id.name]? == some true then acc
+    else (x :: acc.1, acc.2.insert x.id.name true)) ([], {})
+  { t with objects := dedup0.1.reverse, morphisms := dedup1.1.reverse, axioms := dedup2.1.reverse }
+
 end Theory
 
 end CatLab

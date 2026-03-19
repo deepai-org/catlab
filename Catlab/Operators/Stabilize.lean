@@ -134,24 +134,9 @@ def stabilize (t : Theory) (maxLevel : Nat := 3) : Theory :=
         rightPath := .comp (.atom spF_n) (.atom σB)
         description := s!"Bonding naturality: Sp(f)_{n+1} ∘ σ_A = σ_B ∘ Sp(f)_{n}" : Generator2 }
 
-  -- Deduplicate by name to handle iterated stabilization
-  let allObjects := (t.objects ++ spectrumObjects ++ suspensionObjects ++ shiftObjects)
-  let allMorphisms := (t.morphisms ++ bondingMaps ++ spectrumMorphisms ++ infSuspObjects)
-  let allAxioms := (shiftAxioms ++ infSuspMorphisms)
-  -- Remove duplicates: keep first occurrence of each name
-  let dedup0 := allObjects.foldl (fun (acc : List Generator0 × Std.HashMap Name Bool) x =>
-    if acc.2[x.id.name]? == some true then acc
-    else (x :: acc.1, acc.2.insert x.id.name true)) ([], {})
-  let dedup1 := allMorphisms.foldl (fun (acc : List Generator1 × Std.HashMap Name Bool) x =>
-    if acc.2[x.id.name]? == some true then acc
-    else (x :: acc.1, acc.2.insert x.id.name true)) ([], {})
-  let dedup2 := allAxioms.foldl (fun (acc : List Generator2 × Std.HashMap Name Bool) x =>
-    if acc.2[x.id.name]? == some true then acc
-    else (x :: acc.1, acc.2.insert x.id.name true)) ([], {})
-  { name := s!"Spectra({t.name})"
-    doctrine := { doctrine := .StableCategory }
-    objects := dedup0.1.reverse
-    morphisms := dedup1.1.reverse
-    axioms := dedup2.1.reverse }
+  (Theory.mk' s!"Spectra({t.name})" { doctrine := .StableCategory }
+    (t.objects ++ spectrumObjects ++ suspensionObjects ++ shiftObjects)
+    (t.morphisms ++ bondingMaps ++ spectrumMorphisms ++ infSuspObjects)
+    (shiftAxioms ++ infSuspMorphisms)).dedup
 
 end CatLab

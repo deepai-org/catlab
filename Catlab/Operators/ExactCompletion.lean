@@ -63,7 +63,7 @@ def regCompletion (t : Theory) (namePrefix : String := "reg") : Theory :=
     name := s!"{namePrefix}({t.name})"
     objects := t.objects ++ coequalizerObjects
     morphisms := t.morphisms ++ coequalizerMorphisms
-    axioms := t.axioms ++ coequalizerAxioms }
+    axioms := t.axioms ++ coequalizerAxioms }.dedup
 
 /-- Exact completion: objects are equivalence relations (R ⇉ A).
 
@@ -149,6 +149,6 @@ def exCompletion (t : Theory) (namePrefix : String := "ex") : Theory :=
     morphisms := t.morphisms ++ d0Morphisms ++ d1Morphisms
                  ++ reflexMorphisms ++ symmMorphisms
     axioms := t.axioms ++ reflexAxioms_d0 ++ reflexAxioms_d1
-              ++ symmAxioms_d0 ++ symmAxioms_d1 }
+              ++ symmAxioms_d0 ++ symmAxioms_d1 }.dedup
 
 end CatLab
