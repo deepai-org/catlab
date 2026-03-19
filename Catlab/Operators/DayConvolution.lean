@@ -102,12 +102,12 @@ def tensorTheories (t1 t2 : Theory) : Theory :=
 
   -- Rewrite and prefix axiom names to avoid duplicates
   let t1Axioms := t1.axioms.map fun ax =>
-    { id := { name := .root s!"{t1.name}_{ax.id.name}", index := 0 }
+    { id := { name := .root s!"{t1.name}_L_{ax.id.name}", index := 0 }
       leftPath := ax.leftPath.mapAtoms rewriteExpr1
       rightPath := ax.rightPath.mapAtoms rewriteExpr1
       description := ax.description }
   let t2Axioms := t2.axioms.map fun ax =>
-    { id := { name := .root s!"{t2.name}_{ax.id.name}", index := 0 }
+    { id := { name := .root s!"{t2.name}_R_{ax.id.name}", index := 0 }
       leftPath := ax.leftPath.mapAtoms rewriteExpr2
       rightPath := ax.rightPath.mapAtoms rewriteExpr2
       description := ax.description }
