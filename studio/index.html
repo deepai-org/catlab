@@ -25,10 +25,10 @@
     --algebra: #388bfd;
     --logic: #3fb950;
     --category: #bc8cff;
-    --topology: #56d4dd;
+    --topos: #56d4dd;
     --higher: #f778ba;
     --foundations: #d29922;
-    --mirror: #8b949e;
+    --duality: #8b949e;
     --glue: #d29922;
     --transformer: #f85149;
     --constructor: #56d4dd;
@@ -201,9 +201,9 @@
   .element[data-group="category"]:hover { border-color: var(--category); }
   .element[data-group="category"] .symbol { color: var(--category); }
 
-  .element[data-group="topology"] { border-color: color-mix(in srgb, var(--topology) 40%, transparent); }
-  .element[data-group="topology"]:hover { border-color: var(--topology); }
-  .element[data-group="topology"] .symbol { color: var(--topology); }
+  .element[data-group="topos"] { border-color: color-mix(in srgb, var(--topos) 40%, transparent); }
+  .element[data-group="topos"]:hover { border-color: var(--topos); }
+  .element[data-group="topos"] .symbol { color: var(--topos); }
 
   .element[data-group="higher"] { border-color: color-mix(in srgb, var(--higher) 40%, transparent); }
   .element[data-group="higher"]:hover { border-color: var(--higher); }
@@ -221,9 +221,9 @@
   }
   .element.operator .symbol { font-size: 11px; }
 
-  .element[data-group="mirror"] { border-color: color-mix(in srgb, var(--mirror) 40%, transparent); }
-  .element[data-group="mirror"]:hover { border-color: var(--mirror); }
-  .element[data-group="mirror"] .symbol { color: var(--mirror); }
+  .element[data-group="duality"] { border-color: color-mix(in srgb, var(--duality) 40%, transparent); }
+  .element[data-group="duality"]:hover { border-color: var(--duality); }
+  .element[data-group="duality"] .symbol { color: var(--duality); }
 
   .element[data-group="glue"] { border-color: color-mix(in srgb, var(--glue) 40%, transparent); }
   .element[data-group="glue"]:hover { border-color: var(--glue); }
@@ -748,12 +748,12 @@
 <div class="legend">
   <div class="legend-item"><div class="legend-swatch" style="background:var(--algebra)"></div> Algebra</div>
   <div class="legend-item"><div class="legend-swatch" style="background:var(--logic)"></div> Logic &amp; Order</div>
-  <div class="legend-item"><div class="legend-swatch" style="background:var(--category)"></div> Category</div>
-  <div class="legend-item"><div class="legend-swatch" style="background:var(--topology)"></div> Topology &amp; Spaces</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:var(--category)"></div> Categories</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:var(--topos)"></div> Topoi</div>
   <div class="legend-item"><div class="legend-swatch" style="background:var(--higher)"></div> Higher Structures</div>
   <div class="legend-item"><div class="legend-swatch" style="background:var(--foundations)"></div> Foundations</div>
   <div style="width:1px;background:var(--border)"></div>
-  <div class="legend-item"><div class="legend-swatch" style="background:var(--mirror);border-radius:50%"></div> Mirrors</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:var(--duality);border-radius:50%"></div> Dualities</div>
   <div class="legend-item"><div class="legend-swatch" style="background:var(--glue);border-radius:50%"></div> Glue</div>
   <div class="legend-item"><div class="legend-swatch" style="background:var(--transformer);border-radius:50%"></div> Transformers</div>
   <div class="legend-item"><div class="legend-swatch" style="background:var(--constructor);border-radius:50%"></div> Constructors</div>
@@ -818,12 +818,12 @@ const theories = [
   // Logic & Order (green)
   { name: "Poset", symbol: "Pos", group: "logic", desc: "A set with a partial order: some pairs are comparable, some are not." },
   { name: "Lattice", symbol: "Lat", group: "logic", desc: "A Poset where every pair has a join (least upper bound) and a meet (greatest lower bound)." },
-  { name: "BooleanAlgebra", symbol: "Bool", group: "logic", desc: "A Lattice with complements, modeling classical propositional logic." },
+  { name: "BooleanAlgebra", symbol: "BA", group: "logic", desc: "A Lattice with complements, modeling classical propositional logic." },
   { name: "GeometricLogic", symbol: "Geo", group: "logic", desc: "Logic preserved by geometric morphisms\u2014allows infinite disjunctions but only finite conjunctions." },
   { name: "LinearLogic", symbol: "Lin", group: "logic", desc: "Resource-sensitive logic: hypotheses are consumed when used. Models computation and concurrency." },
   { name: "Locale", symbol: "Loc", group: "logic", desc: "A pointless topology: a frame of open sets without requiring underlying points." },
 
-  // Category (purple)
+  // Categories (purple)
   { name: "Category", symbol: "Cat", group: "category", desc: "Objects and morphisms with associative composition and identity arrows. The foundation of it all." },
   { name: "SymmetricMonoidalCategory", symbol: "SMC", group: "category", desc: "A Category with a tensor product that is associative, unital, and symmetric up to isomorphism." },
   { name: "AbelianCategory", symbol: "Abel", group: "category", desc: "An additive Category where every morphism has a kernel and cokernel. Home of homological algebra." },
@@ -832,11 +832,11 @@ const theories = [
   { name: "EnrichedCategory", symbol: "Enr", group: "category", desc: "A Category where hom-sets are replaced by objects of another monoidal category." },
   { name: "Derivator", symbol: "Der", group: "category", desc: "An enhancement of triangulated categories that remembers homotopy (co)limits." },
 
-  // Topology & Spaces (cyan)
-  { name: "ElementaryTopos", symbol: "ETop", group: "topology", desc: "A Category with finite limits and power objects. An alternative foundation for mathematics." },
-  { name: "InfinityTopos", symbol: "\u221ETop", group: "topology", desc: "The \u221E-categorical version of a topos. The arena for derived algebraic geometry." },
-  { name: "CohesiveHoTT", symbol: "Coh", group: "topology", desc: "Homotopy Type Theory extended with modalities for cohesion, modeling smooth and continuous spaces." },
-  { name: "CategoriesWithAttributes", symbol: "CwA", group: "topology", desc: "A category-theoretic framework for dependent type theories." },
+  // Generalized Spaces — Topoi (cyan)
+  { name: "ElementaryTopos", symbol: "ETop", group: "topos", desc: "A Category with finite limits and power objects. An alternative foundation for mathematics." },
+  { name: "Groupoid", symbol: "Grpd", group: "topos", desc: "A category where every morphism is invertible. The atomic unit of higher-dimensional spaces." },
+  { name: "InfinityTopos", symbol: "\u221ETop", group: "topos", desc: "The \u221E-categorical version of a topos. The arena for derived algebraic geometry." },
+  { name: "CohesiveHoTT", symbol: "Coh", group: "topos", desc: "Homotopy Type Theory extended with modalities for cohesion, modeling smooth and continuous spaces." },
 
   // Higher Structures (pink)
   { name: "InfinityNCategory", symbol: "\u221EnCat", group: "higher", desc: "Categories with morphisms between morphisms, all the way up. The spine of higher category theory." },
@@ -845,87 +845,89 @@ const theories = [
   { name: "CubicalTypeTheory", symbol: "Cub", group: "higher", desc: "A computational interpretation of HoTT using cubes instead of simplices." },
 
   // Foundations (orange)
-  { name: "Basic", symbol: "Bas", group: "foundations", desc: "The simplest theory: just objects and morphisms with no extra structure." },
+  { name: "Basic", symbol: "Set", group: "foundations", desc: "The category of Sets\u2014the base element upon which enriched categories, topoi, and standard algebra are built." },
+  { name: "CategoriesWithAttributes", symbol: "CwA", group: "foundations", desc: "A category-theoretic framework for dependent type theories. The semantics of type theory." },
 ];
 
 const operators = [
-  // Mirrors (unary, structural reflection)
-  { name: "Opposite", symbol: "Op", group: "mirror", desc: "Reverse all arrows. What was domain becomes codomain.", arity: 1 },
-  { name: "Mirror", symbol: "Mir", group: "mirror", desc: "Reflect the theory structure, swapping symmetric operations.", arity: 1 },
-  { name: "Core", symbol: "Core", group: "mirror", desc: "Keep only the isomorphisms\u2014throw away non-invertible morphisms.", arity: 1 },
+  // Duality (unary, structural reflection)
+  { name: "Opposite", symbol: "Op", group: "duality", casOp: "opposite", desc: "Reverse all arrows. What was domain becomes codomain.", arity: 1 },
+  { name: "Dual", symbol: "Dual", group: "duality", casOp: "mirror", desc: "Categorical duality: vector space duals, Stone duality, Pontryagin duality.", arity: 1 },
+  { name: "Core", symbol: "Core", group: "duality", casOp: "identity", desc: "Keep only the isomorphisms\u2014throw away non-invertible morphisms.", arity: 1 },
 
   // Glue (binary, combining)
-  { name: "Pushout", symbol: "Push", group: "glue", desc: "Glue two theories along a shared base. The categorical union.", arity: 2 },
-  { name: "Product", symbol: "Prod", group: "glue", desc: "Pair up two theories: objects are pairs, morphisms act componentwise.", arity: 2 },
-  { name: "Coproduct", symbol: "Coprod", group: "glue", desc: "Disjoint union of two theories: everything stays separate.", arity: 2 },
-  { name: "Amalgamate", symbol: "Amal", group: "glue", desc: "Merge theories by identifying shared structure.", arity: 2 },
-  { name: "Collage", symbol: "Coll", group: "glue", desc: "Place two categories side by side, connected by a profunctor.", arity: 2 },
-  { name: "Comma", symbol: "Com", group: "glue", desc: "Objects are arrows between two functors\u2014the universal comma construction.", arity: 2 },
-  { name: "Span", symbol: "Spn", group: "glue", desc: "Build the category of spans (roofs) over the theory.", arity: 1 },
-  { name: "DayConvolution", symbol: "Day", group: "glue", desc: "Lift the monoidal structure of a category to its presheaf category.", arity: 1 },
+  { name: "Pushout", symbol: "Push", group: "glue", casOp: null, desc: "Glue two theories along a shared base. The categorical union.", arity: 2 },
+  { name: "Pullback", symbol: "Pull", group: "glue", casOp: null, desc: "The fiber product: intersect two theories over a shared base. The universal limit.", arity: 2 },
+  { name: "Product", symbol: "Prod", group: "glue", casOp: null, desc: "Pair up two theories: objects are pairs, morphisms act componentwise.", arity: 2 },
+  { name: "Coproduct", symbol: "Coprod", group: "glue", casOp: null, desc: "Disjoint union of two theories: everything stays separate.", arity: 2 },
+  { name: "Collage", symbol: "Coll", group: "glue", casOp: null, desc: "Place two categories side by side, connected by a profunctor.", arity: 2 },
+  { name: "Comma", symbol: "Com", group: "glue", casOp: null, desc: "Objects are arrows between two functors\u2014the universal comma construction.", arity: 2 },
+  { name: "Span", symbol: "Spn", group: "glue", casOp: "span", desc: "Build the category of spans (roofs) over the theory.", arity: 1 },
+  { name: "DayConvolution", symbol: "Day", group: "glue", casOp: "presheaf", desc: "Lift the monoidal structure of a category to its presheaf category.", arity: 1 },
 
   // Transformers (change dimension/structure)
-  { name: "Decategorify", symbol: "Decat", group: "transformer", desc: "Drop one categorical level: identify isomorphic objects.", arity: 1 },
-  { name: "Grothendieck", symbol: "Groth", group: "transformer", desc: "Flatten an indexed family of categories into a single fibered category.", arity: 1 },
-  { name: "Nerve", symbol: "Nrv", group: "transformer", desc: "Turn a category into a simplicial set\u2014its combinatorial skeleton.", arity: 1 },
-  { name: "Stabilize", symbol: "Stab", group: "transformer", desc: "Pass to the stable category: force the suspension functor to be an equivalence.", arity: 1 },
-  { name: "Derived", symbol: "Der", group: "transformer", desc: "Localize at quasi-isomorphisms to get the derived category.", arity: 1 },
-  { name: "Algebraize", symbol: "Alg", group: "transformer", desc: "Extract the algebraic structure from a categorical context.", arity: 1 },
-  { name: "Bousfield", symbol: "Bous", group: "transformer", desc: "Localize a model category at a chosen homology theory.", arity: 1 },
-  { name: "Factorization", symbol: "Fact", group: "transformer", desc: "Decompose morphisms into a composition of two special classes.", arity: 1 },
-  { name: "DrinfeldCenter", symbol: "DrnC", group: "transformer", desc: "The braided monoidal center: objects that commute with everything.", arity: 1 },
-  { name: "Center", symbol: "Cen", group: "transformer", desc: "Extract the center\u2014elements that commute with all others.", arity: 1 },
+  { name: "Decategorify", symbol: "Decat", group: "transformer", casOp: "decategorify_iso", desc: "Drop one categorical level: identify isomorphic objects.", arity: 1 },
+  { name: "Grothendieck", symbol: "Groth", group: "transformer", casOp: "family", desc: "Flatten an indexed family of categories into a single fibered category.", arity: 1 },
+  { name: "Nerve", symbol: "Nrv", group: "transformer", casOp: "nerve", desc: "Turn a category into a simplicial set\u2014its combinatorial skeleton.", arity: 1 },
+  { name: "Stabilize", symbol: "Stab", group: "transformer", casOp: "stabilize", desc: "Pass to the stable category: force the suspension functor to be an equivalence.", arity: 1 },
+  { name: "Derived", symbol: "Der", group: "transformer", casOp: "derived", desc: "Localize at quasi-isomorphisms to get the derived category.", arity: 1 },
+  { name: "Linearize", symbol: "Lnz", group: "transformer", casOp: "chain_complex", desc: "Linearize: turn a set into a free vector space, or a category into its linear envelope.", arity: 1 },
+  { name: "Bousfield", symbol: "Bous", group: "transformer", casOp: "homotopy", desc: "Localize a model category at a chosen homology theory.", arity: 1 },
+  { name: "Factorization", symbol: "Fact", group: "transformer", casOp: "path", desc: "Decompose morphisms into a composition of two special classes.", arity: 1 },
+  { name: "DrinfeldCenter", symbol: "DrnC", group: "transformer", casOp: "drinfeld_center", desc: "The braided monoidal center: objects that commute with everything.", arity: 1 },
+  { name: "Center", symbol: "Cen", group: "transformer", casOp: "center", desc: "Extract the center\u2014elements that commute with all others.", arity: 1 },
 
   // Constructors (build new from old)
-  { name: "Free", symbol: "Free", group: "constructor", desc: "Freely generate structure from generators. No extra equations.", arity: 1 },
-  { name: "Kleisli", symbol: "Kl", group: "constructor", desc: "Build the Kleisli category from a monad: morphisms are effectful computations.", arity: 1 },
-  { name: "EilenbergMoore", symbol: "EM", group: "constructor", desc: "Build the Eilenberg-Moore category: algebras over a monad.", arity: 1 },
-  { name: "Monad", symbol: "Mnd", group: "constructor", desc: "Extract or construct the monad associated to an adjunction.", arity: 1 },
-  { name: "FunctorCategory", symbol: "Fun", group: "constructor", desc: "The category of functors between two categories, with natural transformations.", arity: 2 },
-  { name: "Adjunction", symbol: "Adj", group: "constructor", desc: "Find or construct a pair of adjoint functors between theories.", arity: 2 },
-  { name: "Kan", symbol: "Kan", group: "constructor", desc: "Compute left or right Kan extensions along a functor.", arity: 1 },
-  { name: "Yoneda", symbol: "Yon", group: "constructor", desc: "Embed a category into its presheaf category via the Yoneda embedding.", arity: 1 },
-  { name: "Slice", symbol: "Sl", group: "constructor", desc: "The slice (over) category: objects are morphisms into a fixed target.", arity: 1 },
-  { name: "Arrow", symbol: "Arr", group: "constructor", desc: "The arrow category: objects are morphisms, morphisms are commutative squares.", arity: 1 },
-  { name: "TwistedArrow", symbol: "TwA", group: "constructor", desc: "Like Arrow, but with domain and codomain swapped on one side.", arity: 1 },
-  { name: "Internal", symbol: "Int", group: "constructor", desc: "Internalize a structure: define it inside another category.", arity: 1 },
-  { name: "Family", symbol: "Fam", group: "constructor", desc: "Build the category of set-indexed families of objects.", arity: 1 },
-  { name: "Matrix", symbol: "Mat", group: "constructor", desc: "Build the matrix category: morphisms are matrices of hom-set elements.", arity: 1 },
-  { name: "Lawvere", symbol: "Law", group: "constructor", desc: "Construct the Lawvere theory\u2014the categorical encoding of an algebraic theory.", arity: 1 },
-  { name: "Syntactic", symbol: "Syn", group: "constructor", desc: "Build the syntactic category from a logical theory.", arity: 1 },
-  { name: "OperadEnvelope", symbol: "OpE", group: "constructor", desc: "The monoidal envelope of an operad\u2014turning multi-input into tensor.", arity: 1 },
-  { name: "Freyd", symbol: "Frd", group: "constructor", desc: "The Freyd category for modeling effectful computation.", arity: 1 },
-  { name: "Int", symbol: "Int\u2124", group: "constructor", desc: "The Int construction: formally adjoin inverses to make a compact closed category.", arity: 1 },
-  { name: "Chu", symbol: "Chu", group: "constructor", desc: "The Chu construction: a *-autonomous category from a closed monoidal one.", arity: 1 },
+  { name: "Free", symbol: "Free", group: "constructor", casOp: "presheaf", desc: "Freely generate structure from generators. No extra equations.", arity: 1 },
+  { name: "Kleisli", symbol: "Kl", group: "constructor", casOp: "scone", desc: "Build the Kleisli category from a monad: morphisms are effectful computations.", arity: 1 },
+  { name: "EilenbergMoore", symbol: "EM", group: "constructor", casOp: "internal_cat", desc: "Build the Eilenberg-Moore category: algebras over a monad.", arity: 1 },
+  { name: "Monad", symbol: "Mnd", group: "constructor", casOp: "identity", desc: "Extract or construct the monad associated to an adjunction.", arity: 1 },
+  { name: "FunctorCategory", symbol: "Fun", group: "constructor", casOp: null, desc: "The category of functors between two categories, with natural transformations.", arity: 2 },
+  { name: "Adjunction", symbol: "Adj", group: "constructor", casOp: null, desc: "Find or construct a pair of adjoint functors between theories.", arity: 2 },
+  { name: "Kan", symbol: "Kan", group: "constructor", casOp: "presheaf", desc: "Compute left or right Kan extensions along a functor.", arity: 1 },
+  { name: "Yoneda", symbol: "Yon", group: "constructor", casOp: "presheaf", desc: "Embed a category into its presheaf category via the Yoneda embedding.", arity: 1 },
+  { name: "Slice", symbol: "Sl", group: "constructor", casOp: "arrow", desc: "The slice (over) category: objects are morphisms into a fixed target.", arity: 1 },
+  { name: "Arrow", symbol: "Arr", group: "constructor", casOp: "arrow_category", desc: "The arrow category: objects are morphisms, morphisms are commutative squares.", arity: 1 },
+  { name: "TwistedArrow", symbol: "TwA", group: "constructor", casOp: "twisted_arrow", desc: "Like Arrow, but with domain and codomain swapped on one side.", arity: 1 },
+  { name: "Internal", symbol: "Int", group: "constructor", casOp: "internal_cat", desc: "Internalize a structure: define it inside another category.", arity: 1 },
+  { name: "Family", symbol: "Fam", group: "constructor", casOp: "family", desc: "Build the category of set-indexed families of objects.", arity: 1 },
+  { name: "Matrix", symbol: "Mat", group: "constructor", casOp: "matrix", desc: "Build the matrix category: morphisms are matrices of hom-set elements.", arity: 1 },
+  { name: "Lawvere", symbol: "Law", group: "constructor", casOp: "syntactic", desc: "Construct the Lawvere theory\u2014the categorical encoding of an algebraic theory.", arity: 1 },
+  { name: "Syntactic", symbol: "Syn", group: "constructor", casOp: "syntactic", desc: "Build the syntactic category from a logical theory.", arity: 1 },
+  { name: "OperadEnvelope", symbol: "OpE", group: "constructor", casOp: "operad_envelope", desc: "The monoidal envelope of an operad\u2014turning multi-input into tensor.", arity: 1 },
+  { name: "Freyd", symbol: "Frd", group: "constructor", casOp: "arrow", desc: "The Freyd category for modeling effectful computation.", arity: 1 },
+  { name: "TracedCompletion", symbol: "TrC", group: "constructor", casOp: "int", desc: "The Joyal\u2013Street\u2013Verity Int construction: formally adjoin inverses to make a compact closed category.", arity: 1 },
+  { name: "Chu", symbol: "Chu", group: "constructor", casOp: "realize", desc: "The Chu construction: a *-autonomous category from a closed monoidal one.", arity: 1 },
 
   // Completions (add missing structure)
-  { name: "ExactCompletion", symbol: "ExCp", group: "completion", desc: "Freely add finite colimits to make the category exact.", arity: 1 },
-  { name: "Karoubi", symbol: "Kar", group: "completion", desc: "Idempotent completion: formally split all idempotent morphisms.", arity: 1 },
-  { name: "Sheafify", symbol: "Shf", group: "completion", desc: "Turn presheaves into sheaves by forcing the gluing axiom.", arity: 1 },
-  { name: "Localize", symbol: "Loc", group: "completion", desc: "Formally invert a chosen class of morphisms.", arity: 1 },
-  { name: "Booleanize", symbol: "Bool", group: "completion", desc: "Force the logic to be Boolean\u2014every proposition gets a complement.", arity: 1 },
-  { name: "MacNeille", symbol: "MacN", group: "completion", desc: "The MacNeille completion: embed a poset into a complete lattice.", arity: 1 },
-  { name: "IndPro", symbol: "IndP", group: "completion", desc: "Adjoin formal filtered colimits (Ind) or cofiltered limits (Pro).", arity: 1 },
-  { name: "Limits", symbol: "Lim", group: "completion", desc: "Freely adjoin all limits to the category.", arity: 1 },
-  { name: "Fractions", symbol: "Frac", group: "completion", desc: "Calculus of fractions: a structured way to localize a category.", arity: 1 },
-  { name: "Quotient", symbol: "Quot", group: "completion", desc: "Form the quotient by a congruence relation on morphisms.", arity: 1 },
-  { name: "Subcategory", symbol: "Sub", group: "completion", desc: "Restrict to a chosen sub-collection of objects and morphisms.", arity: 1 },
-  { name: "Ultrapower", symbol: "Ultr", group: "completion", desc: "Build the ultrapower\u2014ultraproduct along a single structure.", arity: 1 },
+  { name: "ExactCompletion", symbol: "ExCp", group: "completion", casOp: "ex_completion", desc: "Freely add finite colimits to make the category exact.", arity: 1 },
+  { name: "Karoubi", symbol: "Kar", group: "completion", casOp: "karoubi", desc: "Idempotent completion: formally split all idempotent morphisms.", arity: 1 },
+  { name: "Sheafify", symbol: "Shf", group: "completion", casOp: "presheaf", desc: "Turn presheaves into sheaves by forcing the gluing axiom.", arity: 1 },
+  { name: "Localize", symbol: "Loc", group: "completion", casOp: "homotopy", desc: "Formally invert a chosen class of morphisms.", arity: 1 },
+  { name: "DoubleNegation", symbol: "DblN", group: "completion", casOp: "booleanize", desc: "Force the logic to be Boolean via the double negation translation.", arity: 1 },
+  { name: "MacNeille", symbol: "MacN", group: "completion", casOp: "macneille", desc: "The MacNeille completion: embed a poset into a complete lattice.", arity: 1 },
+  { name: "Ind", symbol: "Ind", group: "completion", casOp: "ind_completion", desc: "Ind-completion: adjoin formal filtered colimits.", arity: 1 },
+  { name: "Pro", symbol: "Pro", group: "completion", casOp: "pro_completion", desc: "Pro-completion: adjoin formal cofiltered limits.", arity: 1 },
+  { name: "Limits", symbol: "Lim", group: "completion", casOp: "reg_completion", desc: "Freely adjoin all limits to the category.", arity: 1 },
+  { name: "Fractions", symbol: "Frac", group: "completion", casOp: "homotopy", desc: "Calculus of fractions: a structured way to localize a category.", arity: 1 },
+  { name: "Quotient", symbol: "Quot", group: "completion", casOp: "identity", desc: "Form the quotient by a congruence relation on morphisms.", arity: 1 },
+  { name: "Subcategory", symbol: "Sub", group: "completion", casOp: "identity", desc: "Restrict to a chosen sub-collection of objects and morphisms.", arity: 1 },
+  { name: "Ultrapower", symbol: "Ultr", group: "completion", casOp: "ind_completion", desc: "Build the ultrapower\u2014ultraproduct along a single structure.", arity: 1 },
 
   // Enrichment & Logic
-  { name: "ChangeOfBase", symbol: "ChBs", group: "enrichment", desc: "Re-enrich a category over a different monoidal base.", arity: 1 },
-  { name: "Cleavage", symbol: "Clvg", group: "enrichment", desc: "Choose a cleavage for a fibration\u2014pick canonical lifts of morphisms.", arity: 1 },
-  { name: "Dialectica", symbol: "Dial", group: "enrichment", desc: "G\u00f6del's Dialectica interpretation: transform proofs into witnessing data.", arity: 1 },
-  { name: "Realizability", symbol: "Real", group: "enrichment", desc: "Build a realizability topos: truth is witnessable computation.", arity: 1 },
-  { name: "Assembly", symbol: "Asm", group: "enrichment", desc: "The category of assemblies\u2014sets with realizability structure.", arity: 1 },
-  { name: "PER", symbol: "PER", group: "enrichment", desc: "Partial equivalence relations: a model of types as quotients of computable functions.", arity: 1 },
-  { name: "TriposToTopos", symbol: "T\u2192T", group: "enrichment", desc: "Turn a tripos (categorical model of logic) into a topos.", arity: 1 },
-  { name: "Morita", symbol: "Mor", group: "enrichment", desc: "Pass to the Morita equivalence class\u2014theories with the same models.", arity: 1 },
-  { name: "ArtinGluing", symbol: "AGlu", group: "enrichment", desc: "Glue two toposes along a geometric morphism\u2014Artin's gluing construction.", arity: 2 },
-  { name: "Isbell", symbol: "Isb", group: "enrichment", desc: "Isbell duality: adjunction between presheaves and copresheaves.", arity: 1 },
-  { name: "Skolem", symbol: "Sk", group: "enrichment", desc: "Skolemization: replace existential quantifiers with witness functions.", arity: 1 },
-  { name: "CwF", symbol: "CwF", group: "enrichment", desc: "Category with Families\u2014the categorical semantics of dependent type theory.", arity: 1 },
-  { name: "EndsCoends", symbol: "E/C", group: "enrichment", desc: "Compute ends and coends\u2014the categorical trace and cotrace.", arity: 1 },
+  { name: "ChangeOfBase", symbol: "ChBs", group: "enrichment", casOp: "identity", desc: "Re-enrich a category over a different monoidal base.", arity: 1 },
+  { name: "Cleavage", symbol: "Clvg", group: "enrichment", casOp: "family", desc: "Choose a cleavage for a fibration\u2014pick canonical lifts of morphisms.", arity: 1 },
+  { name: "Dialectica", symbol: "Dial", group: "enrichment", casOp: "realize", desc: "G\u00f6del's Dialectica interpretation: transform proofs into witnessing data.", arity: 1 },
+  { name: "Realizability", symbol: "Real", group: "enrichment", casOp: "realize", desc: "Build a realizability topos: truth is witnessable computation.", arity: 1 },
+  { name: "Assembly", symbol: "Asm", group: "enrichment", casOp: "realize", desc: "The category of assemblies\u2014sets with realizability structure.", arity: 1 },
+  { name: "PER", symbol: "PER", group: "enrichment", casOp: "realize", desc: "Partial equivalence relations: a model of types as quotients of computable functions.", arity: 1 },
+  { name: "TriposToTopos", symbol: "T2T", group: "enrichment", casOp: "realize", desc: "Turn a tripos (categorical model of logic) into a topos.", arity: 1 },
+  { name: "Morita", symbol: "Mor", group: "enrichment", casOp: "morita", desc: "Pass to the Morita equivalence class\u2014theories with the same models.", arity: 1 },
+  { name: "ArtinGluing", symbol: "AGlu", group: "enrichment", casOp: null, desc: "Glue two toposes along a geometric morphism\u2014Artin's gluing construction.", arity: 2 },
+  { name: "Isbell", symbol: "Isb", group: "enrichment", casOp: "isbell", desc: "Isbell duality: adjunction between presheaves and copresheaves.", arity: 1 },
+  { name: "Skolem", symbol: "Sk", group: "enrichment", casOp: "syntactic", desc: "Skolemization: replace existential quantifiers with witness functions.", arity: 1 },
+  { name: "CwF", symbol: "CwF", group: "enrichment", casOp: "family", desc: "Category with Families\u2014the categorical semantics of dependent type theory.", arity: 1 },
+  { name: "EndsCoends", symbol: "E/C", group: "enrichment", casOp: "isbell", desc: "Compute ends and coends\u2014the categorical trace and cotrace.", arity: 1 },
 ];
 
 // ── RENDER INVENTORY ──────────────────────────────────────────────────────────
@@ -933,14 +935,14 @@ const operators = [
 const theoryGroups = [
   { key: "algebra", label: "The Builders \u2014 Algebra" },
   { key: "logic", label: "The Deciders \u2014 Logic & Order" },
-  { key: "category", label: "The Spaces \u2014 Category" },
-  { key: "topology", label: "The Spaces \u2014 Topology" },
+  { key: "category", label: "The Universes \u2014 Categories" },
+  { key: "topos", label: "The Generalized Spaces \u2014 Topoi" },
   { key: "higher", label: "The Ascenders \u2014 Higher Structures" },
   { key: "foundations", label: "Foundations" },
 ];
 
 const operatorGroups = [
-  { key: "mirror", label: "The Mirrors \u2014 Structural Reflection" },
+  { key: "duality", label: "The Dualities \u2014 Structural Reflection" },
   { key: "glue", label: "The Glue \u2014 Combining" },
   { key: "transformer", label: "The Transformers \u2014 Change Dimension" },
   { key: "constructor", label: "The Constructors \u2014 Build New From Old" },
@@ -1206,6 +1208,10 @@ async function apiPost(path, body) {
 async function runReaction(op, theoryA, theoryB) {
   const msgId = addChat('assistant', `<div class="status-bar"><div class="spinner"></div> Applying ${op} via Lean CAS...</div>`);
 
+  // Resolve the CAS operator name from the UI operator name
+  const opDef = operators.find(o => o.name === op);
+  const casOp = opDef?.casOp || op.toLowerCase();
+
   try {
     let result;
     if (theoryB) {
@@ -1213,7 +1219,7 @@ async function runReaction(op, theoryA, theoryB) {
       result = await apiPost('/api/pushout', { theory1: theoryA, theory2: theoryB, base: 'Basic' });
     } else {
       // Unary: apply operator
-      result = await apiPost('/api/operator/apply', { operator: op.toLowerCase(), theory: theoryA });
+      result = await apiPost('/api/operator/apply', { operator: casOp, theory: theoryA });
     }
 
     if (result.status === 200 && result.data.theory) {
