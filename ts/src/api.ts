@@ -42,6 +42,18 @@ export async function listTheories(
   }
 }
 
+export async function listOperators(
+  client: CatlabClient,
+  timeoutMs = 30_000
+): Promise<ApiResult<{ operators: unknown[] }>> {
+  try {
+    const res = unwrap(await client.request({ command: "list_operators" }, timeoutMs));
+    return ok({ operators: res.operators ?? [] });
+  } catch (e) {
+    return err(500, (e as Error).message);
+  }
+}
+
 export async function getTheorySummary(
   client: CatlabClient,
   theoryName: string,

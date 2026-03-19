@@ -6,7 +6,8 @@
  *   ts-node src/server.ts [--port 3000] [--lean /path/to/catlab]
  *
  * API routes:
- *   GET  /api/theories                         → list all theories
+ *   GET  /api/theories                         → list all theories (with metadata)
+ *   GET  /api/operators                        → list all operators (with metadata)
  *   GET  /api/theories/:name/summary           → theory summary text
  *   GET  /api/theories/:name/validate          → validate a theory
  *   POST /api/operator/apply                   → { operator, theory }
@@ -87,6 +88,7 @@ function serveStatic(res: http.ServerResponse, filePath: string, contentType: st
 
 function matchRoute(method: string, url: string): { handler: string; params: Record<string, string> } | null {
   if (method === "GET" && url === "/api/theories") return { handler: "listTheories", params: {} };
+  if (method === "GET" && url === "/api/operators") return { handler: "listOperators", params: {} };
 
   const summaryMatch = url.match(/^\/api\/theories\/([^/]+)\/summary$/);
   if (method === "GET" && summaryMatch) return { handler: "getTheorySummary", params: { name: summaryMatch[1] } };
@@ -142,6 +144,9 @@ export async function handleRequest(
     switch (route.handler) {
       case "listTheories":
         result = await api.listTheories(catlab);
+        break;
+      case "listOperators":
+        result = await api.listOperators(catlab);
         break;
       case "getTheorySummary":
         result = await api.getTheorySummary(catlab, decodeURIComponent(route.params.name));

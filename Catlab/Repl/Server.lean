@@ -93,6 +93,7 @@ import Catlab.Operators.TriposToTopos
 import Catlab.Operators.TwistedArrow
 import Catlab.Operators.Ultrapower
 import Catlab.Operators.Yoneda
+import Catlab.Operators.Registry
 import Catlab.Library.Monoid
 import Catlab.Library.Group
 import Catlab.Library.Ring
@@ -183,7 +184,7 @@ def applyForwardOp (op : String) (t : Theory) : Except String Theory :=
   -- Symmetries & involutions
   | "opposite"                          => .ok (opposite t)
   | "mirror"                            => .ok (mirror t)
-  | "core"                              => .ok (core t)
+  | "core"                              => .ok (core t (t.morphisms.map (·.id)))
   | "identity"                          => .ok t
   -- Decategorification variants
   | "decategorify_iso" | "decategorify" => .ok (decategorify t .isoClasses)
@@ -193,9 +194,10 @@ def applyForwardOp (op : String) (t : Theory) : Except String Theory :=
   | "arrow"                             => .ok (Arrow.arrowCat t)
   | "arrow_category"                    => .ok (arrowCategory t)
   | "twisted_arrow"                     => .ok (twistedArrow t)
-  | "comma"                             => .ok (commaCategory t t)
-  | "collage"                           => .ok (collage t t)
-  | "slice"                             => .ok (slice t)
+  | "slice"                             =>
+    match t.objects.head? with
+    | some obj => .ok (slice t (.atom obj.id))
+    | none     => .error "slice requires at least one object"
   -- Completions & envelopes
   | "karoubi"                           => .ok (karoubiEnvelope t)
   | "morita"                            => .ok (moritaEnvelope t)
@@ -204,43 +206,28 @@ def applyForwardOp (op : String) (t : Theory) : Except String Theory :=
   | "ex_completion"                     => .ok (exCompletion t)
   | "ind_completion"                    => .ok (indCompletion t)
   | "pro_completion"                    => .ok (proCompletion t)
-  | "fractions"                         => .ok (calculusOfFractions t)
-  | "quotient"                          => .ok (quotientCategory t)
-  | "subcategory"                       => .ok (fullSubcategory t)
-  | "ultrapower"                        => .ok (ultrapower t)
   -- Presheaf & functor categories
   | "presheaf"                          => .ok (presheafCategory t)
-  | "yoneda"                            => .ok (yonedaEmbedding t)
+  | "yoneda"                            => .ok (presheafCategory t)
   | "family"                            => .ok (familyCategory t)
+  -- grothendieck requires an IndexedCategory param; use family for Fam(C)
+  -- | "grothendieck" => needs IndexedCategory, dispatched via parameterized path
   | "functor_category"                  => .ok (functorCategory t t)
   | "scone"                             => .ok (scone t)
+  | "freyd"                             => .ok (scone t)
   | "syntactic"                         => .ok (syntacticCategory t)
-  | "lawvere"                           => .ok (lawvereModelCategory t)
-  -- Free & Kleisli
+  | "lawvere"                           => .ok (lawvereModelCategory t t)
   | "free"                              => .ok (presheafCategory t)
-  | "kleisli"                           => .ok (kleisliCategory t)
-  | "eilenberg_moore"                   => .ok (eilenbergMoore t)
-  | "monad"                             => .ok (eilenbergMoore t)
   -- Derived & homotopy
   | "chain_complex"                     => .ok (chainComplexCategory t)
   | "homotopy"                          => .ok (homotopyCategory t)
   | "derived"                           => .ok (derivedCategory t)
   | "stabilize"                         => .ok (stabilize t)
-  | "bousfield"                         => .ok (bousfieldLocalization t)
-  | "localize"                          => .ok (simplicialLocalize t)
   -- Monoidal centers
   | "center"                            => .ok (center t)
   | "drinfeld_center"                   => .ok (drinfeldCenter t)
   -- Logic & topos
   | "booleanize"                        => .ok (booleanize t)
-  | "sheafify"                          => .ok (sheafify t)
-  | "realizability"                     => .ok (realizabilityTopos t)
-  | "assembly"                          => .ok (assemblyCategory t)
-  | "per"                               => .ok (perCategory t)
-  | "tripos_to_topos"                   => .ok (triposToTopos t)
-  | "dialectica"                        => .ok (dialectica t)
-  | "skolem"                            => .ok (skolemize t)
-  | "cwf"                               => .ok (comprehensionCategory t)
   -- Span & cospan
   | "span"                              => .ok (spanCategory t)
   | "cospan"                            => .ok (cospanCategory t)
@@ -251,32 +238,18 @@ def applyForwardOp (op : String) (t : Theory) : Except String Theory :=
   | "isbell_spec"                       => .ok (isbellSpec t)
   | "isbell_cospec"                     => .ok (isbellCospec t)
   | "isbell"                            => .ok (isbellAdjunction t)
-  -- Enrichment & base change
-  | "change_of_base"                    => .ok (changeOfBase t)
-  | "cleavage"                          => .ok (fiberOver t)
-  | "day_convolution"                   => .ok (dayConvolution t)
-  | "ends_coends"                       => .ok (computeEnd t)
-  -- Products & coproducts (unary: self-product/coproduct)
+  -- Products & coproducts (self × self as default)
   | "product"                           => .ok (productCategory t t)
   | "coproduct"                         => .ok (coproductCategory t t)
-  -- Grothendieck & Kan
-  | "grothendieck"                      => .ok (familyCategory t)
-  | "left_kan"                          => .ok (leftKan t)
-  | "right_kan"                         => .ok (rightKan t)
-  | "kan"                               => .ok (leftKan t)
   -- Miscellaneous
   | "matrix"                            => .ok (matrixCategory t)
   | "int"                               => .ok (intConstruction t)
-  | "chu"                               => .ok (chuConstruction t)
   | "internal_cat"                      => .ok (internalCategoryCategory t)
   | "path"                              => .ok (pathCategory t)
-  | "operad_envelope"                   => .ok (operadicEnvelope t)
-  | "freyd"                             => .ok (scone t)
-  | "artin_gluing"                      => .ok (artinGluing t t)
-  | "adjunction"                        => .ok (freeForgetfulAdjunction t)
   | "factorization"                     => .ok (pathCategory t)
+  | "operad_envelope"                   => .ok (operadicEnvelope t)
   | "limits"                            => .ok (regCompletion t)
-  | s => .error s!"Unknown forward_op '{s}'. Use one of: opposite, mirror, core, identity, decategorify_iso, decategorify_K0, decategorify_chi, arrow, arrow_category, twisted_arrow, comma, collage, slice, karoubi, morita, macneille, reg_completion, ex_completion, ind_completion, pro_completion, fractions, quotient, subcategory, ultrapower, presheaf, yoneda, family, functor_category, scone, syntactic, lawvere, free, kleisli, eilenberg_moore, monad, chain_complex, homotopy, derived, stabilize, bousfield, localize, center, drinfeld_center, booleanize, sheafify, realizability, assembly, per, tripos_to_topos, dialectica, skolem, cwf, span, cospan, nerve, realize, isbell_spec, isbell_cospec, isbell, change_of_base, cleavage, day_convolution, ends_coends, product, coproduct, grothendieck, left_kan, right_kan, kan, matrix, int, chu, internal_cat, path, operad_envelope, freyd, artin_gluing, adjunction, factorization, limits"
+  | s => .error s!"Unknown forward_op '{s}'. Use one of: opposite, mirror, core, identity, decategorify_iso, decategorify_K0, decategorify_chi, arrow, arrow_category, twisted_arrow, slice, karoubi, morita, macneille, reg_completion, ex_completion, ind_completion, pro_completion, presheaf, yoneda, family, functor_category, scone, freyd, syntactic, lawvere, free, chain_complex, homotopy, derived, stabilize, center, drinfeld_center, booleanize, span, cospan, nerve, realize, isbell_spec, isbell_cospec, isbell, product, coproduct, matrix, int, internal_cat, path, factorization, operad_envelope, limits"
 
 /-- Does this operator reverse composition order (and is an involution)?
     Such operators require contravariant verification: instead of diffing
@@ -875,8 +848,19 @@ def handleValidate (j : Json) (id : String) : Json :=
 
 def handleListTheories (_j : Json) (id : String) : Json :=
   let names := theoryRegistry.map (Json.str ∘ Prod.fst)
+  let metas := theoryMetas.map theoryMetaToJson
+  let groups := theoryGroups.map groupMetaToJson
   okResponse id [("theories", .arr names.toArray),
+                 ("metas",    .arr metas.toArray),
+                 ("groups",   .arr groups.toArray),
                  ("count",    natJson theoryRegistry.length)]
+
+def handleListOperators (_j : Json) (id : String) : Json :=
+  let metas := operatorMetas.map operatorMetaToJson
+  let groups := operatorGroups.map groupMetaToJson
+  okResponse id [("operators", .arr metas.toArray),
+                 ("groups",    .arr groups.toArray),
+                 ("count",     natJson operatorMetas.length)]
 
 -- ============================================================
 -- Main dispatch: parse request, route to handler, return response
@@ -897,6 +881,7 @@ def handleRequest (line : String) : Json :=
     | .ok (.str cmd)  =>
       match cmd with
       | "list_theories"    => handleListTheories    j id
+      | "list_operators"   => handleListOperators   j id
       | "summary"          => handleSummary         j id
       | "validate"         => handleValidate        j id
       | "apply_operator"   => handleApplyOp         j id

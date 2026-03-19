@@ -90,6 +90,7 @@ export interface VerificationResult {
 
 export type CatlabCommand =
   | { command: "list_theories" }
+  | { command: "list_operators" }
   | { command: "summary"; theory: string }
   | { command: "validate"; theory: string }
   | { command: "apply_operator"; operator: string; theory: string }
@@ -198,6 +199,8 @@ export interface CatlabResponseOk {
   subResults?: VerificationResult[];
   theory?: TheoryJson;
   theories?: string[];
+  metas?: unknown[];
+  operators?: unknown[];
   summary?: string;
   verified?: boolean;
   winner?: TheoryJson;
