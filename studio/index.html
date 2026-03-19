@@ -390,45 +390,54 @@
     transform: rotate(90deg);
   }
 
-  /* ── Commutative Diagram ─────────────────────────── */
-  .cd-container {
-    display: flex;
-    gap: 20px;
-    align-items: flex-start;
-    flex-wrap: wrap;
-  }
-  .cd-diagram {
-    flex: 1;
-    min-width: 280px;
-  }
-  .cd-diagram svg {
-    width: 100%;
-    max-height: 300px;
-  }
-  .cd-details {
-    flex: 0 0 220px;
-    font-size: 11px;
-  }
-  .cd-details h4 {
-    font-size: 11px;
-    color: var(--text-dim);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin: 8px 0 4px;
-  }
-  .cd-details h4:first-child { margin-top: 0; }
-  .cd-details ul {
-    list-style: none;
-    padding: 0;
-  }
-  .cd-details li {
-    padding: 2px 0;
-    color: var(--text);
-  }
-  .cd-details .morph-arrow {
-    color: var(--cyan);
-    font-size: 10px;
-  }
+  /* ── Theory View ────────────────────────────────── */
+  .theory-view { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); overflow: hidden; }
+  .theory-banner { padding: 12px 16px; background: var(--surface2); border-bottom: 1px solid var(--border); }
+  .theory-banner-name { font-size: 14px; font-weight: 700; color: var(--green); margin-bottom: 2px; }
+  .theory-banner-doctrine { font-size: 10px; color: var(--purple); margin-bottom: 4px; }
+  .theory-banner-summary { font-size: 11px; color: var(--text); line-height: 1.5; }
+  .theory-banner-stats { margin-top: 6px; display: flex; gap: 12px; font-size: 10px; color: var(--text-dim); }
+  .theory-banner-stats span { color: var(--accent); font-weight: 600; }
+  .objects-bar { padding: 8px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 10px; }
+  .objects-bar-label { text-transform: uppercase; letter-spacing: 1px; font-size: 9px; color: var(--text-dim); margin-right: 2px; }
+  .obj-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; border: 1px solid; }
+  .obj-chip .obj-desc { font-weight: 400; color: var(--text-dim); font-size: 9px; }
+  .wiring-wrap { border-bottom: 1px solid var(--border); padding: 6px 16px; overflow-x: auto; }
+  .wiring-wrap svg { display: block; margin: 0 auto; }
+  .wiring-wrap svg .wire-morph { cursor: pointer; }
+  .wiring-wrap svg .wire-morph:hover .wire-path { stroke-opacity: 1; stroke-width: 2; }
+  .wiring-wrap svg .wire-morph:hover .wire-label { fill-opacity: 1; }
+  .wiring-wrap svg .wire-morph.wire-active .wire-path { stroke-opacity: 1; stroke-width: 2.5; }
+  .wiring-wrap svg .wire-morph.wire-active .wire-label { fill-opacity: 1; font-weight: 700; }
+  .morph-table { width: 100%; border-collapse: collapse; }
+  .morph-table th { text-align: left; padding: 5px 16px; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); background: var(--surface2); border-bottom: 1px solid var(--border); }
+  .morph-row { border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.1s, opacity 0.15s; }
+  .morph-row:last-child { border-bottom: none; }
+  .morph-row:hover { background: var(--surface2); }
+  .morph-row.expanded { background: var(--surface2); }
+  .morph-row td { padding: 6px 16px; font-size: 11px; vertical-align: top; }
+  .morph-name { font-weight: 700; color: var(--text); }
+  .morph-sig .sig-obj { font-weight: 600; cursor: pointer; border-bottom: 1px dotted transparent; }
+  .morph-sig .sig-obj:hover { border-bottom-color: currentColor; }
+  .morph-sig .sig-arrow { color: var(--text-dim); margin: 0 3px; }
+  .morph-sig .sig-op { color: var(--text-dim); font-size: 10px; }
+  .morph-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+  .morph-tag { font-size: 8px; padding: 1px 5px; border-radius: 8px; background: var(--surface2); border: 1px solid var(--border); color: var(--text-dim); white-space: nowrap; }
+  .morph-tag.assoc { color: var(--blue); border-color: var(--blue); }
+  .morph-tag.comm { color: var(--purple); border-color: var(--purple); }
+  .morph-tag.unit { color: var(--green); border-color: var(--green); }
+  .morph-tag.inv { color: var(--orange); border-color: var(--orange); }
+  .morph-tag.distrib { color: var(--pink); border-color: var(--pink); }
+  .morph-tag.preserves { color: var(--cyan); border-color: var(--cyan); }
+  .axiom-panel { display: none; border-bottom: 1px solid var(--border); background: var(--bg); }
+  .axiom-panel.open { display: table-row; }
+  .axiom-panel-inner { padding: 8px 16px 10px; }
+  .axiom-item { display: flex; align-items: flex-start; gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--border); font-size: 10px; }
+  .axiom-item:last-child { border-bottom: none; }
+  .axiom-item-name { font-weight: 600; color: var(--text); min-width: 80px; flex-shrink: 0; }
+  .axiom-item-eq { color: var(--text-dim); flex: 1; line-height: 1.4; }
+  .axiom-cd svg { max-width: 180px; max-height: 70px; }
+  .morph-row.sig-fade { opacity: 0.3; }
 
   /* ── Chat Pane ──────────────────────────────────── */
   .chat-header {
@@ -1250,192 +1259,642 @@ function switchToWorkbench() {
   document.getElementById('workbench').classList.add('active');
 }
 
-// Resolve an ExprJson to a human-readable string
+// Object color palette — consistent per-object
+const OBJ_COLORS = ['#388bfd','#3fb950','#bc8cff','#56d4dd','#f778ba','#d29922','#f85149','#e3b341'];
+function objColor(name, objList) {
+  const idx = objList.indexOf(name);
+  return OBJ_COLORS[idx >= 0 ? idx % OBJ_COLORS.length : 0];
+}
+
+// ── Expression rendering ─────────────────────────────────────────────────────
+
 function exprToStr(expr) {
   if (!expr) return '?';
   if (typeof expr === 'string') return expr;
   if (expr.atom) return expr.atom;
-  if (expr.prod) return exprToStr(expr.prod[0]) + ' × ' + exprToStr(expr.prod[1]);
-  if (expr.tensor) return exprToStr(expr.tensor[0]) + ' ⊗ ' + exprToStr(expr.tensor[1]);
+  if (expr.prod) return exprToStr(expr.prod[0]) + ' \u00D7 ' + exprToStr(expr.prod[1]);
+  if (expr.tensor) return exprToStr(expr.tensor[0]) + ' \u2297 ' + exprToStr(expr.tensor[1]);
   if (expr.coprod) return exprToStr(expr.coprod[0]) + ' + ' + exprToStr(expr.coprod[1]);
   if (expr.hom) return '[' + exprToStr(expr.hom[0]) + ', ' + exprToStr(expr.hom[1]) + ']';
-  if (expr.comp) return exprToStr(expr.comp[0]) + ' ∘ ' + exprToStr(expr.comp[1]);
+  if (expr.comp) return exprToStr(expr.comp[0]) + ' \u2218 ' + exprToStr(expr.comp[1]);
   if (expr.id) return 'id(' + exprToStr(expr.id) + ')';
   return JSON.stringify(expr);
 }
 
-// Find the primary declared object an expression refers to.
-// For products like {prod: ["X", "X"]} returns "X" (first component found in object set).
-// For "terminal"/"initial" returns null.
-function exprPrimaryObject(expr, objSet) {
-  if (!expr) return null;
-  if (typeof expr === 'string') return objSet.has(expr) ? expr : null;
-  if (expr.atom) return objSet.has(expr.atom) ? expr.atom : null;
-  if (expr.prod) return exprPrimaryObject(expr.prod[0], objSet) || exprPrimaryObject(expr.prod[1], objSet);
-  if (expr.tensor) return exprPrimaryObject(expr.tensor[0], objSet) || exprPrimaryObject(expr.tensor[1], objSet);
-  if (expr.coprod) return exprPrimaryObject(expr.coprod[0], objSet) || exprPrimaryObject(expr.coprod[1], objSet);
-  if (expr.hom) return exprPrimaryObject(expr.hom[0], objSet) || exprPrimaryObject(expr.hom[1], objSet);
-  if (expr.id) return exprPrimaryObject(expr.id, objSet);
+function exprToHtml(expr, objNames) {
+  if (!expr) return '<span class="sig-op">?</span>';
+  if (typeof expr === 'string') {
+    if (expr === 'terminal') return '<span class="sig-op">1</span>';
+    if (expr === 'initial') return '<span class="sig-op">0</span>';
+    const color = objColor(expr, objNames);
+    return `<span class="sig-obj" data-obj="${escHtml(expr)}" style="color:${color}">${escHtml(expr)}</span>`;
+  }
+  if (expr.atom) {
+    if (expr.atom === 'terminal') return '<span class="sig-op">1</span>';
+    const color = objColor(expr.atom, objNames);
+    return `<span class="sig-obj" data-obj="${escHtml(expr.atom)}" style="color:${color}">${escHtml(expr.atom)}</span>`;
+  }
+  if (expr.prod) return exprToHtml(expr.prod[0], objNames) + ' <span class="sig-op">\u00D7</span> ' + exprToHtml(expr.prod[1], objNames);
+  if (expr.tensor) return exprToHtml(expr.tensor[0], objNames) + ' <span class="sig-op">\u2297</span> ' + exprToHtml(expr.tensor[1], objNames);
+  if (expr.coprod) return exprToHtml(expr.coprod[0], objNames) + ' <span class="sig-op">+</span> ' + exprToHtml(expr.coprod[1], objNames);
+  if (expr.hom) return '<span class="sig-op">[</span>' + exprToHtml(expr.hom[0], objNames) + '<span class="sig-op">,</span> ' + exprToHtml(expr.hom[1], objNames) + '<span class="sig-op">]</span>';
+  if (expr.id) return '<span class="sig-op">id(</span>' + exprToHtml(expr.id, objNames) + '<span class="sig-op">)</span>';
+  if (expr.comp) return exprToHtml(expr.comp[0], objNames) + ' <span class="sig-op">\u2218</span> ' + exprToHtml(expr.comp[1], objNames);
+  return `<span class="sig-op">${escHtml(JSON.stringify(expr))}</span>`;
+}
+
+function exprObjects(expr) {
+  const out = new Set();
+  if (!expr) return out;
+  if (typeof expr === 'string') { if (expr !== 'terminal' && expr !== 'initial') out.add(expr); return out; }
+  if (expr.atom) { if (expr.atom !== 'terminal') out.add(expr.atom); return out; }
+  for (const k of ['prod','tensor','coprod','hom','comp']) {
+    if (expr[k]) { for (const sub of expr[k]) exprObjects(sub).forEach(o => out.add(o)); }
+  }
+  if (expr.id) exprObjects(expr.id).forEach(o => out.add(o));
+  return out;
+}
+
+// ── Axiom analysis ───────────────────────────────────────────────────────────
+
+function classifyAxioms(morphisms, axioms) {
+  const morphAxioms = {};
+  for (const m of morphisms) morphAxioms[m.name] = [];
+
+  function exprMorphs(expr) {
+    const out = new Set();
+    if (!expr) return out;
+    if (typeof expr === 'string') return out;
+    if (expr.atom) { out.add(expr.atom); return out; }
+    for (const k of ['prod','tensor','coprod','hom','comp']) {
+      if (expr[k]) for (const sub of expr[k]) exprMorphs(sub).forEach(m => out.add(m));
+    }
+    if (expr.id) return out;
+    return out;
+  }
+
+  const morphNames = new Set(morphisms.map(m => m.name));
+
+  for (const ax of axioms) {
+    const lhsMorphs = exprMorphs(ax.lhs);
+    const rhsMorphs = exprMorphs(ax.rhs);
+    const allMorphs = new Set([...lhsMorphs, ...rhsMorphs].filter(m => morphNames.has(m)));
+
+    const n = (ax.name || '').toLowerCase();
+    let tag = 'axiom';
+    let tagClass = '';
+    if (n.includes('assoc')) { tag = 'associative'; tagClass = 'assoc'; }
+    else if (n.includes('comm') || n.includes('symm')) { tag = 'commutative'; tagClass = 'comm'; }
+    else if (n.includes('unit') || n.includes('ident')) { tag = 'has unit'; tagClass = 'unit'; }
+    else if (n.includes('inv')) { tag = 'has inverse'; tagClass = 'inv'; }
+    else if (n.includes('distrib')) { tag = 'distributive'; tagClass = 'distrib'; }
+    else if (n.includes('preserv') || n.includes('compat') || n.includes('natural')) { tag = 'preserves'; tagClass = 'preserves'; }
+    else if (n.includes('left_unit') || n.includes('right_unit')) { tag = 'has unit'; tagClass = 'unit'; }
+    else if (n.includes('left_inv') || n.includes('right_inv')) { tag = 'has inverse'; tagClass = 'inv'; }
+
+    let primary = null;
+    for (const m of allMorphs) {
+      if (n.includes(m.toLowerCase()) || n.endsWith('_' + m.toLowerCase())) { primary = m; break; }
+    }
+    if (!primary) {
+      for (const m of allMorphs) { if (n.includes(m)) { primary = m; break; } }
+    }
+    if (!primary && allMorphs.size > 0) primary = [...allMorphs][0];
+
+    const entry = { axiom: ax, tag, tagClass, allMorphs: [...allMorphs] };
+
+    if (primary && morphAxioms[primary]) {
+      morphAxioms[primary].push(entry);
+    } else {
+      for (const m of allMorphs) { if (morphAxioms[m]) morphAxioms[m].push(entry); }
+    }
+  }
+
+  return morphAxioms;
+}
+
+function uniqueTags(entries) {
+  const seen = new Set();
+  const tags = [];
+  for (const e of entries) {
+    if (!seen.has(e.tag)) { seen.add(e.tag); tags.push({ tag: e.tag, tagClass: e.tagClass }); }
+  }
+  return tags;
+}
+
+function deriveSummary(theory) {
+  const morphisms = theory.morphisms || [];
+  const axioms = theory.axioms || [];
+  if (morphisms.length === 0) return '';
+
+  const morphAxioms = classifyAxioms(morphisms, axioms);
+  const parts = [];
+
+  for (const m of morphisms) {
+    const tags = uniqueTags(morphAxioms[m.name] || []).map(t => t.tag);
+    const hasAssoc = tags.includes('associative');
+    const hasUnit = tags.includes('has unit');
+    const hasInv = tags.includes('has inverse');
+    const hasComm = tags.includes('commutative');
+
+    let structure = null;
+    if (hasAssoc && hasUnit && hasInv && hasComm) structure = 'abelian group';
+    else if (hasAssoc && hasUnit && hasInv) structure = 'group';
+    else if (hasAssoc && hasUnit && hasComm) structure = 'commutative monoid';
+    else if (hasAssoc && hasUnit) structure = 'monoid';
+    else if (hasAssoc) structure = 'semigroup';
+
+    if (structure) parts.push(`<strong>${escHtml(m.name)}</strong> is a <em>${structure}</em> operation`);
+  }
+
+  for (const ax of axioms) {
+    const n = (ax.name || '').toLowerCase();
+    if (n.includes('distrib')) {
+      const allNames = new Set();
+      function collectAtoms(expr) {
+        if (!expr) return;
+        if (expr.atom) { allNames.add(expr.atom); return; }
+        for (const k of ['prod','tensor','coprod','hom','comp']) {
+          if (expr[k]) for (const sub of expr[k]) collectAtoms(sub);
+        }
+      }
+      collectAtoms(ax.lhs); collectAtoms(ax.rhs);
+      const morphNames = morphisms.map(m => m.name);
+      const involved = [...allNames].filter(n => morphNames.includes(n));
+      if (involved.length >= 2) {
+        parts.push(`<strong>${escHtml(involved[0])}</strong> distributes over <strong>${escHtml(involved[1])}</strong>`);
+        break;
+      }
+    }
+  }
+
+  const preserving = axioms.filter(a => (a.name || '').toLowerCase().includes('preserv'));
+  if (preserving.length > 0) parts.push('structure-preserving map between source and target');
+
+  return parts.join('. ') + (parts.length > 0 ? '.' : '');
+}
+
+// ── Multi-object structural grouping ─────────────────────────────────────────
+
+function detectColumns(theory) {
+  const objects = theory.objects || [];
+  const morphisms = theory.morphisms || [];
+  if (objects.length <= 1) return null;
+
+  const prefixGroups = {};
+  for (const o of objects) {
+    const match = o.name.match(/^([A-Z])_/);
+    if (match) {
+      const prefix = match[1];
+      if (!prefixGroups[prefix]) prefixGroups[prefix] = [];
+      prefixGroups[prefix].push(o);
+    }
+  }
+
+  const prefixes = Object.keys(prefixGroups);
+  if (prefixes.length >= 2 && prefixes.every(p => prefixGroups[p].length > 0)) {
+    const crossMorphs = [];
+    const internalMorphs = {};
+    for (const p of prefixes) internalMorphs[p] = [];
+
+    for (const m of morphisms) {
+      const domObjs = exprObjects(m.domain);
+      const codObjs = exprObjects(m.codomain);
+      const domPrefixes = new Set([...domObjs].map(o => { const mm = o.match(/^([A-Z])_/); return mm ? mm[1] : null; }).filter(Boolean));
+      const codPrefixes = new Set([...codObjs].map(o => { const mm = o.match(/^([A-Z])_/); return mm ? mm[1] : null; }).filter(Boolean));
+
+      if (domPrefixes.size === 1 && codPrefixes.size === 1 && [...domPrefixes][0] !== [...codPrefixes][0]) {
+        crossMorphs.push(m);
+      } else if (domPrefixes.size === 1 && codPrefixes.size === 1 && [...domPrefixes][0] === [...codPrefixes][0]) {
+        internalMorphs[[...domPrefixes][0]].push(m);
+      }
+    }
+
+    return { type: 'columns', prefixes, prefixGroups, crossMorphs, internalMorphs };
+  }
+
   return null;
 }
 
-// Build an SVG commutative diagram from a theory
-function renderCommutativeDiagram(theory) {
+// ── Wiring diagram ───────────────────────────────────────────────────────────
+
+let wiringCounter = 0;
+
+function exprToSlot(expr) {
+  if (!expr) return '?';
+  if (typeof expr === 'string') return expr === 'terminal' ? '1' : expr === 'initial' ? '0' : expr;
+  if (expr.atom) return expr.atom === 'terminal' ? '1' : expr.atom;
+  if (expr.prod) return exprToSlot(expr.prod[0]) + '\u00D7' + exprToSlot(expr.prod[1]);
+  if (expr.tensor) return exprToSlot(expr.tensor[0]) + '\u2297' + exprToSlot(expr.tensor[1]);
+  if (expr.coprod) return exprToSlot(expr.coprod[0]) + '+' + exprToSlot(expr.coprod[1]);
+  if (expr.hom) return '[' + exprToSlot(expr.hom[0]) + ',' + exprToSlot(expr.hom[1]) + ']';
+  return JSON.stringify(expr);
+}
+
+const MORPH_COLORS = ['#56d4dd','#388bfd','#3fb950','#bc8cff','#f778ba','#d29922','#f85149','#e3b341'];
+
+function renderWiringDiagram(theory, objNames) {
   const objects = theory.objects || [];
   const morphisms = theory.morphisms || [];
-  const axioms = theory.axioms || [];
+  if (morphisms.length === 0) return '';
 
-  if (objects.length === 0 && morphisms.length === 0) {
-    return '<div style="color:var(--text-dim);font-size:11px;padding:8px">No objects or morphisms to diagram.</div>';
-  }
+  const uid = 'wd' + (++wiringCounter);
 
-  // Only declared objects become diagram nodes
-  const objSet = new Set(objects.map(o => o.name));
-  const nodeList = objects.map(o => o.name);
-  const n = nodeList.length;
-
-  // Map each morphism to source/target declared objects
-  const edges = [];
+  const slotSet = new Set();
+  for (const o of objects) slotSet.add(o.name);
   for (const m of morphisms) {
-    const src = exprPrimaryObject(m.domain, objSet);
-    const tgt = exprPrimaryObject(m.codomain, objSet);
-    if (src && tgt) {
-      edges.push({ name: m.name, from: src, to: tgt });
-    }
+    slotSet.add(exprToSlot(m.domain));
+    slotSet.add(exprToSlot(m.codomain));
+  }
+  const slots = [...slotSet];
+
+  const railH = 30;
+  const padL = 70;
+  const padR = 20;
+  const selfLoopH = 24;
+  const padT = 8 + selfLoopH;
+  const padB = 10;
+  const W = 600;
+  const H = padT + slots.length * railH + padB;
+  const railX0 = padL;
+  const railX1 = W - padR;
+
+  const railY = {};
+  slots.forEach((s, i) => { railY[s] = padT + i * railH + railH / 2; });
+
+  const morphCount = morphisms.length;
+  const morphSpacing = (railX1 - railX0) / (morphCount + 1);
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="font-family:inherit;max-height:140px;width:100%">`;
+
+  svg += '<defs>';
+  MORPH_COLORS.forEach((c, i) => {
+    svg += `<marker id="${uid}-ma${i}" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto"><polygon points="0 0,6 2,0 4" fill="${c}"/></marker>`;
+  });
+  svg += '</defs>';
+
+  for (const s of slots) {
+    const y = railY[s];
+    svg += `<line x1="${railX0}" y1="${y}" x2="${railX1}" y2="${y}" stroke="#30363d" stroke-width="1" stroke-dasharray="2,3"/>`;
+    const isObj = objects.some(o => o.name === s);
+    const labelColor = isObj ? objColor(s, objNames) : '#8b949e';
+    const label = s.length > 8 ? s.slice(0, 7) + '\u2026' : s;
+    svg += `<text x="${railX0 - 6}" y="${y + 3}" text-anchor="end" fill="${labelColor}" font-size="9" font-weight="${isObj ? '700' : '400'}">${escHtml(label)}</text>`;
   }
 
-  if (n === 0) return '';
+  morphisms.forEach((m, mi) => {
+    const x = railX0 + morphSpacing * (mi + 1);
+    const domSlot = exprToSlot(m.domain);
+    const codSlot = exprToSlot(m.codomain);
+    const y1 = railY[domSlot];
+    const y2 = railY[codSlot];
+    const color = MORPH_COLORS[mi % MORPH_COLORS.length];
+    const markerId = `${uid}-ma${mi % MORPH_COLORS.length}`;
 
-  // Layout
-  const padding = 60;
-  const nodeR = 22;
-  let W, H;
-  const positions = {};
+    svg += `<g class="wire-morph" data-morph="${escHtml(m.name)}">`;
 
-  if (n === 1) {
-    W = 240; H = 160;
-    positions[nodeList[0]] = { x: W / 2, y: H / 2 };
-  } else if (n === 2) {
-    W = 300; H = 160;
-    positions[nodeList[0]] = { x: padding + nodeR, y: H / 2 };
-    positions[nodeList[1]] = { x: W - padding - nodeR, y: H / 2 };
-  } else if (n <= 4) {
-    W = 300; H = 240;
-    const cols = 2, rows = Math.ceil(n / 2);
-    const gapX = (W - 2 * padding) / (cols - 1 || 1);
-    const gapY = (H - 2 * padding) / (rows - 1 || 1);
-    nodeList.forEach((name, i) => {
-      const col = i % cols, row = Math.floor(i / cols);
-      positions[name] = { x: padding + col * gapX, y: padding + row * gapY };
-    });
-  } else {
-    W = 360; H = 360;
-    const cxc = W / 2, cyc = H / 2;
-    const R = Math.min(W, H) / 2 - padding;
-    nodeList.forEach((name, i) => {
-      const angle = -Math.PI / 2 + (2 * Math.PI * i) / n;
-      positions[name] = { x: cxc + R * Math.cos(angle), y: cyc + R * Math.sin(angle) };
-    });
-  }
-
-  // SVG
-  const uid = 'cd' + timelineCount;
-  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="font-family:inherit">`;
-  svg += `<defs>
-    <marker id="${uid}-arr" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-      <polygon points="0 0, 10 3.5, 0 7" fill="#56d4dd"/>
-    </marker>
-  </defs>`;
-
-  // Count edges per pair for parallel offset
-  const edgeTotal = {};
-  for (const e of edges) {
-    const key = [e.from, e.to].sort().join('|');
-    edgeTotal[key] = (edgeTotal[key] || 0) + 1;
-  }
-  const edgeCur = {};
-
-  for (const e of edges) {
-    const key = [e.from, e.to].sort().join('|');
-    edgeCur[key] = (edgeCur[key] || 0);
-    const idx = edgeCur[key]++;
-    const total = edgeTotal[key];
-    const p1 = positions[e.from];
-    const p2 = positions[e.to];
-    if (!p1 || !p2) continue;
-
-    if (e.from === e.to) {
-      // Self-loop — stagger multiple
-      const x = p1.x, y = p1.y;
-      const la = (-90 + idx * 50) * Math.PI / 180;
-      const c1x = x + 50 * Math.cos(la - 0.5);
-      const c1y = y + 50 * Math.sin(la - 0.5);
-      const c2x = x + 50 * Math.cos(la + 0.5);
-      const c2y = y + 50 * Math.sin(la + 0.5);
-      const sx = x + nodeR * Math.cos(la - 0.4);
-      const sy = y + nodeR * Math.sin(la - 0.4);
-      const ex = x + nodeR * Math.cos(la + 0.4);
-      const ey = y + nodeR * Math.sin(la + 0.4);
-      const lx = x + 38 * Math.cos(la);
-      const ly = y + 38 * Math.sin(la);
-      svg += `<path d="M${sx},${sy} C${c1x},${c1y} ${c2x},${c2y} ${ex},${ey}" stroke="#56d4dd" stroke-width="1.5" fill="none" marker-end="url(#${uid}-arr)" opacity="0.6"/>`;
-      svg += `<text x="${lx}" y="${ly}" text-anchor="middle" fill="#56d4dd" font-size="9" font-style="italic" dominant-baseline="middle">${escHtml(e.name)}</text>`;
+    if (domSlot === codSlot) {
+      const arcW = 10;
+      const arcH = 18;
+      const sx = x - arcW;
+      const ex = x + arcW;
+      svg += `<path class="wire-path" d="M${sx},${y1} C${sx},${y1 - arcH} ${ex},${y1 - arcH} ${ex},${y1}" stroke="${color}" stroke-width="1.5" fill="none" stroke-opacity="0.6" marker-end="url(#${markerId})"/>`;
+      svg += `<text class="wire-label" x="${x}" y="${y1 - arcH - 3}" text-anchor="middle" fill="${color}" font-size="8" fill-opacity="0.8" font-style="italic">${escHtml(m.name)}</text>`;
     } else {
-      const dx = p2.x - p1.x, dy = p2.y - p1.y;
-      const len = Math.sqrt(dx * dx + dy * dy) || 1;
-      const nx = -dy / len, ny = dx / len;
-      const spread = 18;
-      const offset = (idx - (total - 1) / 2) * spread;
-      const mx = (p1.x + p2.x) / 2 + nx * offset;
-      const my = (p1.y + p2.y) / 2 + ny * offset;
-      const shrink = nodeR + 4;
-      const sx = p1.x + (dx / len) * shrink;
-      const sy = p1.y + (dy / len) * shrink;
-      const ex = p2.x - (dx / len) * shrink;
-      const ey = p2.y - (dy / len) * shrink;
-      svg += `<path d="M${sx},${sy} Q${mx},${my} ${ex},${ey}" stroke="#56d4dd" stroke-width="1.5" fill="none" marker-end="url(#${uid}-arr)" opacity="0.6"/>`;
-      const lx = (sx + 2 * mx + ex) / 4;
-      const ly = (sy + 2 * my + ey) / 4 - 5;
-      svg += `<text x="${lx}" y="${ly}" text-anchor="middle" fill="#56d4dd" font-size="9" font-style="italic">${escHtml(e.name)}</text>`;
+      const arrY = y2 > y1 ? y2 - 3 : y2 + 3;
+      svg += `<line class="wire-path" x1="${x}" y1="${y1}" x2="${x}" y2="${arrY}" stroke="${color}" stroke-width="1.5" stroke-opacity="0.6" marker-end="url(#${markerId})"/>`;
+      const ly = (y1 + y2) / 2;
+      svg += `<text class="wire-label" x="${x + 6}" y="${ly + 3}" fill="${color}" font-size="8" fill-opacity="0.8" font-style="italic">${escHtml(m.name)}</text>`;
     }
+
+    svg += `<circle cx="${x}" cy="${y1}" r="2" fill="${color}" opacity="0.8"/>`;
+    svg += '</g>';
+  });
+
+  svg += '</svg>';
+  return `<div class="wiring-wrap">${svg}</div>`;
+}
+
+// ── Multi-object structural SVG ──────────────────────────────────────────────
+
+function renderStructuralSvg(theory, colInfo, objNames) {
+  if (!colInfo) return '';
+
+  const { prefixes, prefixGroups, crossMorphs, internalMorphs } = colInfo;
+  const uid = 'st' + (++wiringCounter);
+
+  const colW = 90;
+  const gapW = 200;
+  const nodeH = 26;
+  const nodeGap = 16;
+  const padT = 24;
+  const padB = 12;
+  const intMorphMargin = 50;
+  const padL = intMorphMargin + 10;
+  const padR = intMorphMargin + 10;
+
+  const maxNodesPerCol = Math.max(...prefixes.map(p => prefixGroups[p].length));
+  const H = padT + maxNodesPerCol * (nodeH + nodeGap) + padB;
+  const W = padL + prefixes.length * colW + (prefixes.length - 1) * gapW + padR;
+
+  const nodePos = {};
+  prefixes.forEach((p, ci) => {
+    const objs = prefixGroups[p];
+    const colX = padL + ci * (colW + gapW);
+    objs.forEach((o, oi) => {
+      const x = colX;
+      const y = padT + oi * (nodeH + nodeGap);
+      nodePos[o.name] = { x, y, cx: x + colW / 2, cy: y + nodeH / 2, right: x + colW, left: x };
+    });
+  });
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="font-family:inherit;max-height:140px;width:100%">`;
+
+  svg += '<defs>';
+  MORPH_COLORS.forEach((c, i) => {
+    svg += `<marker id="${uid}-ma${i}" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto"><polygon points="0 0,7 2.5,0 5" fill="${c}"/></marker>`;
+  });
+  svg += '</defs>';
+
+  prefixes.forEach((p, ci) => {
+    const colX = padL + ci * (colW + gapW) + colW / 2;
+    const label = p === 'A' ? 'Source' : p === 'B' ? 'Target' : p;
+    svg += `<text x="${colX}" y="12" text-anchor="middle" fill="#8b949e" font-size="9" text-transform="uppercase" letter-spacing="1">${escHtml(label)}</text>`;
+  });
+
+  for (const [name, pos] of Object.entries(nodePos)) {
+    const color = objColor(name, objNames);
+    svg += `<rect x="${pos.x}" y="${pos.y}" width="${colW}" height="${nodeH}" rx="6" fill="#1c2333" stroke="${color}" stroke-width="1.5"/>`;
+    const label = name.length > 10 ? name.slice(0, 9) + '\u2026' : name;
+    svg += `<text x="${pos.cx}" y="${pos.cy + 3}" text-anchor="middle" fill="${color}" font-size="10" font-weight="600">${escHtml(label)}</text>`;
   }
 
-  // Draw declared object nodes
-  for (const name of nodeList) {
-    const p = positions[name];
-    svg += `<circle cx="${p.x}" cy="${p.y}" r="${nodeR}" fill="#161b22" stroke="#e6edf3" stroke-width="2"/>`;
-    const label = name.length > 8 ? name.slice(0, 7) + '…' : name;
-    svg += `<text x="${p.x}" y="${p.y + 1}" text-anchor="middle" fill="#e6edf3" font-size="11" font-weight="700" dominant-baseline="middle">${escHtml(label)}</text>`;
-    if (name.length > 8) {
-      svg += `<text x="${p.x}" y="${p.y + nodeR + 12}" text-anchor="middle" fill="#8b949e" font-size="8">${escHtml(name)}</text>`;
+  crossMorphs.forEach((m, mi) => {
+    const domObjs = [...exprObjects(m.domain)];
+    const codObjs = [...exprObjects(m.codomain)];
+    const domName = domObjs[0];
+    const codName = codObjs[0];
+    if (!nodePos[domName] || !nodePos[codName]) return;
+
+    const p1 = nodePos[domName];
+    const p2 = nodePos[codName];
+    const color = MORPH_COLORS[mi % MORPH_COLORS.length];
+
+    const x1 = p1.right;
+    const y1 = p1.cy;
+    const x2 = p2.left;
+    const y2 = p2.cy;
+
+    const spread = 16;
+    const curveOffset = (mi - (crossMorphs.length - 1) / 2) * spread;
+    const mx = (x1 + x2) / 2;
+    const my = (y1 + y2) / 2 + curveOffset;
+
+    const t = crossMorphs.length === 1 ? 0.5 : 0.25 + (mi / (crossMorphs.length - 1)) * 0.5;
+    const lx = (1-t)*(1-t)*x1 + 2*(1-t)*t*mx + t*t*x2;
+    const ly = (1-t)*(1-t)*y1 + 2*(1-t)*t*my + t*t*y2;
+
+    svg += `<g class="wire-morph" data-morph="${escHtml(m.name)}">`;
+    svg += `<path class="wire-path" d="M${x1},${y1} Q${mx},${my} ${x2 - 3},${y2}" stroke="${color}" stroke-width="1.5" fill="none" stroke-opacity="0.7" marker-end="url(#${uid}-ma${mi % MORPH_COLORS.length})"/>`;
+    svg += `<text class="wire-label" x="${lx}" y="${ly - 6}" text-anchor="middle" fill="${color}" font-size="8" font-style="italic" fill-opacity="0.9">${escHtml(m.name)}</text>`;
+    svg += '</g>';
+  });
+
+  for (let ci = 0; ci < prefixes.length; ci++) {
+    const p = prefixes[ci];
+    const morphs = internalMorphs[p] || [];
+    const isLeft = ci === 0;
+    const dir = isLeft ? -1 : 1;
+
+    const selfLoopCount = {};
+    const selfLoopIdx = {};
+    const arcCount = {};
+    const arcIdx = {};
+
+    for (const m of morphs) {
+      const d = [...exprObjects(m.domain)].find(n => nodePos[n]);
+      const c = [...exprObjects(m.codomain)].find(n => nodePos[n]);
+      if (!d || !c) continue;
+      if (d === c) { selfLoopCount[d] = (selfLoopCount[d] || 0) + 1; }
+      else { const key = d + '|' + c; arcCount[key] = (arcCount[key] || 0) + 1; }
     }
+
+    morphs.forEach((m) => {
+      const domObjs = [...exprObjects(m.domain)];
+      const codObjs = [...exprObjects(m.codomain)];
+      const domName = domObjs.find(n => nodePos[n]);
+      const codName = codObjs.find(n => nodePos[n]);
+      if (!domName || !codName || !nodePos[domName] || !nodePos[codName]) return;
+
+      const np1 = nodePos[domName];
+      const np2 = nodePos[codName];
+      const color = '#8b949e';
+
+      if (domName === codName) {
+        const idx = selfLoopIdx[domName] || 0;
+        selfLoopIdx[domName] = idx + 1;
+        const total = selfLoopCount[domName];
+        const arcDepth = 14 + idx * 12;
+
+        const x = isLeft ? np1.left - 6 : np1.right + 6;
+        const ySpread = 8;
+        const yOff = (idx - (total - 1) / 2) * ySpread;
+        const y = np1.cy + yOff;
+
+        svg += `<path d="M${x},${y - 5} C${x + dir * arcDepth},${y - 8} ${x + dir * arcDepth},${y + 8} ${x},${y + 5}" stroke="${color}" stroke-width="1" fill="none" stroke-opacity="0.5"/>`;
+        svg += `<text x="${x + dir * (arcDepth + 4)}" y="${y + 3}" text-anchor="${isLeft ? 'end' : 'start'}" fill="${color}" font-size="7" fill-opacity="0.7">${escHtml(m.name)}</text>`;
+      } else {
+        const key = domName + '|' + codName;
+        const idx = arcIdx[key] || 0;
+        arcIdx[key] = idx + 1;
+        const arcDepth = 14 + idx * 12;
+
+        const x = isLeft ? np1.left - 6 : np1.right + 6;
+        const y1 = np1.cy;
+        const x2 = isLeft ? np2.left - 6 : np2.right + 6;
+        const y2 = np2.cy;
+        const cpx = x + dir * arcDepth;
+        svg += `<path d="M${x},${y1} Q${cpx},${(y1 + y2) / 2} ${x2},${y2}" stroke="${color}" stroke-width="1" fill="none" stroke-opacity="0.5"/>`;
+        svg += `<text x="${cpx + dir * 4}" y="${(y1 + y2) / 2 + 3}" text-anchor="${isLeft ? 'end' : 'start'}" fill="${color}" font-size="7" fill-opacity="0.7">${escHtml(m.name)}</text>`;
+      }
+    });
   }
 
   svg += '</svg>';
+  return `<div class="wiring-wrap">${svg}</div>`;
+}
 
-  // Details panel
-  let details = '<div class="cd-details">';
-  details += `<h4>Doctrine</h4><div style="color:var(--green)">${escHtml(theory.doctrine || '?')}</div>`;
-  details += `<h4>Objects (${objects.length})</h4><ul>`;
+// ── Mini axiom commutative diagram ───────────────────────────────────────────
+
+let axiomCdCounter = 0;
+
+function renderAxiomDiagram(ax) {
+  const uid = 'axcd' + (++axiomCdCounter);
+  const W = 200, H = 80;
+  const pad = 30;
+  const tl = { x: pad, y: pad };
+  const br = { x: W - pad, y: H - pad };
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="font-family:inherit;max-width:200px">`;
+  svg += `<defs>
+    <marker id="${uid}-a1" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#388bfd"/></marker>
+    <marker id="${uid}-a2" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#f778ba"/></marker>
+  </defs>`;
+
+  svg += `<line x1="${tl.x}" y1="${tl.y}" x2="${br.x}" y2="${tl.y}" stroke="#388bfd" stroke-width="1.5" marker-end="url(#${uid}-a1)" opacity="0.8"/>`;
+  svg += `<line x1="${tl.x}" y1="${tl.y}" x2="${tl.x}" y2="${br.y}" stroke="#f778ba" stroke-width="1.5" opacity="0.8"/>`;
+  svg += `<line x1="${tl.x}" y1="${br.y}" x2="${br.x}" y2="${br.y}" stroke="#f778ba" stroke-width="1.5" marker-end="url(#${uid}-a2)" opacity="0.8"/>`;
+
+  const lhsStr = exprToStr(ax.lhs);
+  const rhsStr = exprToStr(ax.rhs);
+  const topLabel = lhsStr.length > 30 ? lhsStr.slice(0, 28) + '\u2026' : lhsStr;
+  const botLabel = rhsStr.length > 30 ? rhsStr.slice(0, 28) + '\u2026' : rhsStr;
+
+  svg += `<text x="${W/2}" y="${tl.y - 6}" text-anchor="middle" fill="#388bfd" font-size="7">${escHtml(topLabel)}</text>`;
+  svg += `<text x="${W/2}" y="${br.y + 12}" text-anchor="middle" fill="#f778ba" font-size="7">${escHtml(botLabel)}</text>`;
+  svg += `<text x="${br.x + 4}" y="${H/2 + 3}" fill="#e6edf3" font-size="9" font-weight="700">=</text>`;
+
+  svg += `<circle cx="${tl.x}" cy="${tl.y}" r="3" fill="#e6edf3"/>`;
+  svg += `<circle cx="${br.x}" cy="${tl.y}" r="3" fill="#e6edf3"/>`;
+  svg += `<circle cx="${tl.x}" cy="${br.y}" r="3" fill="#e6edf3"/>`;
+  svg += `<circle cx="${br.x}" cy="${br.y}" r="3" fill="#e6edf3"/>`;
+
+  svg += '</svg>';
+  return `<div class="axiom-cd">${svg}</div>`;
+}
+
+// ── Main theory view renderer ────────────────────────────────────────────────
+
+function renderTheoryView(theory) {
+  const objects = theory.objects || [];
+  const morphisms = theory.morphisms || [];
+  const axioms = theory.axioms || [];
+  const objNames = objects.map(o => o.name);
+
+  const morphAxioms = classifyAxioms(morphisms, axioms);
+  const summary = deriveSummary(theory);
+  const colInfo = detectColumns(theory);
+
+  let html = '<div class="theory-view">';
+
+  // Banner
+  html += '<div class="theory-banner">';
+  html += `<div class="theory-banner-name">${escHtml(theory.name || 'unnamed')}</div>`;
+  html += `<div class="theory-banner-doctrine">${escHtml(theory.doctrine || '?')}</div>`;
+  if (summary) html += `<div class="theory-banner-summary">${summary}</div>`;
+  html += '<div class="theory-banner-stats">';
+  html += `<div><span>${objects.length}</span> object${objects.length !== 1 ? 's' : ''}</div>`;
+  html += `<div><span>${morphisms.length}</span> morphism${morphisms.length !== 1 ? 's' : ''}</div>`;
+  html += `<div><span>${axioms.length}</span> axiom${axioms.length !== 1 ? 's' : ''}</div>`;
+  html += '</div></div>';
+
+  // Objects bar
+  html += '<div class="objects-bar">';
+  html += '<div class="objects-bar-label">Objects</div>';
   for (const o of objects) {
-    details += `<li>${escHtml(o.name)}${o.description ? ' <span style="color:var(--text-dim)">— ' + escHtml(o.description) + '</span>' : ''}</li>`;
+    const color = objColor(o.name, objNames);
+    html += `<div class="obj-chip" style="color:${color};border-color:${color}">${escHtml(o.name)}`;
+    if (o.description) html += ` <span class="obj-desc">${escHtml(o.description)}</span>`;
+    html += '</div>';
   }
-  details += '</ul>';
-  details += `<h4>Morphisms (${morphisms.length})</h4><ul>`;
-  for (const m of morphisms) {
-    details += `<li>${escHtml(m.name)} <span class="morph-arrow">${exprToStr(m.domain)} → ${exprToStr(m.codomain)}</span></li>`;
-  }
-  details += '</ul>';
-  if (axioms.length > 0) {
-    details += `<h4>Axioms (${axioms.length})</h4><ul>`;
-    for (const a of axioms) {
-      details += `<li>${escHtml(a.name)}: <span style="color:var(--text-dim)">${exprToStr(a.lhs)} = ${exprToStr(a.rhs)}</span></li>`;
-    }
-    details += '</ul>';
-  }
-  details += '</div>';
+  html += '</div>';
 
-  return `<div class="cd-container"><div class="cd-diagram">${svg}</div>${details}</div>`;
+  // Wiring diagram
+  if (colInfo) {
+    html += renderStructuralSvg(theory, colInfo, objNames);
+  } else {
+    html += renderWiringDiagram(theory, objNames);
+  }
+
+  // Morphism signature table
+  html += '<table class="morph-table"><thead><tr>';
+  html += '<th>Morphism</th><th>Signature</th><th>Properties</th>';
+  html += '</tr></thead><tbody>';
+
+  for (const m of morphisms) {
+    const entries = morphAxioms[m.name] || [];
+    const tags = uniqueTags(entries);
+    const morphId = 'morph-' + escHtml(m.name).replace(/\s/g, '-');
+
+    html += `<tr class="morph-row" data-morph="${escHtml(m.name)}" data-morph-id="${morphId}">`;
+    html += `<td class="morph-name">${escHtml(m.name)}</td>`;
+    html += `<td class="morph-sig">${exprToHtml(m.domain, objNames)} <span class="sig-arrow">\u2192</span> ${exprToHtml(m.codomain, objNames)}</td>`;
+    html += '<td class="morph-tags">';
+    for (const t of tags) html += `<span class="morph-tag ${t.tagClass}">${escHtml(t.tag)}</span>`;
+    html += '</td></tr>';
+
+    if (entries.length > 0) {
+      html += `<tr class="axiom-panel" id="${morphId}-axioms"><td colspan="3"><div class="axiom-panel-inner">`;
+      for (const e of entries) {
+        html += '<div class="axiom-item">';
+        html += `<div class="axiom-item-name">${escHtml(e.axiom.name || '?')}</div>`;
+        html += `<div class="axiom-item-eq">${exprToStr(e.axiom.lhs)} <span style="color:var(--accent)">=</span> ${exprToStr(e.axiom.rhs)}</div>`;
+        html += `<div class="axiom-item-diagram">${renderAxiomDiagram(e.axiom)}</div>`;
+        html += '</div>';
+      }
+      html += '</div></td></tr>';
+    }
+  }
+
+  html += '</tbody></table>';
+  html += '</div>';
+
+  return html;
+}
+
+function wireInteractivity(container) {
+  container.querySelectorAll('.morph-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const morphId = row.dataset.morphId;
+      const panel = document.getElementById(morphId + '-axioms');
+      if (!panel) return;
+      const isOpen = panel.classList.contains('open');
+      container.querySelectorAll('.axiom-panel').forEach(p => p.classList.remove('open'));
+      container.querySelectorAll('.morph-row').forEach(r => r.classList.remove('expanded'));
+      if (!isOpen) { panel.classList.add('open'); row.classList.add('expanded'); }
+    });
+  });
+
+  container.querySelectorAll('.wire-morph').forEach(g => {
+    g.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const morphName = g.dataset.morph;
+      const row = container.querySelector(`.morph-row[data-morph="${morphName}"]`);
+      if (!row) return;
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      row.style.background = 'var(--surface2)';
+      row.style.outline = '1px solid var(--accent)';
+      setTimeout(() => { row.style.background = ''; row.style.outline = ''; }, 1500);
+      row.click();
+    });
+    g.addEventListener('mouseenter', () => {
+      const morphName = g.dataset.morph;
+      container.querySelectorAll('.morph-row').forEach(row => {
+        row.classList.toggle('sig-fade', row.dataset.morph !== morphName);
+      });
+      container.querySelectorAll('.wire-morph').forEach(w => {
+        w.classList.toggle('wire-active', w.dataset.morph === morphName);
+      });
+    });
+    g.addEventListener('mouseleave', () => {
+      container.querySelectorAll('.morph-row').forEach(row => row.classList.remove('sig-fade'));
+      container.querySelectorAll('.wire-morph').forEach(w => w.classList.remove('wire-active'));
+    });
+  });
+
+  container.querySelectorAll('.sig-obj').forEach(el => {
+    el.addEventListener('mouseenter', () => {
+      const objName = el.dataset.obj;
+      container.querySelectorAll('.morph-row').forEach(row => {
+        const sigObjs = row.querySelectorAll('.sig-obj');
+        const hasObj = [...sigObjs].some(s => s.dataset.obj === objName);
+        row.classList.toggle('sig-fade', !hasObj);
+      });
+    });
+    el.addEventListener('mouseleave', () => {
+      container.querySelectorAll('.morph-row').forEach(row => row.classList.remove('sig-fade'));
+    });
+  });
 }
 
 function addTimelineStep(theory, label) {
@@ -1459,7 +1918,7 @@ function addTimelineStep(theory, label) {
       <span class="timeline-step-meta">${escHtml(theory.doctrine || '')} \u2022 ${objs} obj \u2022 ${morphs} morph \u2022 ${axioms} ax</span>
     </div>
     <div class="timeline-step-body">
-      ${renderCommutativeDiagram(theory)}
+      ${renderTheoryView(theory)}
     </div>
   `;
 
@@ -1468,6 +1927,7 @@ function addTimelineStep(theory, label) {
   });
 
   timeline.appendChild(step);
+  wireInteractivity(step);
   switchToWorkbench();
 
   // Auto-expand the latest step
@@ -1543,6 +2003,11 @@ async function fetchTheorySummary(name, localTheory, msgId) {
 
     html += '<br><em style="color:var(--text-dim)">Click an operator to apply a reaction to this theory.</em>';
     updateChat(msgId, html);
+
+    // If the CAS returned structured theory data, show it in the workbench
+    if (summaryRes.status === 200 && summaryRes.data.theory) {
+      addTimelineStep(summaryRes.data.theory, name);
+    }
   } catch (e) {
     // Fallback to local data
     if (localTheory) {
@@ -1593,6 +2058,10 @@ async function processUserMessage(text) {
         if (ev.theory) {
           html += renderTheoryCard(ev.theory);
           addTimelineStep(ev.theory, ev.content);
+          updateChat(msgId, html);
+          const msgEl = document.getElementById(msgId);
+          if (msgEl) wireInteractivity(msgEl);
+          return;
         }
         break;
       case 'error':
@@ -1663,18 +2132,7 @@ function formatLLMText(text) {
 }
 
 function renderTheoryCard(theory) {
-  const objs = (theory.objects || []).map(o => o.name).join(', ') || 'none';
-  const morphs = (theory.morphisms || []).map(m => m.name).join(', ') || 'none';
-  const axiomCount = (theory.axioms || []).length;
-  return `
-    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin:8px 0;font-size:12px">
-      <div style="font-weight:700;color:var(--green);margin-bottom:4px">${escHtml(theory.name || 'unnamed')}</div>
-      <div style="color:var(--text-dim)">Doctrine: <span class="code">${escHtml(theory.doctrine || '?')}</span></div>
-      <div style="color:var(--text-dim)">Objects: <span class="code">${escHtml(objs)}</span></div>
-      <div style="color:var(--text-dim)">Morphisms: <span class="code">${escHtml(morphs)}</span></div>
-      <div style="color:var(--text-dim)">Axioms: ${axiomCount}</div>
-    </div>
-  `;
+  return renderTheoryView(theory);
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────

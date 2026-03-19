@@ -46,11 +46,11 @@ export async function getTheorySummary(
   client: CatlabClient,
   theoryName: string,
   timeoutMs = 30_000
-): Promise<ApiResult<{ name: string; summary: string }>> {
+): Promise<ApiResult<{ name: string; summary: string; theory?: TheoryJson }>> {
   if (!theoryName) return err(400, "theory name required");
   try {
     const res = unwrap(await client.request({ command: "summary", theory: theoryName }, timeoutMs));
-    return ok({ name: theoryName, summary: res.summary ?? "" });
+    return ok({ name: theoryName, summary: res.summary ?? "", theory: res.theory });
   } catch (e) {
     return err(500, (e as Error).message);
   }
