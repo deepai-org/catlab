@@ -138,7 +138,7 @@ def internalCategoryCategory (t : Theory) : Theory :=
 
   { name := s!"Cat({t.name})"
     doctrine := t.doctrine
-    objects := intCatObjects
+    objects := t.objects ++ intCatObjects
     morphisms := structureMorphisms ++ internalFunctors
     axioms := unitAxioms }
 

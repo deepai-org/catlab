@@ -59,7 +59,7 @@ def karoubiEnvelope (t : Theory) : Theory :=
 
   { name := s!"Split({t.name})"
     doctrine := t.doctrine
-    objects := trivialObjects ++ endoObjects
+    objects := t.objects ++ trivialObjects ++ endoObjects
     morphisms := t.morphisms ++ splitMorphisms
     axioms := t.axioms ++ factorAxioms ++ retractionAxioms }
 

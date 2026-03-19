@@ -63,9 +63,13 @@ def stabilize (t : Theory) (maxLevel : Nat := 3) : Theory :=
         codomain := gradedAtom baseName (n + 1)
         description := s!"Bonding map σ_{n} : Σ{a.id.name}_{n} → {a.id.name}_{n+1}" : Generator1 }
 
-  -- Suspension maps on spectra: for each morphism f : A → B in the base,
+  -- Suspension maps on spectra: for each morphism f : A → B (atomic endpoints) in the base,
   -- create graded morphisms Sp(f)_n : A_n → B_n at each level
-  let spectrumMorphisms := t.morphisms.flatMap fun f =>
+  let atomicMorphisms := t.morphisms.filter fun f =>
+    match f.domain, f.codomain with
+    | .atom _, .atom _ => true
+    | _, _ => false
+  let spectrumMorphisms := atomicMorphisms.flatMap fun f =>
     let domName := f.domain.toName
     let codName := f.codomain.toName
     let spDom := Name.app (.root "Sp") domName
@@ -104,7 +108,7 @@ def stabilize (t : Theory) (maxLevel : Nat := 3) : Theory :=
       description := s!"Infinite suspension Σ^∞ embedding {a.id.name} at level 0" : Generator1 }
 
   -- Infinite suspension on morphisms: Σ^∞(f) maps to Sp(f)_0
-  let infSuspMorphisms := t.morphisms.map fun f =>
+  let infSuspMorphisms := atomicMorphisms.map fun f =>
     let domName := f.domain.toName
     let codName := f.codomain.toName
     { id := { name := Name.app (.root "Σ∞") f.id.name, kind := .twoCell }
@@ -114,8 +118,8 @@ def stabilize (t : Theory) (maxLevel : Nat := 3) : Theory :=
                          (.atom { name := Name.app (.root "Σ∞") codName, kind := .morphism })
       description := s!"Σ^∞ naturality for {f.id.name}" : Generator2 }
 
-  -- Bonding map naturality: for each f : A → B, σ_n commutes with Sp(f)
-  let bondingNaturality := t.morphisms.flatMap fun f =>
+  -- Bonding map naturality: for each f : A → B (atomic), σ_n commutes with Sp(f)
+  let bondingNaturality := atomicMorphisms.flatMap fun f =>
     let domName := f.domain.toName
     let codName := f.codomain.toName
     let spDom := Name.app (.root "Sp") domName
@@ -132,8 +136,8 @@ def stabilize (t : Theory) (maxLevel : Nat := 3) : Theory :=
 
   { name := s!"Spectra({t.name})"
     doctrine := { doctrine := .StableCategory }
-    objects := spectrumObjects ++ suspensionObjects ++ shiftObjects
-    morphisms := bondingMaps ++ spectrumMorphisms ++ infSuspObjects
-    axioms := shiftAxioms ++ infSuspMorphisms ++ bondingNaturality }
+    objects := t.objects ++ spectrumObjects ++ suspensionObjects ++ shiftObjects
+    morphisms := t.morphisms ++ bondingMaps ++ spectrumMorphisms ++ infSuspObjects
+    axioms := shiftAxioms ++ infSuspMorphisms }
 
 end CatLab

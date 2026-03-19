@@ -67,7 +67,7 @@ def arrowCat (t : Theory) : Theory :=
 
   { name := s!"{t.name}^→"
     doctrine := t.doctrine
-    objects := arrObjects
+    objects := t.objects ++ arrObjects
     morphisms := sourceProj ++ targetProj ++ squares
     axioms := commuteAxioms }
 

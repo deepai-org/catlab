@@ -75,8 +75,10 @@ def nerve (t : Theory) (maxDim : Nat := 3) : Theory :=
             : Generator2 }
 
   -- (2) sᵢ ∘ sⱼ = sⱼ₊₁ ∘ sᵢ for i ≤ j
+  -- Note: degeneracy maps go up to dim maxDim-1, so axioms referencing
+  -- degId i (n+1) require n+1 < maxDim, i.e. n < maxDim-1
   let degAxioms := List.range maxDim |>.flatMap fun n =>
-    if n == 0 then []
+    if n == 0 || n + 1 >= maxDim then []
     else List.range n |>.flatMap fun j =>
       List.range (j + 1) |>.map fun i =>
         { id := gid s!"deg_comm_{i}_{j}^{n}"

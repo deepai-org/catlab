@@ -86,7 +86,7 @@ def moritaEnvelope (t : Theory) : Theory :=
 
   { name := s!"Cauchy({t.name})"
     doctrine := t.doctrine
-    objects := trivialObjects ++ splitObjects
+    objects := t.objects ++ trivialObjects ++ splitObjects
     morphisms := t.morphisms ++ retractions ++ sections
     axioms := t.axioms ++ factorAxioms ++ retractionAxioms ++ idempotenceAxioms }
 

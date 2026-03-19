@@ -57,20 +57,20 @@ def arrowCategory (t : Theory) : Theory :=
 
   -- Source and target projections
   let sourceMaps := t.morphisms.map fun f =>
-    { id := { name := .nested (.app (.root "arr") f.id.name) "src", index := 0, kind := .sort }
+    { id := { name := .nested (.app (.root "arr") f.id.name) "src", index := 0, kind := .morphism }
       domain := .atom { name := .app (.root "arr") f.id.name, index := 0, kind := .sort }
       codomain := f.domain
       description := s!"Source of arrow {f.id.name}" }
 
   let targetMaps := t.morphisms.map fun f =>
-    { id := { name := .nested (.app (.root "arr") f.id.name) "tgt", index := 0, kind := .sort }
+    { id := { name := .nested (.app (.root "arr") f.id.name) "tgt", index := 0, kind := .morphism }
       domain := .atom { name := .app (.root "arr") f.id.name, index := 0, kind := .sort }
       codomain := f.codomain
       description := s!"Target of arrow {f.id.name}" }
 
   { name := s!"Arr({t.name})"
     doctrine := t.doctrine
-    objects := arrObjects
+    objects := t.objects ++ arrObjects
     morphisms := sourceMaps ++ targetMaps
     axioms := [] }
 

@@ -125,8 +125,8 @@ def syntacticCategory (t : Theory) : Theory :=
 
   { name := s!"Syn({t.name})"
     doctrine := { doctrine := .CartesianCategory }
-    objects := contextObjects
-    morphisms := projections ++ weakenings ++ substitutions ++ terminalMaps
+    objects := t.objects ++ contextObjects
+    morphisms := t.morphisms ++ projections ++ weakenings ++ substitutions ++ terminalMaps
     axioms := liftedAxioms ++ projAxioms }
 
 /-- A model of a theory T in a category C is a product-preserving functor

@@ -40,66 +40,57 @@ def center (t : Theory) : Theory :=
 
   -- For each morphism f : A → B in C, create the center morphism
   -- with the compatibility condition
-  let centerMorphisms := t.morphisms.map fun f =>
+  let centerMorphisms := t.morphisms.filter (fun f =>
+    match f.domain, f.codomain with
+    | .atom _, .atom _ => true
+    | _, _ => false
+  ) |>.map fun f =>
     { id := gid s!"Z({f.id.name})"
-      domain := f.domain
-      codomain := f.codomain
+      domain := .atom (gid s!"({f.domain.toName}, σ^{f.domain.toName})")
+      codomain := .atom (gid s!"({f.codomain.toName}, σ^{f.codomain.toName})")
       description := s!"Center lift of {f.id.name}"
         : Generator1 }
 
-  -- Naturality axioms: for each half-braiding σ^A and each morphism g : X → Y,
+  -- Naturality axioms: for each half-braiding σ^A and each morphism g : X → Y (atomic endpoints),
   -- (g ⊗ id_A) ∘ σ^A_X = σ^A_Y ∘ (id_A ⊗ g)
   let naturalityAxioms := t.objects.flatMap fun a =>
-    t.morphisms.map fun g =>
+    (t.morphisms.filter fun g =>
+      match g.domain, g.codomain with
+      | .atom _, .atom _ => true
+      | _, _ => false
+    ).map fun g =>
       { id := gid s!"naturality_σ^{a.id.name}_{g.id.name}"
         leftPath := .comp
-          (.atom (gid s!"σ^{a.id.name}_{g.id.name}"))
+          (.atom (gid s!"σ^{a.id.name}_{g.domain.toName}"))
           (.tensor (.atom g.id) (Expr.id (.atom a.id)))
         rightPath := .comp
           (.tensor (Expr.id (.atom a.id)) (.atom g.id))
-          (.atom (gid s!"σ^{a.id.name}_{g.id.name}"))
+          (.atom (gid s!"σ^{a.id.name}_{g.codomain.toName}"))
         description := s!"Naturality of σ^{a.id.name} at {g.id.name}"
           : Generator2 }
 
   -- Compatibility axioms: for each center morphism Z(f) : A → B,
   -- σ^B_X ∘ (Z(f) ⊗ id_X) = (id_X ⊗ Z(f)) ∘ σ^A_X
-  let compatibilityAxioms := t.morphisms.flatMap fun f =>
+  let compatibilityAxioms := (t.morphisms.filter fun f =>
+    match f.domain, f.codomain with
+    | .atom _, .atom _ => true
+    | _, _ => false
+  ).flatMap fun f =>
     t.objects.map fun x =>
       { id := gid s!"compat_{f.id.name}_{x.id.name}"
         leftPath := .comp
           (.tensor (.atom (gid s!"Z({f.id.name})")) (Expr.id (.atom x.id)))
-          (.atom (gid s!"σ^{f.codomain}_{x.id.name}"))
+          (.atom (gid s!"σ^{f.codomain.toName}_{x.id.name}"))
         rightPath := .comp
-          (.atom (gid s!"σ^{f.domain}_{x.id.name}"))
+          (.atom (gid s!"σ^{f.domain.toName}_{x.id.name}"))
           (.tensor (Expr.id (.atom x.id)) (.atom (gid s!"Z({f.id.name})")))
         description := s!"Compatibility of Z({f.id.name}) with half-braidings at {x.id.name}"
           : Generator2 }
 
-  -- Tensor compatibility axioms: σ^A_{X⊗Y} = (id_X ⊗ σ^A_Y) ∘ (σ^A_X ⊗ id_Y)
-  let tensorCompatAxioms := t.objects.flatMap fun a =>
-    t.objects.flatMap fun x =>
-      t.objects.map fun y =>
-        { id := gid s!"tensor_compat_σ^{a.id.name}_{x.id.name}_{y.id.name}"
-          leftPath := .atom (gid s!"σ^{a.id.name}_{x.id.name}⊗{y.id.name}")
-          rightPath := .comp
-            (.tensor (.atom (gid s!"σ^{a.id.name}_{x.id.name}")) (Expr.id (.atom y.id)))
-            (.tensor (Expr.id (.atom x.id)) (.atom (gid s!"σ^{a.id.name}_{y.id.name}")))
-          description := s!"Tensor compatibility for σ^{a.id.name} at ({x.id.name}, {y.id.name})"
-            : Generator2 }
-
-  -- Braiding on the center: β_{(A,σ^A),(B,σ^B)} = σ^A_B
-  let braidingAxioms := t.objects.flatMap fun a =>
-    t.objects.map fun b =>
-      { id := gid s!"braiding_{a.id.name}_{b.id.name}"
-        leftPath := .atom (gid s!"β_{a.id.name}_{b.id.name}")
-        rightPath := .atom (gid s!"σ^{a.id.name}_{b.id.name}")
-        description := s!"Braiding on Z(C) given by the half-braiding"
-          : Generator2 }
-
   { name := s!"Z({t.name})"
     doctrine := { doctrine := .BraidedMonoidal }
-    objects := centerObjects
-    morphisms := halfBraidings ++ centerMorphisms
-    axioms := naturalityAxioms ++ compatibilityAxioms ++ tensorCompatAxioms ++ braidingAxioms }
+    objects := t.objects ++ centerObjects
+    morphisms := t.morphisms ++ halfBraidings ++ centerMorphisms
+    axioms := naturalityAxioms ++ compatibilityAxioms }
 
 end CatLab
