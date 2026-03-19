@@ -33,6 +33,7 @@
 
 import Catlab.Core.Theory
 import Catlab.Core.Equality
+import Catlab.Core.KnuthBendix
 import Batteries.Data.HashMap
 
 namespace CatLab
@@ -441,23 +442,27 @@ def computeStructuralDiff
           (pax.leftPath == rhsTrans && pax.rightPath == lhsTrans)
         if directlyPresent then none   -- trivially satisfied as a stated axiom
         else
-          -- Slow path: try bounded rewriting (closed axioms only)
-          let oriented := orientAxioms produced.axioms
-          let (lhsNorm, lhsD) := boundedNormalize oriented lhsTrans maxDepth
-          let (rhsNorm, rhsD) := boundedNormalize oriented rhsTrans maxDepth
-          if lhsNorm == rhsNorm then none   -- verified by rewriting
+          -- KB completion: normalize both sides to confluent normal forms.
+          -- If KB succeeds, this is a decision procedure (no false negatives).
+          if KnuthBendix.kbEqual produced.axioms lhsTrans rhsTrans
+          then none   -- verified by KB normalization
           else
-            -- Equational closure fallback: try bidirectional rewriting
-            -- from the normal forms (bounded, with cycle detection)
-            if boundedEquationalCheck produced.axioms lhsNorm rhsNorm 30
-            then none   -- verified by equational closure
+            -- Fallback: try bounded rewriting (in case KB completion failed
+            -- and we're using partial rules that miss some rewrites)
+            let oriented := orientAxioms produced.axioms
+            let (lhsNorm, lhsD) := boundedNormalize oriented lhsTrans maxDepth
+            let (rhsNorm, rhsD) := boundedNormalize oriented rhsTrans maxDepth
+            if lhsNorm == rhsNorm then none
             else
-              let depth := max lhsD rhsD
-              let status : VerificationStatus :=
-                if depth >= maxDepth then .Timeout maxDepth
-                else .Failed s!"LHS→{lhsNorm.toName}, RHS→{rhsNorm.toName}"
-              some { sourceAxiom := ax, lhsReduced := lhsNorm, rhsReduced := rhsNorm,
-                     depthUsed := depth, status }
+              if boundedEquationalCheck produced.axioms lhsNorm rhsNorm 30
+              then none
+              else
+                let depth := max lhsD rhsD
+                let status : VerificationStatus :=
+                  if depth >= maxDepth then .Timeout maxDepth
+                  else .Failed s!"LHS→{lhsNorm.toName}, RHS→{rhsNorm.toName}"
+                some { sourceAxiom := ax, lhsReduced := lhsNorm, rhsReduced := rhsNorm,
+                       depthUsed := depth, status }
 
   -- ── Overall status ────────────────────────────────────────────────────────
   let hasTimeout := axiomViolations.any fun v =>

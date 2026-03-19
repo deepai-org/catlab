@@ -697,9 +697,12 @@ export class SimplificationVerifier implements Verifier {
         `The CAS will verify X ≅ "${this.targetName}" and compare generator counts.`,
       hint:
         `**Strategy for simplification:**\n` +
-        `1. Look for redundant axioms (consequences of other axioms).\n` +
-        `2. Look for derivable morphisms (compositions of existing ones).\n` +
-        `3. Look for objects that can be expressed as products/coproducts.\n` +
+        `1. Look for derivable morphisms that can be expressed as compositions of other generators.\n` +
+        `2. Look for objects that can be expressed as products/coproducts of other objects.\n` +
+        `3. **WARNING:** You generally CANNOT drop axioms, even "redundant" ones. The CAS ` +
+        `verifies axioms via term-rewriting, not equational logic — it cannot derive ` +
+        `right_unit from assoc + left_unit + left_inv, for example. If no morphism or ` +
+        `object can be eliminated, submit the target theory unchanged (minimum = target count).\n` +
         `4. The structural diff must show zero mismatches.`,
       contextJson:
         `## Target Theory: "${this.targetName}"\n\n\`\`\`json\n${target.json}\n\`\`\``,

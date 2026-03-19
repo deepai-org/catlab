@@ -53,6 +53,7 @@ The CAS checks axioms by **normalizing both sides using all axioms as rewrite ru
 3. **Same-shaped morphisms are position-normalized — in YOUR axioms too.** When two morphisms share the same domain/codomain type (e.g. \`mul: R×R→R\` and \`add: R×R→R\`), the CAS normalizes the later one to the earlier one EVERYWHERE — in target axioms AND in your own candidate axioms. If you define \`mul\` after \`add\` with the same type, all uses of \`mul\` in your axioms are silently rewritten to \`add\` before verification. Write axioms using the canonical (earlier) morphism name. This means you cannot add a morphism as a "placeholder" for another structure if it has the same type as an existing one — it will vanish.
 4. **Commutativity cascades.** Adding \`f = swap ∘ f\` causes the normalizer to rewrite \`f\` throughout all axioms. Downstream axioms referencing \`f\` inside \`prod(...)\` expressions will have their normal forms changed. You must restate those axioms using the post-normalization shapes.
 5. **When the CAS diff says "LHS reduced to X, RHS reduced to Y" — take X and Y literally as the axiom you need.** Don't try to mechanically derive them from the target theory's axiom text. The error message IS the axiom; encode it directly.
+6. **Axiom minimization is usually impossible.** The CAS cannot perform multi-step equational derivations with substitution into contexts (the Word Problem). An axiom like \`right_unit\` cannot be derived from \`assoc + left_unit + left_inv\` even though this is a standard theorem — the CAS lacks the equational closure to prove it. If removing an axiom causes a verification failure, add it back. The only reliable way to reduce generator count is eliminating morphisms (expressing one as a composition of others) or objects.
 
 ## Structural Equivalence (\`≅\`) Semantics
 
@@ -130,6 +131,8 @@ Key insight for \`opposite\`: endomorphisms (\`f: A→A\`) are self-dual. \`comp
 **How it transforms:** Each \`comp([e1, e2])\` becomes \`comp([opp(e2), opp(e1)])\`. Each morphism \`f: A→B\` becomes \`f': B→A\`. Apply recursively into \`prod\` arguments: \`prod([opp(e1), opp(e2)])\`.
 
 **To find X such that \`opposite(X) ≅ Target\`:** Take each target axiom, replace morphisms with their domain/codomain-flipped versions, and reverse every \`comp\` list (applying recursively into \`prod\`).
+
+**Note:** \`terminal\` and \`initial\` are preserved (NOT swapped) under \`opposite\`. So \`η: terminal → M\` dualizes to \`ε: M → terminal\` (not \`initial\`).
 
 ## Property Glossary
 
