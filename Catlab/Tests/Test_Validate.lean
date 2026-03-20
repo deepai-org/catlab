@@ -146,7 +146,7 @@ private def smallTheories : List (String × Theory) :=
   let passes := total - failures
   IO.println s!"Validated {total} binary combinations: {passes} pass, {failures} fail"
   if failures > 0 then
-    IO.println s!"  (advisory: {failures} binary operator failures)"
+    throw (IO.userError s!"{failures} binary operator combinations failed (expected 0)")
 
 -- ============================================================
 -- 4. Involution tests: opposite² = id, mirror² = id (structurally)

@@ -110,3 +110,4 @@ import Catlab.Tests.Test_CategoryB
 import Catlab.Tests.Test_CategoryC
 import Catlab.Tests.Test_Properties
 import Catlab.Tests.Test_Validate
+import Catlab.Tests.Test_Fuzz

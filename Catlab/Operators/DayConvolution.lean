@@ -54,6 +54,11 @@ def dayConvolution (ms : MonoidalStructure) (f g : Theory) : Theory :=
     This is the operator that produces "every operation of T₁ commutes
     with every operation of T₂" (the Eckmann-Hilton phenomenon). -/
 def tensorTheories (t1 t2 : Theory) : Theory :=
+  -- Tensor with empty theory is empty (no objects to tensor over)
+  if t1.objects.isEmpty || t2.objects.isEmpty then
+    { name := s!"{t1.name} ⊗ {t2.name}", doctrine := t1.doctrine
+      objects := [], morphisms := [], axioms := [] }
+  else
   let tensorObjects := t1.objects.flatMap fun a =>
     t2.objects.map fun b =>
       { id := { name := .tensor a.id.name b.id.name, index := 0 }
@@ -93,8 +98,20 @@ def tensorTheories (t1 t2 : Theory) : Theory :=
       description := s!"Identity tensored with {g.id.name}" }
 
   -- The key: interchange axioms (Eckmann-Hilton)
-  let interchangeAxioms := t1.morphisms.flatMap fun f =>
-    t2.morphisms.map fun g =>
+  -- For (f⊗id);(id⊗g) to compose, we need cod(f)=base1, dom(g)=base2,
+  -- dom(f)=base1, cod(g)=base2 — i.e., both must be endomorphisms of the base object.
+  let base1 := t1.objects[0]?.map (·.id)
+  let base2 := t2.objects[0]?.map (·.id)
+  let endo1 := t1.morphisms.filter fun f =>
+    match f.domain, f.codomain, base1 with
+    | .atom d, .atom c, some b => d == b && c == b
+    | _, _, _ => false
+  let endo2 := t2.morphisms.filter fun g =>
+    match g.domain, g.codomain, base2 with
+    | .atom d, .atom c, some b => d == b && c == b
+    | _, _, _ => false
+  let interchangeAxioms := endo1.flatMap fun f =>
+    endo2.map fun g =>
       { id := { name := .root s!"interchange_{f.id.name}_{g.id.name}", index := 0 }
         leftPath := .comp (.atom { name := .tensor f.id.name (.root "id"), index := 0 }) (.atom { name := .tensor (.root "id") g.id.name, index := 0 })
         rightPath := .comp (.atom { name := .tensor (.root "id") g.id.name, index := 0 }) (.atom { name := .tensor f.id.name (.root "id"), index := 0 })
@@ -112,10 +129,9 @@ def tensorTheories (t1 t2 : Theory) : Theory :=
       rightPath := ax.rightPath.mapAtoms rewriteExpr2
       description := ax.description }
 
-  { name := s!"{t1.name} ⊗ {t2.name}"
-    doctrine := t1.doctrine  -- inherit from first theory
-    objects := tensorObjects
-    morphisms := t1Morphisms ++ t2Morphisms
-    axioms := t1Axioms ++ t2Axioms ++ interchangeAxioms }
+  (Theory.mk' s!"{t1.name} ⊗ {t2.name}" t1.doctrine
+    tensorObjects
+    (t1Morphisms ++ t2Morphisms)
+    (t1Axioms ++ t2Axioms ++ interchangeAxioms)).dedup
 
 end CatLab

@@ -160,13 +160,18 @@ Every theory produced by every operator must pass all five checks. This is enfor
 | **Monotonicity** | Enriching operators (karoubi, morita, exact, syntactic) don't lose generators | 132 | **132/132** |
 | **Axiom preservation** | Operators that include `t.axioms` don't drop them | 165 | **165/165** |
 | **Non-emptiness** | No operator produces a theory with 0 objects and 0 morphisms | 495 | **495/495** |
+| **Fuzz: all ops × random theories** | 15 operators × 20 random theories (xorshift32 PRNG) | 300 | **300/300** |
+| **Fuzz: operator chains** | Depth 2-3 chains of lightweight ops × 20 random theories | 20 | **20/20** |
+| **Fuzz: binary × random pairs** | product/coproduct/tensor × 15 random theory pairs | 45 | **45/45** |
+| **Fuzz: mixed chains** | Unary + binary depth 2-3 × 15 random theories | 15 | **15/15** |
+| **Fuzz: degenerate inputs** | Empty/point/arrow/loop × all unary + binary ops | 108 | **108/108** |
 | **Category A** | Unary operator smoke tests + shape invariants × 33 theories | ~1000 | all pass |
 | **Category B** | Binary operator smoke tests × theory pairs | ~200 | all pass |
 | **Category C** | Operators with complex inputs (monads, functors, localizations) | ~100 | all pass |
 | **Category D** | Tier 2 combinators × 33×33 pairs; algebraic laws (pushout over ⊥ = coproduct) | ~1200 | all pass |
 | **Properties** | Mathematical laws: mirror involution, tensor commutativity, Morita reflexivity | ~50 | all pass |
 
-**Total: ~4,300 assertions, 0 failures.**
+**Total: ~4,800 assertions, 0 failures.**
 
 ### What the Tests Catch
 
@@ -178,6 +183,7 @@ The test suite is designed to catch specific classes of bugs that arise in categ
 - **Generator loss.** An operator that should enrich a theory (add structure) accidentally drops original objects, morphisms, or axioms. Caught by monotonicity and axiom preservation tests.
 - **Interaction bugs.** `center(opposite(t))` might be valid even though `center(t)` and `opposite(t)` are individually valid — the composition can expose assumptions about expression shapes. Caught by composition chain tests.
 - **Compound domain handling.** Binary operators (product, tensor) must correctly handle morphisms with compound domains like `M × M`. Product uses `Expr.prod` to preserve compound structure (atoms resolve recursively). Tensor filters interchange axioms to endomorphisms of the base object. Both tag component generators with `inl`/`inr` to avoid name collisions when combining theories that share names.
+- **Random theory robustness.** A deterministic fuzzer (xorshift32 PRNG) synthesizes random well-formed theories and feeds them through single operators, depth 2-3 chains, binary combinations, and mixed unary+binary chains. Catches edge cases that curated library theories don't expose: degenerate inputs (empty/single-object), unusual morphism topologies, and deeply nested compound expressions.
 
 ---
 
