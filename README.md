@@ -170,8 +170,12 @@ Every theory produced by every operator must pass all five checks. This is enfor
 | **Category C** | Operators with complex inputs (monads, functors, localizations) | ~100 | all pass |
 | **Category D** | Tier 2 combinators × 33×33 pairs; algebraic laws (pushout over ⊥ = coproduct) | ~1200 | all pass |
 | **Properties** | Mathematical laws: mirror involution, tensor commutativity, Morita reflexivity | ~50 | all pass |
+| **Negative validation** | Malformed theories rejected: duplicate names, undeclared refs, doctrine violations, boundary mismatches | 22 | **22/22** |
+| **TS verifier unit tests** | All 18 Verifier classes: preflight, verify, formatFeedback, validatePayload | 54 | **54/54** |
+| **TS solver unit tests** | GenericSolver state machine: success, refinement, exhaustion, error classification, retries | 9 | **9/9** |
+| **TS client unit tests** | NDJSON protocol: concurrency, timeouts, malformed input, process exit, post-kill | 8 | **8/8** |
 
-**Total: ~4,800 assertions, 0 failures.**
+**Total: ~4,900 assertions, 0 failures.**
 
 ### What the Tests Catch
 
@@ -184,6 +188,8 @@ The test suite is designed to catch specific classes of bugs that arise in categ
 - **Interaction bugs.** `center(opposite(t))` might be valid even though `center(t)` and `opposite(t)` are individually valid — the composition can expose assumptions about expression shapes. Caught by composition chain tests.
 - **Compound domain handling.** Binary operators (product, tensor) must correctly handle morphisms with compound domains like `M × M`. Product uses `Expr.prod` to preserve compound structure (atoms resolve recursively). Tensor filters interchange axioms to endomorphisms of the base object. Both tag component generators with `inl`/`inr` to avoid name collisions when combining theories that share names.
 - **Random theory robustness.** A deterministic fuzzer (xorshift32 PRNG) synthesizes random well-formed theories and feeds them through single operators, depth 2-3 chains, binary combinations, and mixed unary+binary chains. Catches edge cases that curated library theories don't expose: degenerate inputs (empty/single-object), unusual morphism topologies, and deeply nested compound expressions.
+- **Negative validation.** Adversarial theories with duplicate names, dangling references, doctrine violations, and boundary mismatches must be *rejected* by `validate`. Tests verify that error types are correct and that operators propagate (not mask) input errors.
+- **TypeScript unit tests.** The TS orchestrator is tested independently of the Lean CAS using mock clients: all 18 Verifier classes (preflight schemas, CAS result pass-through, error handling, custom feedback/validation), the GenericSolver state machine (success paths, exhaustion, error classification, retries, progress events), and the NDJSON client (concurrent requests, timeouts, malformed input, process lifecycle).
 
 ---
 
@@ -338,7 +344,7 @@ Core/
 Operators/            — 66 categorical construction operators
 Library/              — 33 registered theory instances (+ InfinityCategory)
 Repl/                 — REPL server (Protocol.lean, Server.lean)
-Tests/                — test suite (Categories A–D, InverseProblem)
+Tests/                — test suite (Categories A–D, Validate, Fuzz, Properties, Negative)
 
 studio/               — CatLab Studio web UI
 ts/                   — TypeScript orchestrator (LLM ↔ CAS solver)
