@@ -93,11 +93,13 @@ def computeProduct (a b : Expr) (namePrefix : String := "prod") : LimitResult :=
         rightPath := .var "g",
         description := "∀ f : X → A, g : X → B. π₂ ∘ ⟨f,g⟩ = g" },
       -- ⟨π₁ ∘ h, π₂ ∘ h⟩ = h  (uniqueness / η-law)
+      -- Encodes the pairing applied to the composed projections
       { id := gid s!"{namePrefix}_η" 0 .twoCell,
         quantifiers := [
           { name := "h", domain := some (.var "X"), codomain := some prodObj, kind := .morphism }
         ],
-        leftPath := .atom pair,  -- ⟨π₁ ∘ h, π₂ ∘ h⟩ (implicit from context)
+        leftPath := .app (.app (.atom pair) (.comp (.var "h") (.atom π₁)))
+                         (.comp (.var "h") (.atom π₂)),
         rightPath := .var "h",
         description := "∀ h : X → A×B. ⟨π₁ ∘ h, π₂ ∘ h⟩ = h (uniqueness)" }
     ] }
@@ -142,11 +144,13 @@ def computeCoproduct (a b : Expr) (namePrefix : String := "coprod") : LimitResul
         rightPath := .var "g",
         description := "∀ f : A → Y, g : B → Y. [f,g] ∘ ι₂ = g" },
       -- [h ∘ ι₁, h ∘ ι₂] = h  (uniqueness)
+      -- Encodes the copairing applied to the composed injections
       { id := gid s!"{namePrefix}_η" 0 .twoCell,
         quantifiers := [
           { name := "h", domain := some coprodObj, codomain := some (.var "Y"), kind := .morphism }
         ],
-        leftPath := .atom copair,
+        leftPath := .app (.app (.atom copair) (.comp (.atom ι₁) (.var "h")))
+                         (.comp (.atom ι₂) (.var "h")),
         rightPath := .var "h",
         description := "∀ h : A⊔B → Y. [h ∘ ι₁, h ∘ ι₂] = h (uniqueness)" }
     ] }
@@ -197,7 +201,17 @@ def computePullback (f g : Generator1) (namePrefix : String := "pb") : LimitResu
         ],
         leftPath := .comp (.atom med) (.atom p₂),
         rightPath := .var "h₂",
-        description := "∀ compatible (h₁,h₂). p₂ ∘ med(h₁,h₂) = h₂" }
+        description := "∀ compatible (h₁,h₂). p₂ ∘ med(h₁,h₂) = h₂" },
+      -- Uniqueness: ∀ k : X → P. p₁ ∘ k = h₁ ∧ p₂ ∘ k = h₂ → k = med(h₁,h₂)
+      { id := gid s!"{namePrefix}_unique" 0 .twoCell,
+        quantifiers := [
+          { name := "k", domain := some (.var "X"), codomain := some pbObj, kind := .morphism },
+          { name := "h₁", domain := some (.var "X"), codomain := some f.domain, kind := .morphism },
+          { name := "h₂", domain := some (.var "X"), codomain := some g.domain, kind := .morphism }
+        ],
+        leftPath := .var "k",
+        rightPath := .atom med,
+        description := "∀ k with p₁∘k = h₁, p₂∘k = h₂. k = med(h₁,h₂) (uniqueness)" }
     ] }
 
 -- ============================================================
@@ -245,7 +259,17 @@ def computePushout (f g : Generator1) (namePrefix : String := "po") : LimitResul
         ],
         leftPath := .comp (.atom ι₂) (.atom med),
         rightPath := .var "h₂",
-        description := "∀ compatible (h₁,h₂). med(h₁,h₂) ∘ ι₂ = h₂" }
+        description := "∀ compatible (h₁,h₂). med(h₁,h₂) ∘ ι₂ = h₂" },
+      -- Uniqueness: ∀ k : P → Y. k ∘ ι₁ = h₁ ∧ k ∘ ι₂ = h₂ → k = med(h₁,h₂)
+      { id := gid s!"{namePrefix}_unique" 0 .twoCell,
+        quantifiers := [
+          { name := "k", domain := some poObj, codomain := some (.var "Y"), kind := .morphism },
+          { name := "h₁", domain := some f.codomain, codomain := some (.var "Y"), kind := .morphism },
+          { name := "h₂", domain := some g.codomain, codomain := some (.var "Y"), kind := .morphism }
+        ],
+        leftPath := .var "k",
+        rightPath := .atom med,
+        description := "∀ k with k∘ι₁ = h₁, k∘ι₂ = h₂. k = med(h₁,h₂) (uniqueness)" }
     ] }
 
 -- ============================================================

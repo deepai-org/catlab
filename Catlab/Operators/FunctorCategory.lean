@@ -30,17 +30,25 @@ namespace CatLab
     - Identity: id_F with components id_{F(a)}
     - Composition: (β ∘ α)_a = β_a ∘ α_a (vertical composition) -/
 def functorCategory (source target : Theory) : Theory :=
-  -- The functor category object
-  let funcObj := { id := gid s!"[{source.name},{target.name}]"
-                   description := s!"Functor category [{source.name}, {target.name}]" }
+  -- Three functor-objects representing generic functors F, G, H : C → D
+  let funcF := { id := gid "F", description := s!"Functor F : {source.name} → {target.name}" }
+  let funcG := { id := gid "G", description := s!"Functor G : {source.name} → {target.name}" }
+  let funcH := { id := gid "H", description := s!"Functor H : {source.name} → {target.name}" }
 
-  -- Natural transformation components: for each object a of C,
-  -- a morphism α_a : F(a) → G(a) in D
+  -- Natural transformation components α : F ⟹ G
+  -- For each object a of C, α_a : F(a) → G(a)
   let natTransComponents := source.objects.map fun a =>
     { id := { name := .app (.root "α") a.id.name, index := 0, kind := .morphism }
       domain := .atom { name := .app (.root "F") a.id.name, index := 0, kind := .sort }
       codomain := .atom { name := .app (.root "G") a.id.name, index := 0, kind := .sort }
-      description := s!"Component of natural transformation at {a.id.name}" : Generator1 }
+      description := s!"Component of α : F ⟹ G at {a.id.name}" : Generator1 }
+
+  -- Natural transformation β : G ⟹ H
+  let betaComponents := source.objects.map fun a =>
+    { id := { name := .app (.root "β") a.id.name, index := 0, kind := .morphism }
+      domain := .atom { name := .app (.root "G") a.id.name, index := 0, kind := .sort }
+      codomain := .atom { name := .app (.root "H") a.id.name, index := 0, kind := .sort }
+      description := s!"Component of β : G ⟹ H at {a.id.name}" : Generator1 }
 
   -- Identity natural transformation: id_F with components id_{F(a)}
   let idComponents := source.objects.map fun a =>
@@ -49,24 +57,34 @@ def functorCategory (source target : Theory) : Theory :=
       codomain := .atom { name := .app (.root "F") a.id.name, index := 0, kind := .sort }
       description := s!"Identity nat trans component at {a.id.name}" : Generator1 }
 
-  -- Vertical composition: (β ∘ α)_a = β_a ∘ α_a
+  -- Vertical composition: (β ∘ α)_a : F(a) → H(a)
   let compComponents := source.objects.map fun a =>
     { id := { name := .app (.root "β∘α") a.id.name, index := 0, kind := .morphism }
       domain := .atom { name := .app (.root "F") a.id.name, index := 0, kind := .sort }
       codomain := .atom { name := .app (.root "H") a.id.name, index := 0, kind := .sort }
       description := s!"Vertical composition component at {a.id.name}" : Generator1 }
 
-  -- Naturality squares: for each morphism f : a → b in C,
-  -- G(f) ∘ α_a = α_b ∘ F(f)
+  -- Naturality squares for α: G(f) ∘ α_a = α_b ∘ F(f)
   let naturalityAxioms := source.morphisms.map fun f =>
     let domName := f.domain.toName
     let codName := f.codomain.toName
-    { id := { name := .app (.root "naturality") f.id.name, index := 0, kind := .twoCell }
+    { id := { name := .app (.root "naturality_α") f.id.name, index := 0, kind := .twoCell }
       leftPath := .comp (.atom { name := .app (.root "α") domName, index := 0, kind := .morphism })
                         (.atom { name := .app (.root "G") f.id.name, index := 0, kind := .morphism })
       rightPath := .comp (.atom { name := .app (.root "F") f.id.name, index := 0, kind := .morphism })
                          (.atom { name := .app (.root "α") codName, index := 0, kind := .morphism })
-      description := s!"Naturality: G({f.id.name}) ∘ α = α ∘ F({f.id.name})" : Generator2 }
+      description := s!"Naturality of α: G({f.id.name}) ∘ α = α ∘ F({f.id.name})" : Generator2 }
+
+  -- Naturality squares for β: H(f) ∘ β_a = β_b ∘ G(f)
+  let naturalityBeta := source.morphisms.map fun f =>
+    let domName := f.domain.toName
+    let codName := f.codomain.toName
+    { id := { name := .app (.root "naturality_β") f.id.name, index := 0, kind := .twoCell }
+      leftPath := .comp (.atom { name := .app (.root "β") domName, index := 0, kind := .morphism })
+                        (.atom { name := .app (.root "H") f.id.name, index := 0, kind := .morphism })
+      rightPath := .comp (.atom { name := .app (.root "G") f.id.name, index := 0, kind := .morphism })
+                         (.atom { name := .app (.root "β") codName, index := 0, kind := .morphism })
+      description := s!"Naturality of β: H({f.id.name}) ∘ β = β ∘ G({f.id.name})" : Generator2 }
 
   -- Vertical composition law: (β ∘ α)_a = β_a ∘ α_a
   let compAxioms := source.objects.map fun a =>
@@ -75,7 +93,7 @@ def functorCategory (source target : Theory) : Theory :=
       rightPath := .comp
         (.atom { name := .app (.root "α") a.id.name, index := 0, kind := .morphism })
         (.atom { name := .app (.root "β") a.id.name, index := 0, kind := .morphism })
-      description := s!"Vertical composition: (β∘α)_{a.id.name} = β ∘ α" : Generator2 }
+      description := s!"Vertical composition: (β∘α)_{a.id.name} = β_a ∘ α_a" : Generator2 }
 
   -- Identity law: (id_F)_a = id_{F(a)}
   let idAxioms := source.objects.map fun a =>
@@ -84,11 +102,30 @@ def functorCategory (source target : Theory) : Theory :=
       rightPath := .id (.atom { name := .app (.root "F") a.id.name, index := 0, kind := .sort })
       description := s!"Identity: (id_F)_{a.id.name} = id" : Generator2 }
 
+  -- Left unit law: id_G ∘ α = α (for each component)
+  let leftUnitAxioms := source.objects.map fun a =>
+    { id := { name := .app (.root "left_unit") a.id.name, index := 0, kind := .twoCell }
+      leftPath := .comp
+        (.atom { name := .app (.root "α") a.id.name, index := 0, kind := .morphism })
+        (.id (.atom { name := .app (.root "G") a.id.name, index := 0, kind := .sort }))
+      rightPath := .atom { name := .app (.root "α") a.id.name, index := 0, kind := .morphism }
+      description := s!"Left unit: id_G ∘ α = α at {a.id.name}" : Generator2 }
+
+  -- Right unit law: α ∘ id_F = α (for each component)
+  let rightUnitAxioms := source.objects.map fun a =>
+    { id := { name := .app (.root "right_unit") a.id.name, index := 0, kind := .twoCell }
+      leftPath := .comp
+        (.id (.atom { name := .app (.root "F") a.id.name, index := 0, kind := .sort }))
+        (.atom { name := .app (.root "α") a.id.name, index := 0, kind := .morphism })
+      rightPath := .atom { name := .app (.root "α") a.id.name, index := 0, kind := .morphism }
+      description := s!"Right unit: α ∘ id_F = α at {a.id.name}" : Generator2 }
+
   { name := s!"[{source.name}, {target.name}]"
     doctrine := target.doctrine
-    objects := [funcObj]
-    morphisms := natTransComponents ++ idComponents ++ compComponents
-    axioms := naturalityAxioms ++ compAxioms ++ idAxioms }
+    objects := [funcF, funcG, funcH]
+    morphisms := natTransComponents ++ betaComponents ++ idComponents ++ compComponents
+    axioms := naturalityAxioms ++ naturalityBeta ++ compAxioms ++ idAxioms
+              ++ leftUnitAxioms ++ rightUnitAxioms }
 
 /-- The evaluation functor ev : [C, D] × C → D
     sending (F, a) ↦ F(a). -/

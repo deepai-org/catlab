@@ -75,9 +75,9 @@ open CatLab CatLab.Tests CatLab.Library
   let f : Generator1 := { id := gid "f" 0 .morphism, domain := .atom (gid "A"), codomain := .atom (gid "C") }
   let g : Generator1 := { id := gid "g" 0 .morphism, domain := .atom (gid "B"), codomain := .atom (gid "C") }
   let pb := computePullback f g
-  -- 1 object, 3 morphisms (p₁, p₂, med), 3 axioms (comm, univ₁, univ₂)
+  -- 1 object, 3 morphisms (p₁, p₂, med), 4 axioms (comm, univ₁, univ₂, unique)
   assertEq "pullback.morphisms" pb.morphisms.length 3
-  assertEq "pullback.axioms" pb.axioms.length 3
+  assertEq "pullback.axioms" pb.axioms.length 4
   -- Commutativity axiom has no quantifiers (it's concrete)
   let comm := pb.axioms[0]!
   assertEq "comm has no quantifiers" comm.quantifiers.length 0
@@ -95,7 +95,7 @@ open CatLab CatLab.Tests CatLab.Library
   let g : Generator1 := { id := gid "g" 0 .morphism, domain := .atom (gid "C"), codomain := .atom (gid "B") }
   let po := computePushout f g
   assertEq "pushout.morphisms" po.morphisms.length 3
-  assertEq "pushout.axioms" po.axioms.length 3
+  assertEq "pushout.axioms" po.axioms.length 4
 
 -- ============================================================
 -- 5. Equalizer and coequalizer
@@ -180,7 +180,7 @@ open CatLab CatLab.Tests CatLab.Library
   -- At minimum, the pullback object and projections should be present
   assertEq "withPb.objects" withPb.objects.length 4
   assertEq "withPb.morphisms" withPb.morphisms.length 5
-  assertEq "withPb.axioms" withPb.axioms.length 3
+  assertEq "withPb.axioms" withPb.axioms.length 4
 
 -- ============================================================
 -- 9. Product/coproduct duality: structure mirrors correctly

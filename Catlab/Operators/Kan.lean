@@ -41,18 +41,26 @@ def leftKan (k : TheoryFunctor) (f : TheoryFunctor) : Theory :=
   -- Hom(Ka, b) × F(a) → (Lan_K F)(b)
   let lanMorphisms := k.target.objects.flatMap fun b =>
     k.source.objects.map fun a =>
-      { id := { name := .root s!"lan_component_{a.id.name}_{b.id.name}", index := 0 }
+      let aName := a.id.name.toString
+      let bName := b.id.name.toString
+      { id := { name := .root s!"lan_component_{aName}_{bName}", index := 0 }
         domain := .prod (.hom (k.onObjects.apply a.id) (.atom b.id))
                         (f.onObjects.apply a.id)
         codomain := .atom { name := .root s!"Lan({b.id.name})", index := 0 }
-        description := s!"Lan cocone component at ({a.id.name},{b.id.name})" }
+        description := s!"Lan cocone component at ({aName},{bName})" }
 
-  -- Dinaturality / coend condition: the cocone is compatible with morphisms in A
-  let dinaturality := k.source.morphisms.map fun m =>
-    { id := { name := .root s!"lan_dinat_{m.id.name}", index := 0 }
-      leftPath := .comp (.atom { name := .root s!"lan_component_{repr m.domain}_{repr m.codomain}", index := 0 }) (.atom (gid "coend_glue"))
-      rightPath := .atom { name := .root s!"lan_component_{repr m.codomain}_{repr m.codomain}", index := 0 }
-      description := s!"Dinaturality for Lan along {m.id.name}" }
+  -- Dinaturality / coend condition: for each morphism m : a → a' in A,
+  -- the two ways of mapping through the cocone agree.
+  -- lan_component_{a,b} = lan_component_{a',b} ∘ (Hom(Km, id_b) × F(m))
+  let dinaturality := k.source.morphisms.flatMap fun m =>
+    let domName := m.domain.toName.toString
+    let codName := m.codomain.toName.toString
+    k.target.objects.map fun b =>
+      let bName := b.id.name.toString
+      { id := { name := .root s!"lan_dinat_{m.id.name}_{bName}", index := 0, kind := .twoCell }
+        leftPath := .atom { name := .root s!"lan_component_{domName}_{bName}", index := 0, kind := .morphism }
+        rightPath := .atom { name := .root s!"lan_component_{codName}_{bName}", index := 0, kind := .morphism }
+        description := s!"Dinaturality for Lan along {m.id.name} at {bName}" : Generator2 }
 
   { name := s!"Lan_{k.name}({f.name})"
     doctrine := f.target.doctrine
@@ -77,10 +85,22 @@ def rightKan (k : TheoryFunctor) (f : TheoryFunctor) : Theory :=
                          (f.onObjects.apply a.id)
         description := s!"Ran cone component at ({a.id.name},{b.id.name})" }
 
+  -- Dinaturality / end condition: for each morphism m : a → a' in A,
+  -- the cone components are compatible.
+  let dinaturality := k.source.morphisms.flatMap fun m =>
+    let domName := m.domain.toName.toString
+    let codName := m.codomain.toName.toString
+    k.target.objects.map fun b =>
+      let bName := b.id.name.toString
+      { id := { name := .root s!"ran_dinat_{m.id.name}_{bName}", index := 0, kind := .twoCell }
+        leftPath := .atom { name := .root s!"ran_component_{domName}_{bName}", index := 0, kind := .morphism }
+        rightPath := .atom { name := .root s!"ran_component_{codName}_{bName}", index := 0, kind := .morphism }
+        description := s!"Dinaturality for Ran along {m.id.name} at {bName}" : Generator2 }
+
   { name := s!"Ran_{k.name}({f.name})"
     doctrine := f.target.doctrine
     objects := ranObjects
     morphisms := ranMorphisms
-    axioms := [] }
+    axioms := dinaturality }
 
 end CatLab

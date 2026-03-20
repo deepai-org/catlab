@@ -38,24 +38,28 @@ def decategorify (t : Theory) (strategy : DecatStrategy := .isoClasses) : Theory
   match strategy with
   | .isoClasses =>
     -- Objects become elements of a set (0-generators of the decategorified theory)
-    let objNames := t.objects.map (·.id.name)
+    let objNameSet := t.objects.map (·.id.name)
+    let morNameSet := t.morphisms.map (·.id.name)
     let decat0 := t.objects.map fun a =>
       { id := gid s!"[{a.id.name}]"
         description := s!"Isomorphism class of {a.id.name}" }
-    -- Only keep axioms whose atoms all refer to objects (not morphisms)
-    -- since morphisms are collapsed away. Use a prebuilt index for O(1)
-    -- per-atom lookup instead of O(N) per-atom linear scan.
+    -- Build renaming: object atoms X ↦ [X]
+    let objRenaming : List (Name × Name) := t.objects.map fun a =>
+      (a.id.name, .root s!"[{a.id.name}]")
+    -- Keep axioms that only reference objects (not morphisms).
+    -- Translate object references through the renaming.
     let genIdx := t.generatorIndex
     let decatAxioms := t.axioms.filterMap fun ax =>
-      let atomIds := ax.leftPath.atomIds ++ ax.rightPath.atomIds
-      -- Skip axioms that reference any generators (morphisms or raw objects)
-      -- since the decat theory renames objects to [X] and drops morphisms
-      if atomIds.isEmpty then
+      let allAtomNames := ax.leftPath.atoms ++ ax.rightPath.atoms
+      -- Check that every atom is either an object or not a known generator
+      -- (variables, structural exprs like .unit/.terminal are fine)
+      let refsMorphism := allAtomNames.any fun n => morNameSet.any (· == n)
+      if refsMorphism then none
+      else
         some { id := gid s!"decat_{ax.id.name}"
-               leftPath := ax.leftPath
-               rightPath := ax.rightPath
+               leftPath := ax.leftPath.applyNameMap objRenaming
+               rightPath := ax.rightPath.applyNameMap objRenaming
                description := s!"Decategorified: {ax.description}" }
-      else none
     { name := s!"Decat({t.name})"
       doctrine := { doctrine := .Category }
       objects := decat0
@@ -72,12 +76,33 @@ def decategorify (t : Theory) (strategy : DecatStrategy := .isoClasses) : Theory
         domain := .terminal
         codomain := .atom (gid s!"K₀({t.name})")
         description := s!"K₀ class of {a.id.name}" }
-    -- Additivity: [A ⊕ B] = [A] + [B] for each coproduct
+    -- Additivity: [A ⊕ B] = [A] + [B] for coproduct-typed morphisms
+    -- Scan morphisms for those with coproduct domains/codomains
+    let additivityAxioms := t.morphisms.filterMap fun m =>
+      match m.domain with
+      | .coprod a b =>
+        let aName := a.toName.toString
+        let bName := b.toName.toString
+        let coprodName := s!"{aName}⊔{bName}"
+        some { id := gid s!"K₀_add_{m.id.name}"
+               leftPath := .atom (gid s!"[{coprodName}]")
+               rightPath := .coprod (.atom (gid s!"[{aName}]")) (.atom (gid s!"[{bName}]"))
+               description := s!"Additivity: [{coprodName}] = [{aName}] + [{bName}]" : Generator2 }
+      | _ => match m.codomain with
+        | .coprod a b =>
+          let aName := a.toName.toString
+          let bName := b.toName.toString
+          let coprodName := s!"{aName}⊔{bName}"
+          some { id := gid s!"K₀_add_{m.id.name}"
+                 leftPath := .atom (gid s!"[{coprodName}]")
+                 rightPath := .coprod (.atom (gid s!"[{aName}]")) (.atom (gid s!"[{bName}]"))
+                 description := s!"Additivity: [{coprodName}] = [{aName}] + [{bName}]" : Generator2 }
+        | _ => none
     { name := s!"K₀({t.name})"
       doctrine := { doctrine := .LawvereTheory }
       objects := [k0obj]
       morphisms := generators
-      axioms := [] }
+      axioms := additivityAxioms }
 
   | .eulerCharacteristic =>
     -- χ: alternating sum of dimensions in a chain complex
@@ -87,11 +112,20 @@ def decategorify (t : Theory) (strategy : DecatStrategy := .isoClasses) : Theory
                     domain := .atom (gid t.name)
                     codomain := .atom (gid s!"χ({t.name})")
                     description := "Euler characteristic map" }
+    -- Additivity: χ(A ⊕ B) = χ(A) + χ(B)
+    let chiAdditivity := t.morphisms.filterMap fun m =>
+      match m.domain with
+      | .coprod a b =>
+        some { id := gid s!"χ_add_{m.id.name}"
+               leftPath := .app (.atom (gid "χ")) (.coprod a b)
+               rightPath := .coprod (.app (.atom (gid "χ")) a) (.app (.atom (gid "χ")) b)
+               description := s!"Additivity: χ(A ⊕ B) = χ(A) + χ(B)" : Generator2 }
+      | _ => none
     { name := s!"χ({t.name})"
       doctrine := { doctrine := .Category }
       objects := [chiObj]
       morphisms := [chiMap]
-      axioms := [] }
+      axioms := chiAdditivity }
 
 /-- Check if a proposed categorification is valid:
     does its decategorification match the target?

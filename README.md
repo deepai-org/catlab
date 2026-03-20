@@ -21,10 +21,10 @@ The algebraic operations on theories:
 - `quotientCategory` — derived as `pushout` along an inclusion
 
 **Tier 3 — Categorical Constructors**
-Derived semantics: `FunctorCategory`, `Model`, `Limits`/`Colimits`, `Comma`, `Slice`, `Grothendieck`, `Decategorify`.
+Derived semantics with structural content: `FunctorCategory` (three functor-objects F/G/H, naturality squares for α and β, vertical composition, left/right unit laws), `Comma` (comma morphisms, commutativity squares), `Grothendieck` (projection functors, naturality axioms, identity morphisms, identity laws), `Limits`/`Colimits` (full universal properties: existence + uniqueness axioms, proper η-laws encoding `⟨π₁ ∘ h, π₂ ∘ h⟩`), `Slice`, `Model`, `Decategorify` (isoClasses with axiom translation, K₀ with additivity, Euler characteristic with additivity).
 
 **Tier 4 — Advanced Applications**
-Specialized constructions: `Dialectica`, `TriposToTopos`, `Realizability`, `MacNeille`, `Skolem`, and 50+ others.
+Specialized constructions: `Dialectica`, `TriposToTopos`, `Realizability`, `MacNeille`, `Skolem`, `Truncate` (higher-categorical truncation), and 50+ others.
 
 ### Theory Morphisms
 
@@ -131,6 +131,8 @@ evaluateAll (target := TheoryOfCommutativeMonoid)
 **Higher Structures (strictified presentations):** ElementaryTopos, InfinityTopos, HoTT, CohesiveHoTT, CubicalTypeTheory, InfinityCategory, InfinityTwoCategory, Multicategory, SymmetricOperad, CategoriesWithAttributes
 
 > **Caveat on higher-categorical theories.** The ∞-category, HoTT, and cubical type theory entries are *strictified 1-categorical presentations* of the syntactic structure — they encode the generators and equations of the type theory's signature, not the semantic ∞-topos or its homotopy-coherent structure. True ∞-categories require higher morphisms (homotopies, homotopies between homotopies, etc.) and homotopy-coherent limits/colimits, which cannot be faithfully represented in a strict 1-categorical AST with equations. A "pushout" computed by CatLab's colimit engine is a strict 1-categorical colimit, not a homotopy pushout. These theories are useful for reasoning about the *presentation* of type theories (e.g., which generators and axiom schemas a type theory declares) but should not be mistaken for implementations of the semantic higher-categorical structures they describe.
+>
+> **Truncation support.** Higher theories carry a `truncationLevel` in their `DoctrineContext` (e.g., `some 2` for (∞,2)-Category). The `truncate n` operator explicitly reduces a higher theory to level n by keeping k-cells for k ≤ n and filtering morphisms/axioms that reference removed cells. This makes the relationship between higher and lower theories computationally explicit.
 
 ---
 
@@ -157,8 +159,8 @@ Every theory produced by every operator must pass all five checks. This is enfor
 | **Library validation** | All 33 library theories pass `validate` | 33 | **33/33** |
 | **Unary operators × theories** | 15 operators × 33 theories | 495 | **495/495** |
 | **Binary operators × theory pairs** | product, coproduct, tensor × 6×6 pairs | 108 | **108/108** |
-| **Involution: opposite²** | `opposite(opposite(t))` preserves object/morphism/axiom counts | 33 | **33/33** |
-| **Involution: mirror²** | `mirror(mirror(t))` preserves counts | 33 | **33/33** |
+| **Involution: opposite²** | `opposite(opposite(t))` structurally isomorphic to original (name-map verified) | 33 | **33/33** |
+| **Involution: mirror²** | `mirror(mirror(t))` structurally isomorphic to original (shape-equivalent) | 33 | **33/33** |
 | **Involution validation** | `opposite²(t)` and `mirror²(t)` pass `validate` | 66 | **66/66** |
 | **Composition chains** | 10 two-deep operator compositions × 3 theories | 30 | **30/30** |
 | **Idempotency** | `op(op(t))` has no duplicate names (karoubi, morita, stabilize, exact, family) | 5 | **5/5** |
@@ -184,10 +186,13 @@ Every theory produced by every operator must pass all five checks. This is enfor
 | **Expr JSON roundtrip** | All Expr constructors survive `exprToJson` → `exprFromJson` → `exprToJson` | 14 | **14/14** |
 | **TheoryMorphism laws** | Identity, composition, self-inclusion, signatureMatch reflexivity | ~70 | all pass |
 | **TS integration** | Wire protocol: TheoryJson shapes, ExprJson types, VerificationResult format, concurrent requests, error responses | 10 | **10/10** |
-| **Functoriality** | opposite/mirror commute with product/coproduct/tensor; mirror swaps product↔coproduct; commutativity of binary ops | ~60 | all pass |
+| **Functoriality (structural)** | opposite/mirror structural involutions verified via name-map and shape-equivalence; mirror swaps product↔coproduct at expression level; commutativity of binary ops | ~60 | all pass |
+| **Limits/Colimits** | Product/coproduct/pullback/pushout/equalizer/coequalizer/general limit/colimit: morphism counts, axiom counts (including uniqueness), quantifier presence, η-law encoding, domain/codomain correctness, duality | 36 | **36/36** |
+| **Coherence** | Naturality axiom presence in functor categories, monoidal coherence (pentagon/triangle/hexagon), isomorphism axioms, quantifier usage | 16 | **16/16** |
+| **Higher-categorical** | Truncation metadata, strictified flags, truncation validity, cell count reduction, doctrine preservation, isHigherCategorical classification | 27 | **27/27** |
 | **Mutation testing** | 7 mutant operators (broken opposite, mirror, drop axioms/morphisms, duplicate names) all caught by existing checks | ~40 | all pass |
 
-**Total: ~5,200 assertions, 0 failures.**
+**Total: ~5,314 assertions, 0 failures.**
 
 ### What the Tests Catch
 
@@ -198,10 +203,29 @@ The test suite is designed to catch specific classes of bugs that arise in categ
 - **Duplicate names under iteration.** Applying `karoubi(karoubi(t))` — the second application re-derives generators that already exist from the first. Caught by the idempotency test.
 - **Generator loss.** An operator that should enrich a theory (add structure) accidentally drops original objects, morphisms, or axioms. Caught by monotonicity and axiom preservation tests.
 - **Interaction bugs.** `center(opposite(t))` might be valid even though `center(t)` and `opposite(t)` are individually valid — the composition can expose assumptions about expression shapes. Caught by composition chain tests.
+- **Structural involution failures.** Involution tests go beyond count preservation: `opposite²(t)` is verified structurally isomorphic to `t` via explicit name mappings (`Theory.structuralMatch`), and `mirror²(t)` via shape-equivalence (name-erased multiset comparison of morphism/axiom shapes). This catches bugs where counts match but expression structure diverges.
+- **Missing universal properties.** Limit/colimit operators are tested for complete universal property structure: correct morphism counts (projections + mediating), quantified axiom schemas with proper variable domains, and duality between limits and colimits.
+- **Coherence violations.** The coherence checker verifies that functor categories have naturality axioms, monoidal categories satisfy pentagon/triangle/hexagon identities, and isomorphism axioms come in inverse pairs.
 - **Compound domain handling.** Binary operators (product, tensor) must correctly handle morphisms with compound domains like `M × M`. Product uses `Expr.prod` to preserve compound structure (atoms resolve recursively). Tensor filters interchange axioms to endomorphisms of the base object. Both tag component generators with `inl`/`inr` to avoid name collisions when combining theories that share names.
 - **Random theory robustness.** A deterministic fuzzer (xorshift32 PRNG) synthesizes random well-formed theories and feeds them through single operators, depth 2-3 chains, binary combinations, and mixed unary+binary chains. Catches edge cases that curated library theories don't expose: degenerate inputs (empty/single-object), unusual morphism topologies, and deeply nested compound expressions.
 - **Negative validation.** Adversarial theories with duplicate names, dangling references, doctrine violations, and boundary mismatches must be *rejected* by `validate`. Tests verify that error types are correct and that operators propagate (not mask) input errors.
 - **TypeScript unit tests.** The TS orchestrator is tested independently of the Lean CAS using mock clients: all 18 Verifier classes (preflight schemas, CAS result pass-through, error handling, custom feedback/validation), the GenericSolver state machine (success paths, exhaustion, error classification, retries, progress events), and the NDJSON client (concurrent requests, timeouts, malformed input, process lifecycle).
+
+### Mathematical Completeness
+
+The following operators encode their full mathematical content (not just generator shapes):
+
+- **Limits/Colimits.** Products and coproducts have properly encoded η-laws (`⟨π₁ ∘ h, π₂ ∘ h⟩ = h` via `Expr.app`, not a bare atom). Pullbacks and pushouts include uniqueness axioms alongside existence, giving full universal properties.
+- **FunctorCategory.** Three functor-objects (F, G, H) with explicit natural transformations α : F ⟹ G and β : G ⟹ H, naturality squares for both, vertical composition law, identity law, and left/right unit laws.
+- **Grothendieck.** Identity morphisms for total objects and identity law axioms ensuring the projection functor preserves identities.
+- **ElementaryTopos.** Exponential β/η-rules (quantified over morphisms), product β-laws, characteristic map source axiom. The subobject classifier's classifying square is axiomatized.
+- **Yoneda.** Representable presheaves carry functoriality axioms (`id* = id`, `(g ∘ f)* = f* ∘ g*`). The presheaf category doctrine is honestly reported as `Category` rather than overclaiming `GrothendieckTopos`.
+- **Kan extensions.** Both left and right Kan extensions have dinaturality axioms (coend/end conditions). Left Kan no longer references undeclared generators.
+- **Decategorify.** The `isoClasses` strategy translates object-referencing axioms through the `[X]` renaming rather than dropping them. The `grothendieckGroup` strategy emits additivity axioms `[A ⊔ B] = [A] + [B]` when coproduct structure is present. The `eulerCharacteristic` strategy has `χ(A ⊕ B) = χ(A) + χ(B)`.
+- **Morita.** Equivalence checking uses structural isomorphism of Cauchy completions (not just signature comparison). Presheaf equivalence data includes unit/counit axioms.
+- **Alpha-equivalence.** Bijective mapping tracking — the checker records and enforces consistency of the name bijection, preventing false positives from unmapped atoms.
+- **Theory isomorphism.** Permutation search for theories with ≤ 6 objects; degree-based heuristic for larger theories. Replaces the previous identity-only check.
+- **`preservesTyping`.** Actually verifies that mapped morphisms have the expected domain/codomain in the target theory.
 
 ---
 
@@ -221,6 +245,33 @@ echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
 # Build the Lean REPL (first time only)
 cd .. && lake build catlab-repl && cd ts
 ```
+
+### Running Tests
+
+**Lean tests** (runs all `#eval` test blocks during build):
+
+```bash
+lake build
+```
+
+**TypeScript unit tests** (no Lean or API key needed):
+
+```bash
+cd ts
+npx tsx test/verifiers.test.ts   # 54 verifier tests
+npx tsx test/solver.test.ts      # 9 solver tests (needs @anthropic-ai/sdk installed)
+npx tsx test/client.test.ts      # 8 NDJSON client tests
+npm run test:unit                # all unit tests
+```
+
+**TypeScript integration tests** (requires Lean REPL built):
+
+```bash
+lake build catlab-repl           # build REPL first
+cd ts && npx tsx test/integration.test.ts
+```
+
+> **Note:** The solver test for `AuthenticationError` propagation imports `@anthropic-ai/sdk` at the module level. No API key is needed — only the SDK package must be installed (`npm install`). The `.env` file with `ANTHROPIC_API_KEY` is only required for actually running the solver against Claude.
 
 ### Problem Types (18 total)
 
@@ -345,7 +396,8 @@ Core/
   Expr.lean           — categorical AST (Expr, Name, GeneratorId)
   Doctrine.lean       — doctrine hierarchy (Category → Topos → ...)
   Theory.lean         — Theory, GeneratorMap, first-class functors
-  Equality.lean       — TheoryMorphism with id, comp, inclusion
+  Equality.lean       — TheoryMorphism with id, comp, inclusion; bijective alpha-equivalence; permutation-based isomorphism checking
+  Coherence.lean      — naturality checking, monoidal coherence, isomorphism axioms
   Primitives.lean     — initialTheory (⊥), terminalTheory (⊤)
   Validate.lean       — well-formedness checking, categorical typechecker
   InverseProblem.lean — VerificationResult, computeStructuralDiff, solveInverse
@@ -353,10 +405,11 @@ Core/
   PrettyPrint.lean    — pretty-printing for theories and expressions
   Pipeline.lean       — operator pipeline execution
 
-Operators/            — 66 categorical construction operators
-Library/              — 33 registered theory instances (+ InfinityCategory)
+Operators/            — 68 categorical construction operators (incl. Truncate)
+Library/              — 33 registered theory instances (+ InfinityCategory, InfinityTwoCategory)
 Repl/                 — REPL server (Protocol.lean, Server.lean)
-Tests/                — test suite (Categories A–D, Validate, Fuzz, Properties, Negative)
+Tests/                — test suite (Categories A–D, Validate, Fuzz, Properties, Negative,
+                        Functorial, Mutation, Limits, Coherence, Higher, Roundtrip)
 
 studio/               — CatLab Studio web UI
 ts/                   — TypeScript orchestrator (LLM ↔ CAS solver)

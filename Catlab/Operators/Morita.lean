@@ -12,6 +12,7 @@
 
 import Catlab.Core.Theory
 import Catlab.Core.Equality
+import Catlab.Core.Validate
 
 namespace CatLab
 
@@ -96,27 +97,40 @@ instance : BEq CompletedSignature where
              a.arities.length == b.arities.length &&
              (a.arities.zip b.arities |>.all fun ((d1, c1), (d2, c2)) => d1 == d2 && c1 == c2)
 
-/-- Compute the signature of a completed theory for comparison. -/
+/-- Compute the signature of a completed theory for comparison.
+    Includes morphism graph structure: sorted list of (out-degree, in-degree)
+    per object, providing a finer invariant than just counts. -/
 private def completedSignature (t : Theory) : CompletedSignature :=
   let arities := t.morphisms.map fun m => (m.domain.toName, m.codomain.toName)
   let sortedArities := arities.mergeSort (fun a b =>
     toString a.1 ++ toString a.2 < toString b.1 ++ toString b.2)
+  -- Compute per-object degree profile
+  let degreeProfile := t.objects.map fun o =>
+    let outDeg := t.morphisms.filter (fun m => m.domain.toName == o.id.name) |>.length
+    let inDeg := t.morphisms.filter (fun m => m.codomain.toName == o.id.name) |>.length
+    (outDeg, inDeg)
+  let sortedDegrees := degreeProfile.mergeSort (fun a b =>
+    a.1 < b.1 || (a.1 == b.1 && a.2 < b.2))
   { numObjects := t.objects.length
     numMorphisms := t.morphisms.length
     numAxioms := t.axioms.length
-    arities := sortedArities }
+    arities := sortedArities ++ sortedDegrees.map (fun (o, i) => (.root s!"{o}", .root s!"{i}")) }
 
 /-- Check if two theories are Morita equivalent.
 
     Two theories T₁ and T₂ are Morita equivalent iff their Cauchy completions
-    (Morita envelopes) are equivalent categories. We check this by comparing
-    the signatures of the completed theories. -/
+    (Morita envelopes) are equivalent categories. We first do a quick signature
+    comparison, then attempt a deeper structural isomorphism check. -/
 def areMoritaEquivalent (t1 t2 : Theory) : Bool :=
   let env1 := moritaEnvelope t1
   let env2 := moritaEnvelope t2
   let sig1 := completedSignature env1
   let sig2 := completedSignature env2
-  sig1 == sig2
+  -- Quick filter: signatures must match
+  if !(sig1 == sig2) then false
+  else
+    -- Deeper check: attempt structural isomorphism of Cauchy completions
+    env1.isIsomorphic env2
 
 /-- Equivalence data between presheaf categories.
     When T₁ and T₂ are Morita equivalent, PSh(T₁) ≃ PSh(T₂). -/
@@ -150,18 +164,33 @@ def presheafEquivalence (t1 t2 : Theory) : PresheafEquivalenceData :=
   let fwdObj : Generator0 :=
     { id := gid s!"PSh({t1.name})→PSh({t2.name})"
       description := "Forward equivalence functor" }
+  -- Unit axioms: G ∘ F ≅ id on PSh(T₁)
+  -- For each T₁ object, G(F(x)) = x (roundtrip)
+  let unitAxioms : List Generator2 := t1.objects.map fun s =>
+    { id := gid s!"unit_{s.id.name}"
+      leftPath := .comp (.atom (gid s!"F_{s.id.name}")) (.atom (gid s!"G_{s.id.name}"))
+      rightPath := .id (.atom (gid s!"PSh({t1.name})_{s.id.name}"))
+      description := s!"Unit: G ∘ F = id at {s.id.name}" }
+
   let forwardFunctor : Theory :=
     { name := s!"PSh({t1.name})→PSh({t2.name})"
       doctrine := { doctrine := .Category }
       objects := [fwdObj]
       morphisms := forwardComponents
-      axioms := [] }
+      axioms := unitAxioms }
 
   let backwardComponents : List Generator1 := t2.objects.map fun s =>
     { id := gid s!"G_{s.id.name}"
       domain := .atom (gid s!"PSh({t2.name})_{s.id.name}")
       codomain := .atom (gid s!"PSh({t1.name})_{s.id.name}")
       description := s!"Backward functor component at {s.id.name}" }
+
+  -- Counit axioms: F ∘ G ≅ id on PSh(T₂)
+  let counitAxioms : List Generator2 := t2.objects.map fun s =>
+    { id := gid s!"counit_{s.id.name}"
+      leftPath := .comp (.atom (gid s!"G_{s.id.name}")) (.atom (gid s!"F_{s.id.name}"))
+      rightPath := .id (.atom (gid s!"PSh({t2.name})_{s.id.name}"))
+      description := s!"Counit: F ∘ G = id at {s.id.name}" }
 
   let bwdObj : Generator0 :=
     { id := gid s!"PSh({t2.name})→PSh({t1.name})"
@@ -171,7 +200,7 @@ def presheafEquivalence (t1 t2 : Theory) : PresheafEquivalenceData :=
       doctrine := { doctrine := .Category }
       objects := [bwdObj]
       morphisms := backwardComponents
-      axioms := [] }
+      axioms := counitAxioms }
 
   { forward := forwardFunctor
     backward := backwardFunctor

@@ -78,11 +78,31 @@ def grothendieck (ic : IndexedCategory) : Theory :=
                          (.atom { name := baseMorName, index := 0, kind := .morphism })
       description := s!"Projection naturality: π ∘ ({m.id.name}) = base_mor ∘ π" : Generator2 }
 
+  -- Identity morphisms: id_(c,x) for each total object
+  let identities := totalObjects.map fun obj =>
+    { id := { name := .app (.root "id") obj.id.name, index := 0, kind := .morphism }
+      domain := .atom obj.id
+      codomain := .atom obj.id
+      description := s!"Identity: id_{obj.id.name}" : Generator1 }
+
+  -- Identity law: π ∘ id_(c,x) = id_c ∘ π
+  let idAxioms := totalObjects.map fun obj =>
+    let baseName := match obj.id.name with
+      | .pair l _ => l
+      | other => other
+    { id := { name := .nested (.app (.root "id") obj.id.name) "law",
+              index := 0, kind := .twoCell }
+      leftPath := .comp (.atom { name := .app (.root "id") obj.id.name, index := 0, kind := .morphism })
+                        (.atom { name := .app (.root "π") obj.id.name, index := 0, kind := .morphism })
+      rightPath := .comp (.atom { name := .app (.root "π") obj.id.name, index := 0, kind := .morphism })
+                         (.id (.atom { name := baseName, index := 0, kind := .sort }))
+      description := s!"Identity law: π ∘ id = id ∘ π at {obj.id.name}" : Generator2 }
+
   { name := s!"∫({ic.base.name})"
     doctrine := ic.base.doctrine
     objects := totalObjects
-    morphisms := totalMorphisms ++ projections
-    axioms := projAxioms }
+    morphisms := totalMorphisms ++ projections ++ identities
+    axioms := projAxioms ++ idAxioms }
 
 /-- The projection functor π : ∫F → C, sending (c,x) ↦ c -/
 def grothendieckProjection (ic : IndexedCategory) (total : Theory) : List Generator1 :=

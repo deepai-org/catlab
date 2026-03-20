@@ -89,17 +89,56 @@ def TheoryOfElementaryTopos : Theory :=
         rightPath := .atom (gid "prod_obj")
         description := "src(π₁) = A × B" },
 
-      -- eval ∘ ⟨curry(f), id⟩ = f  (the counit of the Cartesian closed adjunction)
+      -- eval ∘ ⟨curry(f), id⟩ = f  (β-rule for the Cartesian closed adjunction)
       { id := gid "curry_eval"
-        leftPath  := .comp (.prod (.atom (gid "curry")) (.id Ob)) (.atom (gid "eval"))
-        rightPath := .id Mor
-        description := "eval ∘ (curry(f) × id) = f" },
+        quantifiers := [
+          { name := "f", domain := some Mor, codomain := some Mor, kind := .morphism }
+        ]
+        leftPath  := .comp (.prod (.app (.atom (gid "curry")) (.var "f")) (.id Ob)) (.atom (gid "eval"))
+        rightPath := .var "f"
+        description := "∀ f : C×A → B. eval ∘ (curry(f) × id) = f" },
+
+      -- curry(eval ∘ (g × id)) = g  (η-rule for exponentials)
+      { id := gid "curry_eta"
+        quantifiers := [
+          { name := "g", domain := some Mor, codomain := some Mor, kind := .morphism }
+        ]
+        leftPath  := .app (.atom (gid "curry")) (.comp (.prod (.var "g") (.id Ob)) (.atom (gid "eval")))
+        rightPath := .var "g"
+        description := "∀ g : C → B^A. curry(eval ∘ (g × id)) = g" },
 
       -- Characteristic map target: tgt(χ_m) = Ω
       { id := gid "char_tgt"
         leftPath  := .comp (.atom (gid "char_map")) (.atom (gid "tgt"))
         rightPath := .atom (gid "Omega_obj")
-        description := "tgt(χ_m) = Ω" }
+        description := "tgt(χ_m) = Ω" },
+
+      -- Classifying map source: src(χ_m) = tgt(m)
+      -- (the characteristic map is defined on the codomain of the mono)
+      { id := gid "char_src"
+        leftPath  := .comp (.atom (gid "char_map")) (.atom (gid "src"))
+        rightPath := .comp (.id Mor) (.atom (gid "tgt"))
+        description := "src(χ_m) = tgt(m)" },
+
+      -- Product β₁: π₁ ∘ ⟨f, g⟩ = f
+      { id := gid "prod_β₁"
+        quantifiers := [
+          { name := "f", domain := some Mor, codomain := some Mor, kind := .morphism },
+          { name := "g", domain := some Mor, codomain := some Mor, kind := .morphism }
+        ]
+        leftPath  := .comp (.app (.app (.atom (gid "pair_mor")) (.var "f")) (.var "g")) (.atom (gid "π₁"))
+        rightPath := .var "f"
+        description := "∀ f, g. π₁ ∘ ⟨f, g⟩ = f" },
+
+      -- Product β₂: π₂ ∘ ⟨f, g⟩ = g
+      { id := gid "prod_β₂"
+        quantifiers := [
+          { name := "f", domain := some Mor, codomain := some Mor, kind := .morphism },
+          { name := "g", domain := some Mor, codomain := some Mor, kind := .morphism }
+        ]
+        leftPath  := .comp (.app (.app (.atom (gid "pair_mor")) (.var "f")) (.var "g")) (.atom (gid "π₂"))
+        rightPath := .var "g"
+        description := "∀ f, g. π₂ ∘ ⟨f, g⟩ = g" }
     ] }
 
 end CatLab.Library
