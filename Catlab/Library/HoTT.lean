@@ -1,6 +1,11 @@
 /-
   CatLab -- Homotopy Type Theory (HoTT)
 
+  NOTE: This is a strictified 1-categorical presentation of HoTT's syntactic
+  signature. It captures the generators and equations of the type theory but
+  does NOT model the semantic ∞-topos or its homotopy-coherent structure.
+  Operators like `pushout` compute strict colimits, not homotopy pushouts.
+
   Represented as a Category with Families (CwF), following Hofmann–Streicher.
   The three sorts are:
     Ctx  — contexts (the "base" category)
@@ -27,7 +32,7 @@ def TheoryOfHoTT : Theory :=
   let Ty  := Expr.atom (gid "Ty")
   let Tm  := Expr.atom (gid "Tm")
   { name     := "HomotopyTypeTheory"
-    doctrine := { doctrine := .MartinLofTypeTheory }
+    doctrine := { doctrine := .MartinLofTypeTheory, strictified := true }
     objects  := [
       { id := gid "Ctx", description := "Contexts" },
       { id := gid "Ty",  description := "Types (dependent on a context)" },

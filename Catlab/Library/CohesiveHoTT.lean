@@ -30,7 +30,7 @@ def TheoryOfCohesiveHoTT : Theory :=
   let Ty  := Expr.atom (gid "Ty")
   let Tm  := Expr.atom (gid "Tm")
   { name     := "CohesiveHomotopyTypeTheory"
-    doctrine := { doctrine := .CohesiveHomotopyTypeTheory }
+    doctrine := { doctrine := .CohesiveHomotopyTypeTheory, strictified := true }
     objects  := TheoryOfHoTT.objects   -- Ctx, Ty, Tm
     morphisms := TheoryOfHoTT.morphisms ++ [
 

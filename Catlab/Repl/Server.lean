@@ -252,9 +252,13 @@ def applyForwardOp (op : String) (t : Theory) : Except String Theory :=
   | s => .error s!"Unknown forward_op '{s}'. Use one of: opposite, mirror, core, identity, decategorify_iso, decategorify_K0, decategorify_chi, arrow, arrow_category, twisted_arrow, slice, karoubi, morita, macneille, reg_completion, ex_completion, ind_completion, pro_completion, presheaf, yoneda, family, functor_category, scone, freyd, syntactic, lawvere, free, chain_complex, homotopy, derived, stabilize, center, drinfeld_center, booleanize, span, cospan, nerve, realize, isbell_spec, isbell_cospec, isbell, product, coproduct, matrix, int, internal_cat, path, factorization, operad_envelope, limits"
 
 /-- Does this operator reverse composition order (and is an involution)?
-    Such operators require contravariant verification: instead of diffing
+    Such operators benefit from contravariant verification: instead of diffing
     forwardOp(candidate) against target, we diff candidate against
-    forwardOp(target), which keeps composition direction aligned. -/
+    forwardOp(target), which keeps composition direction aligned with the
+    rewriter's axiom orientation. This is a heuristic for better convergence
+    of the bounded Knuth-Bendix procedure, not a solution to the underlying
+    Word Problem — if the rewrite system diverges in one orientation, it may
+    also diverge in the other. -/
 def isCompReversing (op : String) : Bool :=
   match op with
   | "opposite" => true
@@ -267,7 +271,8 @@ def isCompReversing (op : String) : Bool :=
 -- ============================================================
 
 /-- Verify forwardOp(candidate) ≅ target using the best strategy for the operator.
-    For comp-reversing involutions (opposite, mirror): contravariant strategy.
+    For comp-reversing involutions (opposite, mirror): contravariant strategy
+    (empirically better convergence, but does not eliminate undecidability).
     For all others: standard forward strategy. -/
 def operatorAwareDiff (fwdOp : String) (candidate target : Theory) : Except String VerificationResult :=
   if isCompReversing fwdOp then

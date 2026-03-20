@@ -28,7 +28,7 @@ def TheoryOfCubicalTypeTheory : Theory :=
   let Tm  := Expr.atom (gid "Tm")
   let I   := Expr.atom (gid "I")    -- the interval
   { name     := "CubicalTypeTheory"
-    doctrine := { doctrine := .CubicalTypeTheory }
+    doctrine := { doctrine := .CubicalTypeTheory, strictified := true }
     objects  := [
       { id := gid "Ctx", description := "Contexts (may include interval variables)" },
       { id := gid "Ty",  description := "Types in a context" },

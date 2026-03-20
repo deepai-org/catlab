@@ -55,7 +55,7 @@ find X such that forwardOperator(X) ≅ Target
 
 | Problem | Unknown X | Forward operator | Target |
 |---|---|---|---|
-| Categorification | higher theory C | `decategorify` | Jones polynomial theory |
+| Categorification | higher theory C | `decategorify` | algebraic theory (e.g. ℕ-rig → FinSet) |
 | Morita context | bimodule M | `moritaCheck` | (T₁, T₂) equivalence |
 | Internalization | morphism f | `f.preservesTyping` | valid embedding |
 | Pushout complement | theory X | `pushout f X` | amalgamated theory |
@@ -91,26 +91,29 @@ structure VerificationResult where
 
 Three traps addressed explicitly:
 
-- **Verification is not O(N).** Checking theory isomorphism is Graph Isomorphism; checking if an axiom holds is the Word Problem (undecidable). `VerificationStatus.Timeout depth` reports "I tried N rewriting steps and couldn't prove this" rather than falsely reporting failure.
+- **Verification is bounded, not decidable.** CatLab checks *strict presentation isomorphism* — same generator counts, matching domain/codomain shapes (position-normalized), and axioms that reduce to the same normal form under bounded term rewriting. This is not categorical equivalence: two presentations of the same mathematical structure (related by Tietze transformations) will be rejected if their generator counts or expression shapes differ. Checking full categorical equivalence is undecidable in general (it reduces to the Word Problem). `VerificationStatus.Timeout depth` reports "I tried N rewriting steps and couldn't prove this" rather than falsely reporting failure — an unavoidable consequence of the bounded Word Problem. The LLM is expected to match the target's presentation structure, not discover arbitrary equivalent presentations.
 
-- **Comp-reversing operators.** Operators like `opposite` and `mirror` reverse the direction of composition. Naively comparing `op(candidate)` against `target` puts axioms in the wrong orientation for rewriting, causing infinite expansion. CatLab detects comp-reversing operators and uses a **contravariant verification strategy**: instead of diffing `op(X)` against `T`, it diffs `X` against `op(T)`, keeping composition direction aligned.
+- **Comp-reversing operators.** Operators like `opposite` and `mirror` reverse the direction of composition. For involutions, CatLab uses a **contravariant verification strategy**: instead of diffing `op(X)` against `T`, it diffs `X` against `op(T)`. This is a heuristic that keeps the rewriter's axiom orientation aligned with the candidate's composition direction, improving convergence of the bounded Knuth-Bendix procedure in practice. It does not solve the underlying Word Problem — if the rewrite system diverges in one orientation, it may also diverge in the other. The benefit is empirical: it avoids a common class of non-termination where the rewriter expands `comp(comp(comp(...)))` chains indefinitely due to misaligned orientation.
 
 - **The alias problem.** If the target requires an object named `State` and the LLM proposes `System`, a name-based diff wastes an API call on a trivial rename. CatLab diffs by **structural signatures**: position-normalized Expr shapes invariant under generator renaming. "Missing morphism `§0 → §1 ⊗ §0`" rather than "Missing morphism `η`."
 
-### The Khovanov Homology Example
+### The Categorification Example
+
+Categorification as implemented here is strictly algebraic: given a 1-categorical theory `T`, find a higher theory `C` whose `decategorify` recovers `T`'s presentation. This is *not* the deep topological categorification of knot invariants (Khovanov homology categorifies the Jones polynomial via chain complexes assigned to link diagrams, which is far beyond what a finite presentation engine can express). Instead, CatLab handles the algebraic case well:
 
 ```lean
--- CAS recognizes categorification is an inverse problem
--- LLM proposes three candidate 2D categorical theories
--- CAS verifies each by decategorifying back to 1D
+-- Categorify ℕ-as-a-rig: find C such that decategorify(C) ≅ CommutativeMonoid
+-- Answer: the theory of finite sets (FinSet), where
+--   objects (finite sets) → generators of CommutativeMonoid
+--   bijections between sets → equations (|A×B| = |A|·|B|, |A⊔B| = |A|+|B|)
 
-evaluateAll (target := TheoryOfJonesPolynomial)
+evaluateAll (target := TheoryOfCommutativeMonoid)
             (forward := fun c => some (decategorify c .isoClasses))
             (candidates := [proposal1, proposal2, proposal3])
 
 -- Proposal 1: failed to compile (missing counit)
--- Proposal 2: compiled, wrong polynomial (axiom violation)
--- Proposal 3: verified → Khovanov Homology
+-- Proposal 2: compiled, wrong structure (axiom violation)
+-- Proposal 3: verified ✓
 ```
 
 ---
@@ -125,7 +128,9 @@ evaluateAll (target := TheoryOfJonesPolynomial)
 
 **Category Theory:** Category, SymmetricMonoidalCategory, EnrichedCategory, AbelianCategory, TriangulatedCategory, ModelCategory, Derivator, Locale
 
-**Higher Structures:** ElementaryTopos, InfinityTopos, HoTT, CohesiveHoTT, CubicalTypeTheory, InfinityCategory, InfinityTwoCategory, Multicategory, SymmetricOperad, CategoriesWithAttributes
+**Higher Structures (strictified presentations):** ElementaryTopos, InfinityTopos, HoTT, CohesiveHoTT, CubicalTypeTheory, InfinityCategory, InfinityTwoCategory, Multicategory, SymmetricOperad, CategoriesWithAttributes
+
+> **Caveat on higher-categorical theories.** The ∞-category, HoTT, and cubical type theory entries are *strictified 1-categorical presentations* of the syntactic structure — they encode the generators and equations of the type theory's signature, not the semantic ∞-topos or its homotopy-coherent structure. True ∞-categories require higher morphisms (homotopies, homotopies between homotopies, etc.) and homotopy-coherent limits/colimits, which cannot be faithfully represented in a strict 1-categorical AST with equations. A "pushout" computed by CatLab's colimit engine is a strict 1-categorical colimit, not a homotopy pushout. These theories are useful for reasoning about the *presentation* of type theories (e.g., which generators and axiom schemas a type theory declares) but should not be mistaken for implementations of the semantic higher-categorical structures they describe.
 
 ---
 
@@ -269,7 +274,7 @@ Verification runs all constraints independently and reports per-constraint pass/
 
 ### Tested Examples
 
-All examples below solve in 1–3 rounds (~4–15s each).
+The examples below solve in 1–3 rounds for *small, well-known algebraic theories* where the LLM can pattern-match from training data (e.g., "the opposite of a Monoid is a comonoid"). These are presentation-level problems: the LLM must produce a theory JSON whose generators and axioms structurally match the target after applying the forward operator. For problems requiring genuine mathematical discovery (non-trivial Morita equivalences, novel categorical localizations, deep tensor factorizations), expect significantly more rounds, frequent `Timeout` feedback from the bounded rewriter, or outright failure. The bounded verification means correct candidates with complex axiom interactions may receive false-negative feedback if the rewriter exceeds its depth limit.
 
 ```bash
 export $(cat .env | xargs)

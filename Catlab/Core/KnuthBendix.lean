@@ -1,9 +1,23 @@
 /-
-  CatLab -- Knuth-Bendix Completion
+  CatLab -- Knuth-Bendix Completion (Bounded)
 
-  Given a set of equations over CatLab Expr, computes a confluent terminating
-  rewrite system (if one exists). Once complete, normalization becomes a
+  Given a set of equations over CatLab Expr, attempts to compute a confluent
+  terminating rewrite system. If completion succeeds, normalization becomes a
   decision procedure: two terms are equal iff they have the same normal form.
+
+  However, completion is not guaranteed to terminate: the Word Problem for
+  finitely presented algebraic structures is undecidable in general. CatLab
+  uses bounded completion — if the procedure exceeds its step limit, it
+  reports `Timeout depth` rather than diverging. This means:
+    - A "verified" result is a true positive (the rewrite system proved equality).
+    - A "failed" result is a true negative (the normal forms provably differ).
+    - A "timeout" result is inconclusive — the axiom may or may not hold,
+      but the bounded rewriter could not determine which.
+
+  The LLM is expected to match the target's presentation structure closely
+  enough that the bounded rewriter can verify within its depth limit. For
+  complex axiom interactions, the LLM may need to propose auxiliary lemmas
+  to help the rewriter converge.
 
   Supports both ground terms (atoms, comp, id, etc.) and variable terms (.var).
   When axioms contain variables, proper unification (MGU) is used for matching

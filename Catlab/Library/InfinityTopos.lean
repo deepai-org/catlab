@@ -1,6 +1,12 @@
 /-
   CatLab -- Theory of an ∞-Topos (Lurie)
 
+  NOTE: This is a strictified 1-categorical presentation of the ∞-topos
+  signature. It encodes the 1-truncation of the structure (objects, morphisms,
+  mapping-space functor) but does NOT model the full homotopy-coherent
+  ∞-categorical structure. Higher morphisms, homotopy limits/colimits, and
+  the ∞-groupoid enrichment are not representable in this strict AST.
+
   An ∞-topos is a presentable ∞-category satisfying higher Giraud axioms:
     1. All small ∞-colimits exist (and are universal / stable under pullback)
     2. All small ∞-limits exist
@@ -25,7 +31,7 @@ def TheoryOfInfinityTopos : Theory :=
   let Map := Expr.atom (gid "Map")
   let Spc := Expr.atom (gid "Spc")
   { name     := "InfinityTopos"
-    doctrine := { doctrine := .PresentableInfinityCategory }
+    doctrine := { doctrine := .PresentableInfinityCategory, strictified := true }
     objects  := [
       { id := gid "Ob",  description := "Objects of the ∞-topos" },
       { id := gid "Map", description := "Morphisms (1-simplices of the ∞-category)" },

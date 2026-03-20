@@ -28,7 +28,7 @@ def TheoryOfCategoriesWithAttributes : Theory :=
   let Attr := Expr.atom (gid "Attr")  -- attributes / types
   let Tm   := Expr.atom (gid "Tm")    -- terms (elements of attributes)
   { name     := "CategoriesWithAttributes"
-    doctrine := { doctrine := .MartinLofTypeTheory }
+    doctrine := { doctrine := .MartinLofTypeTheory, strictified := true }
     objects  := [
       { id := gid "Ctx",  description := "Contexts" },
       { id := gid "Sub",  description := "Substitutions (context morphisms)" },
