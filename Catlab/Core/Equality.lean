@@ -169,6 +169,70 @@ def Theory.signatureMatch (t1 t2 : Theory) : Bool :=
   t1.morphisms.length == t2.morphisms.length &&
   t1.axioms.length == t2.axioms.length
 
+/-- Apply a name mapping to an expression, renaming all atoms whose names
+    appear in the mapping. Names not in the mapping are left unchanged. -/
+partial def Expr.applyNameMap (e : Expr) (m : List (Name × Name)) : Expr :=
+  match e with
+  | .atom gid =>
+    match m.find? (fun (k, _) => k == gid.name) with
+    | some (_, v) => .atom { gid with name := v }
+    | none => e
+  | .unit | .terminal | .initial | .var _ => e
+  | .id obj => .id (obj.applyNameMap m)
+  | .comp f g => .comp (f.applyNameMap m) (g.applyNameMap m)
+  | .prod a b => .prod (a.applyNameMap m) (b.applyNameMap m)
+  | .coprod a b => .coprod (a.applyNameMap m) (b.applyNameMap m)
+  | .hom a b => .hom (a.applyNameMap m) (b.applyNameMap m)
+  | .tensor a b => .tensor (a.applyNameMap m) (b.applyNameMap m)
+  | .sigma v base fam => .sigma v (base.applyNameMap m) (fam.applyNameMap m)
+  | .pi v base fam => .pi v (base.applyNameMap m) (fam.applyNameMap m)
+  | .fiber mf p => .fiber (mf.applyNameMap m) (p.applyNameMap m)
+  | .proj i s => .proj i (s.applyNameMap m)
+  | .inj i t => .inj i (t.applyNameMap m)
+  | .app f x => .app (f.applyNameMap m) (x.applyNameMap m)
+  | .limit d => .limit (d.applyNameMap m)
+  | .colimit d => .colimit (d.applyNameMap m)
+  | .natComponent n x => .natComponent (n.applyNameMap m) (x.applyNameMap m)
+
+/-- Structural match: check that t2 is t1 with names renamed according to the
+    given mapping. Verifies that every morphism's domain/codomain and every
+    axiom's LHS/RHS are preserved under the mapping. -/
+def Theory.structuralMatch (t1 t2 : Theory)
+    (nameMap : List (Name × Name)) : Bool :=
+  -- 1. Same counts
+  t1.objects.length == t2.objects.length &&
+  t1.morphisms.length == t2.morphisms.length &&
+  t1.axioms.length == t2.axioms.length &&
+  -- 2. Every morphism in t1, after renaming, has a matching morphism in t2
+  --    with the same domain/codomain structure
+  t1.morphisms.all (fun m1 =>
+    let mappedName := match nameMap.find? (fun (k, _) => k == m1.id.name) with
+      | some (_, v) => v | none => m1.id.name
+    let mappedDom := m1.domain.applyNameMap nameMap
+    let mappedCod := m1.codomain.applyNameMap nameMap
+    t2.morphisms.any (fun m2 =>
+      m2.id.name == mappedName && m2.domain == mappedDom && m2.codomain == mappedCod)) &&
+  -- 3. Every axiom in t1, after renaming, has a matching axiom in t2
+  --    with the same LHS/RHS structure
+  t1.axioms.all (fun a1 =>
+    let mappedName := match nameMap.find? (fun (k, _) => k == a1.id.name) with
+      | some (_, v) => v | none => a1.id.name
+    let mappedLHS := a1.leftPath.applyNameMap nameMap
+    let mappedRHS := a1.rightPath.applyNameMap nameMap
+    t2.axioms.any (fun a2 =>
+      a2.id.name == mappedName && a2.leftPath == mappedLHS && a2.rightPath == mappedRHS))
+
+/-- Build the name mapping induced by the `opposite` operator on a theory.
+    Objects keep their names; morphisms and axioms get `.op` wrapped. -/
+def Theory.oppositeNameMap (t : Theory) : List (Name × Name) :=
+  (t.morphisms.map fun m => (m.id.name, Name.op m.id.name)) ++
+  (t.axioms.map fun a => (a.id.name, Name.op a.id.name))
+
+/-- Build the name mapping induced by the `mirror` operator on a theory.
+    Same as opposite: morphisms and axioms get `.op` wrapped. -/
+def Theory.mirrorNameMap (t : Theory) : List (Name × Name) :=
+  t.oppositeNameMap  -- mirror uses the same .op renaming scheme
+
 /-- Deeper isomorphism check: attempt to find a bijection on generators
     that preserves all morphism domains/codomains and axiom equalities.
     Returns true if such a bijection exists (brute-force for small theories). -/
@@ -176,10 +240,13 @@ partial def Theory.isIsomorphic (t1 t2 : Theory) : Bool :=
   if !t1.signatureMatch t2 then false
   else if t1.objects.length == 0 then true
   else
-    -- For small theories, try the identity mapping first
+    -- Try the identity mapping first
     let identityWorks := t1.morphisms.zip t2.morphisms |>.all fun (m1, m2) =>
       m1.domain.alphaEquiv m2.domain && m1.codomain.alphaEquiv m2.codomain
-    if identityWorks then true
+    if identityWorks then
+      -- Also check axioms under identity mapping
+      t1.axioms.zip t2.axioms |>.all fun (a1, a2) =>
+        a1.leftPath.alphaEquiv a2.leftPath && a1.rightPath.alphaEquiv a2.rightPath
     else
       -- TODO: try all permutations for small generator sets
       false

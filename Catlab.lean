@@ -115,3 +115,4 @@ import Catlab.Tests.Test_Negative
 import Catlab.Tests.Test_Roundtrip
 import Catlab.Tests.Test_Functorial
 import Catlab.Tests.Test_Mutation
+import Catlab.Tests.Test_Limits
