@@ -174,8 +174,13 @@ Every theory produced by every operator must pass all five checks. This is enfor
 | **TS verifier unit tests** | All 18 Verifier classes: preflight, verify, formatFeedback, validatePayload | 54 | **54/54** |
 | **TS solver unit tests** | GenericSolver state machine: success, refinement, exhaustion, error classification, retries | 9 | **9/9** |
 | **TS client unit tests** | NDJSON protocol: concurrency, timeouts, malformed input, process exit, post-kill | 8 | **8/8** |
+| **JSON roundtrip** | `toJson(fromJson(toJson(t)))` is stable for all 33 theories + operator outputs | ~40 | all pass |
+| **Doctrine roundtrip** | `doctrineFromStr(doctrineToStr(d)) == d` for all 28 doctrine variants | 28 | **28/28** |
+| **Expr JSON roundtrip** | All Expr constructors survive `exprToJson` → `exprFromJson` → `exprToJson` | 14 | **14/14** |
+| **TheoryMorphism laws** | Identity, composition, self-inclusion, signatureMatch reflexivity | ~70 | all pass |
+| **TS integration** | Wire protocol: TheoryJson shapes, ExprJson types, VerificationResult format, concurrent requests, error responses | 10 | **10/10** |
 
-**Total: ~4,900 assertions, 0 failures.**
+**Total: ~5,100 assertions, 0 failures.**
 
 ### What the Tests Catch
 

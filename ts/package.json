@@ -13,6 +13,7 @@
     "test:verifiers": "ts-node test/verifiers.test.ts",
     "test:solver": "ts-node test/solver.test.ts",
     "test:client": "ts-node test/client.test.ts",
+    "test:integration": "ts-node test/integration.test.ts",
     "test:unit": "ts-node test/verifiers.test.ts && ts-node test/solver.test.ts && ts-node test/client.test.ts",
     "typecheck": "tsc --noEmit"
   },
