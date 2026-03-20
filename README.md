@@ -179,8 +179,10 @@ Every theory produced by every operator must pass all five checks. This is enfor
 | **Expr JSON roundtrip** | All Expr constructors survive `exprToJson` → `exprFromJson` → `exprToJson` | 14 | **14/14** |
 | **TheoryMorphism laws** | Identity, composition, self-inclusion, signatureMatch reflexivity | ~70 | all pass |
 | **TS integration** | Wire protocol: TheoryJson shapes, ExprJson types, VerificationResult format, concurrent requests, error responses | 10 | **10/10** |
+| **Functoriality** | opposite/mirror commute with product/coproduct/tensor; mirror swaps product↔coproduct; commutativity of binary ops | ~60 | all pass |
+| **Mutation testing** | 7 mutant operators (broken opposite, mirror, drop axioms/morphisms, duplicate names) all caught by existing checks | ~40 | all pass |
 
-**Total: ~5,100 assertions, 0 failures.**
+**Total: ~5,200 assertions, 0 failures.**
 
 ### What the Tests Catch
 

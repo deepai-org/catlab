@@ -113,3 +113,5 @@ import Catlab.Tests.Test_Validate
 import Catlab.Tests.Test_Fuzz
 import Catlab.Tests.Test_Negative
 import Catlab.Tests.Test_Roundtrip
+import Catlab.Tests.Test_Functorial
+import Catlab.Tests.Test_Mutation
