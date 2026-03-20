@@ -86,6 +86,13 @@ structure DoctrineContext where
       higher-categorical structure. Operators like `pushout` compute strict
       colimits, not homotopy colimits. See `Doctrine.isHigherCategorical`. -/
   strictified : Bool := false
+  /-- Truncation level: the highest dimension at which the presentation is complete.
+      `none` means the theory is not truncated (either not higher-categorical,
+      or the full presentation is given).
+      `some n` means k-cells for k > n are either absent or collapsed to identities.
+      Examples: a 1-category has truncationLevel = some 1,
+                an (∞,2)-category presentation has truncationLevel = some 2. -/
+  truncationLevel : Option Nat := none
   deriving Repr, Inhabited
 
 end CatLab

@@ -30,7 +30,7 @@ def TheoryOfInfinityTwoCategory : Theory :=
   let C1 := Expr.atom (gid "Cell1")  -- 1-morphisms
   let C2 := Expr.atom (gid "Cell2")  -- 2-morphisms
   { name     := "Infinity2Category"
-    doctrine := { doctrine := .InfinityNCategory, strictified := true }
+    doctrine := { doctrine := .InfinityNCategory, strictified := true, truncationLevel := some 2 }
     objects  := [
       { id := gid "Cell0", description := "0-cells (objects)" },
       { id := gid "Cell1", description := "1-cells (morphisms)" },
@@ -152,6 +152,6 @@ def TheoryOfInfinityTwoCategory : Theory :=
 def TheoryOfInfinityCategory : Theory :=
   { nerve TheoryOfCategories with
     name     := "InfinityCategory"
-    doctrine := { doctrine := .InfinityNCategory, strictified := true } }
+    doctrine := { doctrine := .InfinityNCategory, strictified := true, truncationLevel := some 1 } }
 
 end CatLab.Library

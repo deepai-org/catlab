@@ -116,3 +116,7 @@ import Catlab.Tests.Test_Roundtrip
 import Catlab.Tests.Test_Functorial
 import Catlab.Tests.Test_Mutation
 import Catlab.Tests.Test_Limits
+import Catlab.Tests.Test_Coherence
+import Catlab.Core.Coherence
+import Catlab.Operators.Truncate
+import Catlab.Tests.Test_Higher
