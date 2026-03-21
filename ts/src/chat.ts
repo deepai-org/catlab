@@ -332,6 +332,17 @@ It launches a dedicated sub-LLM solver that runs an autonomous propose→verify�
 with the CAS (up to 5 rounds). It is FAR more capable than manually constructing theories
 with submit_theory. Do NOT try to solve inverse problems by hand — always delegate to solve.
 
+## Deep Verification (Lean/Mathlib)
+
+When enabled (via --deep flag), theories are also type-checked against Lean 4 / Mathlib after passing structural checks. Results:
+- **✓ success**: Fully verified by Lean's kernel
+- **✗ semantic_error**: Type mismatch — a morphism's domain/codomain is incompatible with its usage
+- **⚠ unverified_axiom**: Well-typed but aesop_cat couldn't auto-prove some axioms
+
+## Inequality Axioms
+
+For Dialectica/Preorder doctrines, axioms can use \`"relation": "ineq"\` for ≤ constraints instead of =.
+
 ## Guidelines:
 - When asked to "make" or "create" something, actually construct the theory JSON and submit it
 - Explain your reasoning in plain English alongside the CAS results

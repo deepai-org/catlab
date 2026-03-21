@@ -155,6 +155,29 @@ function doctrineImports(doctrine: string): string[] {
     LinearLogic: [
       "Mathlib.CategoryTheory.Monoidal.Category",
     ],
+    Dialectica: [
+      "Mathlib.CategoryTheory.Monoidal.Category",
+      "Mathlib.Order.Hom.Basic",
+    ],
+    Preorder: [
+      "Mathlib.Order.Hom.Basic",
+    ],
+    StarAutonomous: [
+      "Mathlib.CategoryTheory.Monoidal.Category",
+      "Mathlib.CategoryTheory.Monoidal.Braided.Basic",
+    ],
+    Realizability: [
+      "Mathlib.CategoryTheory.Category.Basic",
+      "Mathlib.CategoryTheory.Limits.Shapes.BinaryProducts",
+      "Mathlib.CategoryTheory.Limits.Shapes.Terminal",
+      "Mathlib.Computability.Primrec",
+    ],
+    TriposToTopos: [
+      "Mathlib.CategoryTheory.Category.Basic",
+      "Mathlib.CategoryTheory.Limits.Shapes.BinaryProducts",
+      "Mathlib.CategoryTheory.Limits.Shapes.Terminal",
+      "Mathlib.CategoryTheory.Subobject.Basic",
+    ],
     Locale: [],
   };
 
@@ -362,6 +385,44 @@ function doctrineToContext(doctrine: string): DoctrineContext {
       ],
       hasTensor: true, hasProducts: false,
     },
+    Dialectica: {
+      extraContext: [
+        "variable [MonoidalCategory C]",
+        "-- Dialectica: Hom types carry a preorder (inequality support)",
+        "variable [∀ (X Y : C), Preorder (X ⟶ Y)]",
+      ],
+      hasTensor: true, hasProducts: false,
+    },
+    Preorder: {
+      extraContext: [
+        "-- Preorder-enriched category: morphisms carry ≤",
+        "variable [∀ (X Y : C), Preorder (X ⟶ Y)]",
+      ],
+      hasTensor: false, hasProducts: false,
+    },
+    StarAutonomous: {
+      extraContext: [
+        "variable [MonoidalCategory C]",
+        "variable [SymmetricCategory C]",
+      ],
+      hasTensor: true, hasProducts: false,
+    },
+    Realizability: {
+      extraContext: [
+        "variable [Limits.HasFiniteLimits C]",
+        "-- Realizability: objects model assemblies over a PCA",
+        "-- Full elaboration requires a PCA typeclass (Phase 3)",
+      ],
+      hasTensor: false, hasProducts: true,
+    },
+    TriposToTopos: {
+      extraContext: [
+        "variable [Limits.HasFiniteLimits C]",
+        "-- Tripos-to-Topos: PER category construction",
+        "-- Objects are partial equivalence relations, morphisms are tracking functions",
+      ],
+      hasTensor: false, hasProducts: true,
+    },
     DifferentialGraded: {
       extraContext: [
         "variable [Abelian C]",
@@ -484,9 +545,10 @@ export function theoryToLean(theory: TheoryJson): { source: string; sourceMap: S
     const name = sanitizeName(ax.name);
     const lhs = exprToLeanTerm(ax.lhs, nameCtx);
     const rhs = exprToLeanTerm(ax.rhs, nameCtx);
+    const rel = ax.relation === "ineq" ? "≤" : "=";
 
     emit(`-- Axiom: ${ax.description || ax.name}`, `axiom:${ax.name}`, "axiom");
-    emit(`lemma ${name} : ${lhs} = ${rhs} := by`);
+    emit(`lemma ${name} : ${lhs} ${rel} ${rhs} := by`);
     emit(`  aesop_cat`);
     emitBlank();
   }

@@ -66,6 +66,19 @@ export function detectOperator(theory: TheoryJson): OperatorDetection | null {
     };
   }
 
+  // Realizability / PER category: has objects like "Assembly" or "PER"
+  if (isRealizabilityCategory(theory)) {
+    return {
+      operator: "realizability",
+      generate: generateRealizability,
+      imports: [
+        "Mathlib.CategoryTheory.Category.Basic",
+        "Mathlib.CategoryTheory.Limits.Shapes.BinaryProducts",
+        "Mathlib.CategoryTheory.Limits.Shapes.Terminal",
+      ],
+    };
+  }
+
   return null;
 }
 
@@ -362,6 +375,104 @@ function generateComma(theory: TheoryJson): string {
     lines.push("#check m.w  -- the commutativity proof");
     lines.push("");
   }
+
+  lines.push(`end CatLab.Elaboration.${sanitize(theory.name)}`);
+  return lines.join("\n") + "\n";
+}
+
+// ── Realizability / PER Category ──────────────────────────────────────────────
+
+function isRealizabilityCategory(theory: TheoryJson): boolean {
+  const name = theory.name.toLowerCase();
+  if (name.includes("realizability") || name.includes("assembly") ||
+      name.includes("per_") || name.includes("tripos")) return true;
+
+  // Detect by structure: has objects named "Assembly", "PER", or
+  // morphisms with "track" or "realize" in the name
+  const hasRealizabilityObjects = theory.objects.some(o =>
+    /assembly|per|pca/i.test(o.name) ||
+    (o.description || "").toLowerCase().includes("assembly")
+  );
+  const hasTrackingMorphisms = theory.morphisms.some(m =>
+    /track|realize|r\s*⊩/i.test(m.name) ||
+    (m.description || "").toLowerCase().includes("tracking")
+  );
+  return hasRealizabilityObjects && hasTrackingMorphisms;
+}
+
+/**
+ * Generate Lean source for a realizability / PER category.
+ *
+ * This is a Phase 3 stub: it sets up the correct Lean scaffolding for
+ * a partial combinatory algebra (PCA) and the category of assemblies / PERs,
+ * but defers full formalization to when Mathlib has better computability support.
+ *
+ * The key mathematical structure:
+ *   - A PCA (A, ·) with a partial application operator
+ *   - Assemblies: sets X with a realizability relation r ⊩ x
+ *   - Assembly morphisms: functions tracked by PCA elements
+ *   - The resulting category is a topos (regular, locally cartesian closed)
+ */
+function generateRealizability(theory: TheoryJson): string {
+  const lines: string[] = [];
+
+  lines.push("import Mathlib.CategoryTheory.Category.Basic");
+  lines.push("import Mathlib.CategoryTheory.Limits.Shapes.BinaryProducts");
+  lines.push("import Mathlib.CategoryTheory.Limits.Shapes.Terminal");
+  lines.push("");
+  lines.push("open CategoryTheory");
+  lines.push("");
+  lines.push("universe u");
+  lines.push("");
+  lines.push(`namespace CatLab.Elaboration.${sanitize(theory.name)}`);
+  lines.push("");
+
+  // PCA typeclass (not yet in Mathlib — define locally)
+  lines.push("-- Partial Combinatory Algebra (PCA)");
+  lines.push("-- A set A with a partial application operator · : A → A → A");
+  lines.push("-- and combinators k, s satisfying the standard axioms.");
+  lines.push("class PCA (A : Type u) where");
+  lines.push("  app : A → A → Option A  -- partial application");
+  lines.push("  k : A                    -- K combinator: k·x·y = x");
+  lines.push("  s : A                    -- S combinator: s·x·y·z = x·z·(y·z)");
+  lines.push("");
+
+  // Assembly structure
+  lines.push("-- An assembly over a PCA A is a set X with a realizability relation.");
+  lines.push("-- For each x : X, there exists at least one a : A with a ⊩ x.");
+  lines.push("structure Assembly (A : Type u) [PCA A] where");
+  lines.push("  carrier : Type u");
+  lines.push("  realizes : A → carrier → Prop");
+  lines.push("  inhabited : ∀ x : carrier, ∃ a : A, realizes a x");
+  lines.push("");
+
+  // Assembly morphisms
+  lines.push("-- A morphism of assemblies f : X → Y is a function tracked by a PCA element.");
+  lines.push("-- There exists e : A such that for all a ⊩ x, e·a ⊩ f(x).");
+  lines.push("structure AssemblyHom (A : Type u) [PCA A] (X Y : Assembly A) where");
+  lines.push("  func : X.carrier → Y.carrier");
+  lines.push("  tracker : A");
+  lines.push("  tracked : ∀ (x : X.carrier) (a : A),");
+  lines.push("    X.realizes a x → ∃ b, PCA.app tracker a = some b ∧ Y.realizes b (func x)");
+  lines.push("");
+
+  // Category instance (sorry'd — full proof requires PCA axioms)
+  lines.push("-- The category of assemblies over A");
+  lines.push("-- Composition: tracked by s·(k·g)·f (standard PCA composition combinator)");
+  lines.push("-- Identity: tracked by s·k·k (identity combinator)");
+  lines.push("instance (A : Type u) [PCA A] : Category (Assembly A) where");
+  lines.push("  Hom := AssemblyHom A");
+  lines.push("  id X := sorry   -- identity assembly morphism, tracked by s·k·k");
+  lines.push("  comp f g := sorry  -- composition, tracked by s·(k·g.tracker)·f.tracker");
+  lines.push("");
+
+  // Note about topos structure
+  lines.push("-- The category Asm(A) of assemblies over any PCA A is a topos:");
+  lines.push("-- • It has all finite limits (products, equalizers)");
+  lines.push("-- • It has a subobject classifier (the assembly on Prop tracked by truth values)");
+  lines.push("-- • It is locally cartesian closed");
+  lines.push("-- Full formalization pending Mathlib computability integration (Phase 3).");
+  lines.push("");
 
   lines.push(`end CatLab.Elaboration.${sanitize(theory.name)}`);
   return lines.join("\n") + "\n";

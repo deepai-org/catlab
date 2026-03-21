@@ -212,6 +212,61 @@ test("formatElaborationFeedback handles unverified axiom", () => {
   assert.ok(result.includes("break them into smaller"), "should suggest alternatives");
 });
 
+// ── Dialectica / Inequality tests ──────────────────────────────────────────────
+
+test("Inequality axioms generate ≤ instead of =", () => {
+  const theory: TheoryJson = {
+    name: "DialecticaTest",
+    doctrine: "Dialectica",
+    objects: [{ name: "A" }, { name: "B" }],
+    morphisms: [
+      { name: "f", domain: "A", codomain: "B" },
+      { name: "g", domain: "B", codomain: "A" },
+    ],
+    axioms: [
+      {
+        name: "adjunction_ineq",
+        lhs: { comp: [{ atom: "f" }, { atom: "g" }] },
+        rhs: { atom: "f" },
+        relation: "ineq",
+        description: "f ≫ g ≤ f (adjunction inequality)",
+      },
+    ],
+  };
+  const { source } = theoryToLean(theory);
+  assert.ok(source.includes("≤"), "should use ≤ for inequality axioms");
+  assert.ok(!source.includes("lemma adjunction_ineq : (f ≫ g) = f"), "should NOT use = for inequality axioms");
+  assert.ok(source.includes("[MonoidalCategory C]"), "Dialectica should have MonoidalCategory");
+  assert.ok(source.includes("Preorder"), "Dialectica should have Preorder on Hom types");
+});
+
+test("Equality axioms still use = when relation is not set", () => {
+  const { source } = theoryToLean(MONOID_THEORY);
+  assert.ok(source.includes("lemma assoc : "), "should have equality lemma");
+  assert.ok(!source.includes("≤"), "should not have ≤ in non-Dialectica theory");
+});
+
+// ── Realizability detection test ──────────────────────────────────────────────
+
+test("Realizability theory detected by operator elaborator", () => {
+  const theory: TheoryJson = {
+    name: "Asm_A",
+    doctrine: "Category",
+    objects: [
+      { name: "Assembly_X", description: "Assembly over PCA" },
+      { name: "Assembly_Y", description: "Assembly over PCA" },
+    ],
+    morphisms: [
+      { name: "track_f", domain: "Assembly_X", codomain: "Assembly_Y", description: "Tracking morphism" },
+    ],
+    axioms: [],
+  };
+  const { source } = theoryToLean(theory);
+  assert.ok(source.includes("PCA"), "should generate PCA typeclass");
+  assert.ok(source.includes("Assembly"), "should generate Assembly structure");
+  assert.ok(source.includes("tracker"), "should include tracker field");
+});
+
 // ── Print generated Lean for inspection ───────────────────────────────────────
 
 console.log("\n── Generated Lean source for Monoid ──\n");

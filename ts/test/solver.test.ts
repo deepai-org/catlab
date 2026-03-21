@@ -5,6 +5,7 @@
  *   npx ts-node test/solver.test.ts
  */
 
+import Anthropic from "@anthropic-ai/sdk";
 import { GenericSolver } from "../src/solver";
 import type {
   ProblemSpec,
@@ -142,8 +143,6 @@ test("Exhaustion — verifier never succeeds, maxRounds=3", async () => {
 });
 
 test("Fatal LLM error — AuthenticationError propagates", async () => {
-  // Import Anthropic to construct a real AuthenticationError
-  const Anthropic = (await import("@anthropic-ai/sdk")).default;
   const authErr = new Anthropic.AuthenticationError(
     401,
     { message: "invalid api key", type: "authentication_error", param: null, code: null },

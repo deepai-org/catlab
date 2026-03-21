@@ -21,6 +21,7 @@
 -/
 
 import Catlab.Core.Theory
+import Catlab.Core.Equality
 
 namespace CatLab
 
@@ -31,26 +32,31 @@ namespace CatLab
 /-- Add commutativity to a named binary operation  op : A × A → A.
     Adds a swap morphism  swap : A × A → A × A  (if absent) and the axiom
       comm_<opName> :  op = swap ∘ op.
+    Pre-flight: verifies op has shape  A × A → A  (domain is a product of the
+    codomain with itself). Returns the theory unchanged if the shape is wrong.
     Used to derive AbelianGroup from Group, CommRing from Ring, etc. -/
 def addCommutativity (t : Theory) (opName : String) : Theory :=
   match t.findMorphism (.root opName) with
   | none => t
   | some op =>
     let carrier := op.codomain
-    let hasSwap := t.morphisms.any (fun m => m.id.name == .root "swap")
-    let swapMor : Generator1 :=
-      { id := gid "swap"
-        domain   := .prod carrier carrier
-        codomain := .prod carrier carrier
-        description := "Symmetry swap for commutativity" }
-    let commAx : Generator2 :=
-      { id := gid s!"comm_{opName}"
-        leftPath  := .atom op.id
-        rightPath := .comp (.atom (gid "swap")) (.atom op.id)
-        description := s!"{opName} is commutative: op = swap ∘ op" }
-    { t with
-      morphisms := if hasSwap then t.morphisms else t.morphisms ++ [swapMor]
-      axioms    := t.axioms ++ [commAx] }
+    -- Pre-flight: verify op : carrier × carrier → carrier
+    if op.domain != .prod carrier carrier then t
+    else
+      let hasSwap := t.morphisms.any (fun m => m.id.name == .root "swap")
+      let swapMor : Generator1 :=
+        { id := gid "swap"
+          domain   := .prod carrier carrier
+          codomain := .prod carrier carrier
+          description := "Symmetry swap for commutativity" }
+      let commAx : Generator2 :=
+        { id := gid s!"comm_{opName}"
+          leftPath  := .atom op.id
+          rightPath := .comp (.atom (gid "swap")) (.atom op.id)
+          description := s!"{opName} is commutative: op = swap ∘ op" }
+      { t with
+        morphisms := if hasSwap then t.morphisms else t.morphisms ++ [swapMor]
+        axioms    := t.axioms ++ [commAx] }
 
 -- ============================================================
 -- addInverse
@@ -60,32 +66,38 @@ def addCommutativity (t : Theory) (opName : String) : Theory :=
     with unit  unitName : 1 → A.  Adds left and right inverse axioms:
       left_inv  :  op(ι(a), a) = unit
       right_inv :  op(a, ι(a)) = unit
+    Pre-flight: verifies op : A × A → A and unit : 1 → A with matching carrier.
+    Returns unchanged if shapes are wrong.
     Used to derive Group from Monoid. -/
 def addInverse (t : Theory) (opName : String) (unitName : String) : Theory :=
   match t.findMorphism (.root opName), t.findMorphism (.root unitName) with
   | none, _ | _, none => t
   | some op, some unitMor =>
     let carrier := op.codomain
-    -- Flat name so renameGenerator can easily match: "μ_inv", "add_inv", etc.
-    let invId   := { name := .root s!"{opName}_inv", index := 0, kind := .morphism }
-    let invMor : Generator1 :=
-      { id          := invId
-        domain      := carrier
-        codomain    := carrier
-        description := s!"Inverse for {opName}: A → A" }
-    let leftInv : Generator2 :=
-      { id        := gid s!"left_inv_{opName}"
-        leftPath  := .comp (.prod (.atom invId) (.id carrier)) (.atom op.id)
-        rightPath := .atom unitMor.id
-        description := s!"Left inverse: {opName}(ι(a), a) = unit" }
-    let rightInv : Generator2 :=
-      { id        := gid s!"right_inv_{opName}"
-        leftPath  := .comp (.prod (.id carrier) (.atom invId)) (.atom op.id)
-        rightPath := .atom unitMor.id
-        description := s!"Right inverse: {opName}(a, ι(a)) = unit" }
-    { t with
-      morphisms := t.morphisms ++ [invMor]
-      axioms    := t.axioms ++ [leftInv, rightInv] }
+    -- Pre-flight: verify op : carrier × carrier → carrier and unit : 1 → carrier
+    if op.domain != .prod carrier carrier then t
+    else if unitMor.domain != .terminal || unitMor.codomain != carrier then t
+    else
+      -- Flat name so renameGenerator can easily match: "μ_inv", "add_inv", etc.
+      let invId   := { name := .root s!"{opName}_inv", index := 0, kind := .morphism }
+      let invMor : Generator1 :=
+        { id          := invId
+          domain      := carrier
+          codomain    := carrier
+          description := s!"Inverse for {opName}: A → A" }
+      let leftInv : Generator2 :=
+        { id        := gid s!"left_inv_{opName}"
+          leftPath  := .comp (.prod (.atom invId) (.id carrier)) (.atom op.id)
+          rightPath := .atom unitMor.id
+          description := s!"Left inverse: {opName}(ι(a), a) = unit" }
+      let rightInv : Generator2 :=
+        { id        := gid s!"right_inv_{opName}"
+          leftPath  := .comp (.prod (.id carrier) (.atom invId)) (.atom op.id)
+          rightPath := .atom unitMor.id
+          description := s!"Right inverse: {opName}(a, ι(a)) = unit" }
+      { t with
+        morphisms := t.morphisms ++ [invMor]
+        axioms    := t.axioms ++ [leftInv, rightInv] }
 
 -- ============================================================
 -- addUnit
@@ -101,26 +113,29 @@ def addUnit (t : Theory) (opName : String) : Theory :=
   | none => t
   | some op =>
     let carrier := op.codomain
-    -- Flat name so renameGenerator can easily match: "μ_unit", "add_unit", etc.
-    let unitId  := { name := .root s!"{opName}_unit", index := 0, kind := .morphism }
-    let unitMor : Generator1 :=
-      { id          := unitId
-        domain      := .terminal
-        codomain    := carrier
-        description := s!"Unit for {opName}: 1 → A" }
-    let leftUnit : Generator2 :=
-      { id        := gid s!"left_unit_{opName}"
-        leftPath  := .comp (.prod (.atom unitId) (.id carrier)) (.atom op.id)
-        rightPath := .id carrier
-        description := s!"{opName}(unit, a) = a" }
-    let rightUnit : Generator2 :=
-      { id        := gid s!"right_unit_{opName}"
-        leftPath  := .comp (.prod (.id carrier) (.atom unitId)) (.atom op.id)
-        rightPath := .id carrier
-        description := s!"{opName}(a, unit) = a" }
-    { t with
-      morphisms := t.morphisms ++ [unitMor]
-      axioms    := t.axioms ++ [leftUnit, rightUnit] }
+    -- Pre-flight: verify op : carrier × carrier → carrier
+    if op.domain != .prod carrier carrier then t
+    else
+      -- Flat name so renameGenerator can easily match: "μ_unit", "add_unit", etc.
+      let unitId  := { name := .root s!"{opName}_unit", index := 0, kind := .morphism }
+      let unitMor : Generator1 :=
+        { id          := unitId
+          domain      := .terminal
+          codomain    := carrier
+          description := s!"Unit for {opName}: 1 → A" }
+      let leftUnit : Generator2 :=
+        { id        := gid s!"left_unit_{opName}"
+          leftPath  := .comp (.prod (.atom unitId) (.id carrier)) (.atom op.id)
+          rightPath := .id carrier
+          description := s!"{opName}(unit, a) = a" }
+      let rightUnit : Generator2 :=
+        { id        := gid s!"right_unit_{opName}"
+          leftPath  := .comp (.prod (.id carrier) (.atom unitId)) (.atom op.id)
+          rightPath := .id carrier
+          description := s!"{opName}(a, unit) = a" }
+      { t with
+        morphisms := t.morphisms ++ [unitMor]
+        axioms    := t.axioms ++ [leftUnit, rightUnit] }
 
 -- ============================================================
 -- addIdempotent
@@ -133,12 +148,15 @@ def addIdempotent (t : Theory) (opName : String) : Theory :=
   | none => t
   | some op =>
     let carrier := op.codomain
-    let idem : Generator2 :=
-      { id        := gid s!"idem_{opName}"
-        leftPath  := .comp (.prod (.id carrier) (.id carrier)) (.atom op.id)
-        rightPath := .id carrier
-        description := s!"Idempotency: {opName}(a, a) = a" }
-    { t with axioms := t.axioms ++ [idem] }
+    -- Pre-flight: verify op : carrier × carrier → carrier
+    if op.domain != .prod carrier carrier then t
+    else
+      let idem : Generator2 :=
+        { id        := gid s!"idem_{opName}"
+          leftPath  := .comp (.prod (.id carrier) (.id carrier)) (.atom op.id)
+          rightPath := .id carrier
+          description := s!"Idempotency: {opName}(a, a) = a" }
+      { t with axioms := t.axioms ++ [idem] }
 
 -- ============================================================
 -- addAbsorption
@@ -153,17 +171,22 @@ def addAbsorption (t : Theory) (op1Name : String) (op2Name : String) : Theory :=
   | none, _ | _, none => t
   | some op1, some op2 =>
     let carrier := op1.codomain
-    let abs1 : Generator2 :=
-      { id        := gid s!"absorb_{op1Name}_{op2Name}"
-        leftPath  := .comp (.prod (.id carrier) (.atom op2.id)) (.atom op1.id)
-        rightPath := .id carrier
-        description := s!"{op1Name}(a, {op2Name}(a, b)) = a" }
-    let abs2 : Generator2 :=
-      { id        := gid s!"absorb_{op2Name}_{op1Name}"
-        leftPath  := .comp (.prod (.id carrier) (.atom op1.id)) (.atom op2.id)
-        rightPath := .id carrier
-        description := s!"{op2Name}(a, {op1Name}(a, b)) = a" }
-    { t with axioms := t.axioms ++ [abs1, abs2] }
+    -- Pre-flight: verify both ops : carrier × carrier → carrier
+    if op1.domain != .prod carrier carrier then t
+    else if op2.domain != .prod carrier carrier then t
+    else if op2.codomain != carrier then t
+    else
+      let abs1 : Generator2 :=
+        { id        := gid s!"absorb_{op1Name}_{op2Name}"
+          leftPath  := .comp (.prod (.id carrier) (.atom op2.id)) (.atom op1.id)
+          rightPath := .id carrier
+          description := s!"{op1Name}(a, {op2Name}(a, b)) = a" }
+      let abs2 : Generator2 :=
+        { id        := gid s!"absorb_{op2Name}_{op1Name}"
+          leftPath  := .comp (.prod (.id carrier) (.atom op1.id)) (.atom op2.id)
+          rightPath := .id carrier
+          description := s!"{op2Name}(a, {op1Name}(a, b)) = a" }
+      { t with axioms := t.axioms ++ [abs1, abs2] }
 
 -- ============================================================
 -- addDistributivity
@@ -178,17 +201,22 @@ def addDistributivity (t : Theory) (mulName : String) (addName : String) : Theor
   | none, _ | _, none => t
   | some mulOp, some addOp =>
     let carrier := mulOp.codomain
-    let leftD : Generator2 :=
-      { id        := gid s!"left_distrib"
-        leftPath  := .comp (.prod (.id carrier) (.atom addOp.id)) (.atom mulOp.id)
-        rightPath := .comp (.prod (.atom mulOp.id) (.atom mulOp.id)) (.atom addOp.id)
-        description := s!"Left distributivity: {mulName}(a, {addName}(b,c)) = {addName}({mulName}(a,b), {mulName}(a,c))" }
-    let rightD : Generator2 :=
-      { id        := gid s!"right_distrib"
-        leftPath  := .comp (.prod (.atom addOp.id) (.id carrier)) (.atom mulOp.id)
-        rightPath := .comp (.prod (.atom mulOp.id) (.atom mulOp.id)) (.atom addOp.id)
-        description := s!"Right distributivity: {mulName}({addName}(a,b), c) = {addName}({mulName}(a,c), {mulName}(b,c))" }
-    { t with axioms := t.axioms ++ [leftD, rightD] }
+    -- Pre-flight: verify both ops : carrier × carrier → carrier
+    if mulOp.domain != .prod carrier carrier then t
+    else if addOp.domain != .prod carrier carrier then t
+    else if addOp.codomain != carrier then t
+    else
+      let leftD : Generator2 :=
+        { id        := gid s!"left_distrib"
+          leftPath  := .comp (.prod (.id carrier) (.atom addOp.id)) (.atom mulOp.id)
+          rightPath := .comp (.prod (.atom mulOp.id) (.atom mulOp.id)) (.atom addOp.id)
+          description := s!"Left distributivity: {mulName}(a, {addName}(b,c)) = {addName}({mulName}(a,b), {mulName}(a,c))" }
+      let rightD : Generator2 :=
+        { id        := gid s!"right_distrib"
+          leftPath  := .comp (.prod (.atom addOp.id) (.id carrier)) (.atom mulOp.id)
+          rightPath := .comp (.prod (.atom mulOp.id) (.atom mulOp.id)) (.atom addOp.id)
+          description := s!"Right distributivity: {mulName}({addName}(a,b), c) = {addName}({mulName}(a,c), {mulName}(b,c))" }
+      { t with axioms := t.axioms ++ [leftD, rightD] }
 
 -- ============================================================
 -- addAdjoint

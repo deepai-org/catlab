@@ -188,6 +188,20 @@ Key insight for \`opposite\`: endomorphisms (\`f: A→A\`) are self-dual. \`comp
 
 Valid values: Category, CartesianCategory, MonoidalCategory, BraidedMonoidal, SymmetricMonoidal, FinitelyComplete, Abelian, Topos, LawvereTheory, ElementaryTopos, MartinLofTypeTheory, ModelCategory, and others.
 
+## Deep Verification (Lean/Mathlib)
+
+When deep verification is enabled, your theory is also type-checked against Lean 4 / Mathlib after passing the fast structural check. The result has three states:
+
+- **✓ success**: All types and axioms verified by Lean's kernel. Your theory is mathematically sound.
+- **✗ semantic_error**: Lean found a TYPE MISMATCH. This means a morphism's domain/codomain is structurally incompatible with how it's used in axioms, or a composition is invalid. **Action**: Read the error message carefully — it tells you the expected type vs. the actual type. Change the domain/codomain declarations to match.
+- **⚠ unverified_axiom**: Your theory is well-typed (all morphisms compose correctly), but Lean's \`aesop_cat\` tactic couldn't automatically prove one or more axioms. **Action**: Either (A) accept the axiom as an assumption (it may still be correct), or (B) break it into smaller intermediate lemmas that \`aesop_cat\` can handle.
+
+When you see \`[SEMANTIC ERROR in morphism:f]\`, the \`morphism:f\` tells you WHICH declaration to fix. When you see \`[UNVERIFIED in axiom:assoc]\`, it means axiom \`assoc\` is well-typed but couldn't be auto-proven — this is often fine.
+
+## Inequality Axioms (Dialectica/Preorder)
+
+For theories in Dialectica or Preorder doctrines, axioms may use \`"relation": "ineq"\` instead of equality. This generates \`≤\` constraints in Lean rather than \`=\`. Use inequalities when the mathematical structure requires ordering (e.g., Heyting algebra adjunctions, Dialectica interpretation).
+
 ## Rules
 
 1. Submit your proposal by calling the provided tool. Do not output text —

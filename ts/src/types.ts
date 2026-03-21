@@ -37,6 +37,8 @@ export interface AxiomJson {
   name: string;
   lhs: ExprJson;
   rhs: ExprJson;
+  /** "eq" (default) for strict equality, "ineq" for ≤ (Dialectica/preorder contexts) */
+  relation?: "eq" | "ineq";
   description?: string;
 }
 
