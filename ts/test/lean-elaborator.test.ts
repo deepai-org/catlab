@@ -460,7 +460,8 @@ test("Realizability generates subobject classifier Ω", () => {
   const { source } = theoryToLean(theory);
   assert.ok(source.includes("RealizedProp"), "should generate RealizedProp structure");
   assert.ok(source.includes("omegaAssembly"), "should generate Ω assembly");
-  assert.ok(source.includes("charMorphism"), "should generate characteristic morphism");
+  assert.ok(source.includes("charMorphismTrue"), "should generate characteristic morphism");
+  assert.ok(source.includes("charPred"), "should generate characteristic predicate");
   assert.ok(source.includes("subobject_classifier_pullback"), "should generate pullback theorem");
 });
 
