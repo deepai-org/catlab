@@ -14,6 +14,7 @@ import { writeFile, unlink, mkdtemp } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 import type { TheoryJson, ExprJson, MorphismJson, AxiomJson } from "./types";
+import { detectOperator } from "./operator-elaborators";
 
 // ── Result types ──────────────────────────────────────────────────────────────
 
@@ -388,6 +389,24 @@ export interface ElaborationOptions {
  * Returns the source and a source map for error attribution.
  */
 export function theoryToLean(theory: TheoryJson): { source: string; sourceMap: SourceMap } {
+  // Check if this theory was produced by a known operator
+  const detected = detectOperator(theory);
+  if (detected) {
+    const source = detected.generate(theory);
+    const sm = new SourceMap();
+    // Build a basic source map from the generated source
+    const sourceLines = source.split("\n");
+    for (let i = 0; i < sourceLines.length; i++) {
+      if (sourceLines[i].includes("variable")) {
+        sm.add(i + 1, `operator:${detected.operator}`, "morphism");
+      } else if (sourceLines[i].includes("#check") || sourceLines[i].includes("example")) {
+        sm.add(i + 1, `operator:${detected.operator}:verification`, "axiom");
+      }
+    }
+    return { source, sourceMap: sm };
+  }
+
+  // Generic elaboration for non-operator theories
   const sm = new SourceMap();
   const lines: string[] = [];
   let lineNum = 1;

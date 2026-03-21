@@ -201,6 +201,99 @@ async function main() {
     }
   });
 
+  // Test 9: Functor category — operator-specialized elaboration
+  await test("Functor category operator elaboration compiles", async () => {
+    const theory: TheoryJson = {
+      name: "FunctorCategory",
+      doctrine: "Category",
+      objects: [
+        { name: "F", description: "Functor F" },
+        { name: "G", description: "Functor G" },
+        { name: "H", description: "Functor H" },
+      ],
+      morphisms: [
+        { name: "α", domain: "F", codomain: "G", description: "Natural transformation" },
+        { name: "β", domain: "G", codomain: "H", description: "Natural transformation" },
+      ],
+      axioms: [
+        { name: "naturality_α", lhs: { comp: [{ atom: "α" }, { atom: "G" }] }, rhs: { comp: [{ atom: "F" }, { atom: "α" }] }, description: "Naturality of α" },
+        { name: "vcomp", lhs: { atom: "βα" }, rhs: { comp: [{ atom: "α" }, { atom: "β" }] }, description: "Vertical composition" },
+      ],
+    };
+    const result = await elaborate(theory, opts);
+    console.log(`    Status: ${result.status}`);
+    if (result.leanSource) {
+      // Verify it used the specialized functor category elaboration
+      if (!result.leanSource.includes("C ⥤ D")) {
+        throw new Error("Expected specialized functor category elaboration with C ⥤ D");
+      }
+      if (!result.leanSource.includes("α.naturality")) {
+        throw new Error("Expected naturality proof in generated source");
+      }
+    }
+    if (result.status !== "success") {
+      console.log(`    Generated Lean:\n${result.leanSource}`);
+      throw new Error(`Expected success, got ${result.status}: ${result.diagnostics}`);
+    }
+  });
+
+  // Test 10: Grothendieck construction — operator-specialized elaboration
+  await test("Grothendieck construction operator elaboration compiles", async () => {
+    const theory: TheoryJson = {
+      name: "Grothendieck_F",
+      doctrine: "Category",
+      objects: [
+        { name: "(X, x)", description: "Total object" },
+        { name: "(Y, y)", description: "Total object" },
+      ],
+      morphisms: [
+        { name: "π", domain: "(X, x)", codomain: "X", description: "Projection" },
+      ],
+      axioms: [
+        { name: "proj_comp", lhs: { comp: [{ atom: "π" }, { atom: "f" }] }, rhs: { atom: "π" }, description: "Projection naturality" },
+      ],
+    };
+    const result = await elaborate(theory, opts);
+    console.log(`    Status: ${result.status}`);
+    if (result.leanSource) {
+      if (!result.leanSource.includes("F.Elements")) {
+        throw new Error("Expected Grothendieck elaboration using F.Elements");
+      }
+    }
+    if (result.status !== "success") {
+      console.log(`    Generated Lean:\n${result.leanSource}`);
+      throw new Error(`Expected success, got ${result.status}: ${result.diagnostics}`);
+    }
+  });
+
+  // Test 11: Comma category — operator-specialized elaboration
+  await test("Comma category operator elaboration compiles", async () => {
+    const theory: TheoryJson = {
+      name: "Comma_L_R",
+      doctrine: "Category",
+      objects: [
+        { name: "(a, b, h)", description: "Comma object" },
+      ],
+      morphisms: [
+        { name: "(f, g)", domain: "(a, b, h)", codomain: "(a, b, h)", description: "Comma morphism" },
+      ],
+      axioms: [
+        { name: "comm_square", lhs: { comp: [{ atom: "f" }, { atom: "h" }] }, rhs: { comp: [{ atom: "h" }, { atom: "g" }] }, description: "Commutativity square" },
+      ],
+    };
+    const result = await elaborate(theory, opts);
+    console.log(`    Status: ${result.status}`);
+    if (result.leanSource) {
+      if (!result.leanSource.includes("Comma L R")) {
+        throw new Error("Expected Comma category elaboration");
+      }
+    }
+    if (result.status !== "success") {
+      console.log(`    Generated Lean:\n${result.leanSource}`);
+      throw new Error(`Expected success, got ${result.status}: ${result.diagnostics}`);
+    }
+  });
+
   console.log(`\n── Results: ${passed} passed, ${failed} failed ──\n`);
   if (failed > 0) process.exit(1);
 }
