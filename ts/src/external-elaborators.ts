@@ -1125,9 +1125,17 @@ export interface LemmaNode {
   /** The statement to prove (as an ExprJson equality) */
   statement: { lhs: ExprJson; rhs: ExprJson };
   /** Proof strategy: which tactic to try */
-  tactic: "aesop_cat" | "simp" | "ring" | "omega" | "rfl" | "ext" | "exact";
-  /** For "exact": the proof term to use */
+  tactic: "aesop_cat" | "simp" | "ring" | "omega" | "rfl" | "ext" | "exact"
+    | "rw" | "erw" | "apply" | "calc" | "steps";
+  /** For "exact"/"apply": the proof term to use */
   proofTerm?: string;
+  /**
+   * For "rw"/"erw"/"steps": ordered list of tactic steps.
+   * Each string is a complete tactic line, e.g.:
+   *   ["rw [PCA.skk_app]", "rw [PCA.comp_tracker_app]", "exact h"]
+   * Critical for PCA combinator algebra where simp/aesop cause infinite loops.
+   */
+  tacticSteps?: string[];
   /** Dependencies: names of other lemmas this one uses */
   dependencies?: string[];
 }
@@ -1158,11 +1166,46 @@ export function lemmasToLean(
       case "exact":
         lines.push(`    exact ${lemma.proofTerm ?? "sorry"}`);
         break;
+      case "apply":
+        lines.push(`    apply ${lemma.proofTerm ?? "sorry"}`);
+        break;
       case "rfl":
         lines.push(`    rfl`);
         break;
       case "ext":
         lines.push(`    ext; aesop_cat`);
+        break;
+      case "rw":
+      case "erw":
+        // Emit each rewrite step on its own line — directional control
+        if (lemma.tacticSteps && lemma.tacticSteps.length > 0) {
+          for (const step of lemma.tacticSteps) {
+            lines.push(`    ${step}`);
+          }
+        } else {
+          lines.push(`    ${lemma.tactic} [sorry]`);
+        }
+        break;
+      case "calc":
+        // Calc block: each step is a line in the calculation
+        if (lemma.tacticSteps && lemma.tacticSteps.length > 0) {
+          lines.push(`    calc`);
+          for (const step of lemma.tacticSteps) {
+            lines.push(`      ${step}`);
+          }
+        } else {
+          lines.push(`    sorry`);
+        }
+        break;
+      case "steps":
+        // Arbitrary tactic sequence — the LLM dictates every line
+        if (lemma.tacticSteps && lemma.tacticSteps.length > 0) {
+          for (const step of lemma.tacticSteps) {
+            lines.push(`    ${step}`);
+          }
+        } else {
+          lines.push(`    sorry`);
+        }
         break;
       default:
         lines.push(`    ${lemma.tactic}`);
@@ -1293,6 +1336,126 @@ export function computeTheoryPushout(
     morphisms: pushoutMorphisms,
     axioms: pushoutAxioms,
   };
+}
+
+/**
+ * A pushout cocone: the apex theory P plus the two inclusion functors
+ * F_A : A → P and F_B : B → P that form the universal cocone.
+ */
+export interface PushoutCocone {
+  /** The pushout theory P = A ⊔_base B */
+  pushout: TheoryJson;
+  /** Inclusion functor A → P: maps each A-object/morphism to its P counterpart */
+  inclusionA: CrossTierFunctor;
+  /** Inclusion functor B → P: maps each B-object/morphism to its P counterpart */
+  inclusionB: CrossTierFunctor;
+}
+
+/**
+ * Compute the pushout cocone: apex + inclusion functors.
+ *
+ * The inclusions F_A and F_B are identity-on-names for objects/morphisms
+ * that are shared with the base (they're identified in the pushout),
+ * and identity-on-names for objects/morphisms unique to A or B
+ * (they're included directly in the pushout).
+ *
+ * This gives us the categorical guarantee: for any theory T with
+ * morphisms A → T and B → T agreeing on base, there exists a unique
+ * morphism P → T (the universal property of the pushout).
+ */
+export function computePushoutCocone(
+  theoryA: TheoryJson,
+  theoryB: TheoryJson,
+  base: TheoryJson,
+): PushoutCocone {
+  const pushout = computeTheoryPushout(theoryA, theoryB, base);
+  const pushoutTier = routeToExternal(pushout);
+
+  // Inclusion A → P: every object/morphism in A maps to itself in P
+  const objMapA: Record<string, string> = {};
+  for (const obj of theoryA.objects) {
+    objMapA[obj.name] = obj.name;  // identity mapping (names are preserved)
+  }
+  const morMapA: Record<string, string> = {};
+  for (const mor of theoryA.morphisms) {
+    morMapA[mor.name] = mor.name;
+  }
+
+  // Inclusion B → P: every object/morphism in B maps to itself in P
+  const objMapB: Record<string, string> = {};
+  for (const obj of theoryB.objects) {
+    objMapB[obj.name] = obj.name;
+  }
+  const morMapB: Record<string, string> = {};
+  for (const mor of theoryB.morphisms) {
+    morMapB[mor.name] = mor.name;
+  }
+
+  const inclusionA: CrossTierFunctor = {
+    name: `ι_${theoryA.name}`,
+    source: { theory: theoryA, tier: routeToExternal(theoryA) },
+    target: { theory: pushout, tier: pushoutTier },
+    objectMap: objMapA,
+    morphismMap: morMapA,
+  };
+
+  const inclusionB: CrossTierFunctor = {
+    name: `ι_${theoryB.name}`,
+    source: { theory: theoryB, tier: routeToExternal(theoryB) },
+    target: { theory: pushout, tier: pushoutTier },
+    objectMap: objMapB,
+    morphismMap: morMapB,
+  };
+
+  return { pushout, inclusionA, inclusionB };
+}
+
+/**
+ * Transport a theorem (axiom) from theory A into the pushout P
+ * via the inclusion functor F_A.
+ *
+ * Given an axiom in A, returns the corresponding axiom in P.
+ * Since the inclusion is identity-on-names, this is straightforward,
+ * but the function provides the categorical guarantee that the
+ * transport is well-defined.
+ */
+export function transportAxiom(
+  axiom: AxiomJson,
+  inclusion: CrossTierFunctor,
+): AxiomJson {
+  return {
+    ...axiom,
+    name: `${inclusion.name}_${axiom.name}`,
+    description: `[transported via ${inclusion.name}] ${axiom.description ?? axiom.name}`,
+    // For identity inclusions, lhs/rhs are unchanged.
+    // For non-trivial functors, we'd need to apply the functor to the expressions.
+    lhs: applyFunctorToExpr(axiom.lhs, inclusion),
+    rhs: applyFunctorToExpr(axiom.rhs, inclusion),
+  };
+}
+
+/** Apply a functor's mapping to an expression. */
+function applyFunctorToExpr(expr: ExprJson, functor: CrossTierFunctor): ExprJson {
+  if (typeof expr === "string") {
+    if (expr === "terminal" || expr === "unit" || expr === "initial") return expr;
+    // Check if it's an object name
+    if (functor.objectMap[expr]) return functor.objectMap[expr];
+    // Check if it's a morphism name
+    if (functor.morphismMap[expr]) return functor.morphismMap[expr];
+    return expr;
+  }
+  if ("atom" in expr) {
+    if (functor.objectMap[expr.atom]) return { atom: functor.objectMap[expr.atom] };
+    if (functor.morphismMap[expr.atom]) return { atom: functor.morphismMap[expr.atom] };
+    return expr;
+  }
+  if ("comp" in expr) return { comp: [applyFunctorToExpr(expr.comp[0], functor), applyFunctorToExpr(expr.comp[1], functor)] };
+  if ("prod" in expr) return { prod: [applyFunctorToExpr(expr.prod[0], functor), applyFunctorToExpr(expr.prod[1], functor)] };
+  if ("tensor" in expr) return { tensor: [applyFunctorToExpr(expr.tensor[0], functor), applyFunctorToExpr(expr.tensor[1], functor)] };
+  if ("coprod" in expr) return { coprod: [applyFunctorToExpr(expr.coprod[0], functor), applyFunctorToExpr(expr.coprod[1], functor)] };
+  if ("hom" in expr) return { hom: [applyFunctorToExpr(expr.hom[0], functor), applyFunctorToExpr(expr.hom[1], functor)] };
+  if ("id" in expr) return { id: applyFunctorToExpr(expr.id, functor) };
+  return expr;
 }
 
 /** Pick the "richer" doctrine when merging two theories. */

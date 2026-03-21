@@ -556,10 +556,15 @@ export function theoryToLean(theory: TheoryJson): { source: string; sourceMap: S
       emit(`-- Helper for: ${lem.forAxiom ?? "general"}`, `lemma:${lem.name}`, "axiom");
       emit(`lemma ${lemName} : ${lhs} = ${rhs} := by`);
       const tactic = lem.tactic ?? "aesop_cat";
-      if (tactic === "exact" && lem.proofTerm) {
-        emit(`  exact ${lem.proofTerm}`);
+      if ((tactic === "exact" || tactic === "apply") && lem.proofTerm) {
+        emit(`  ${tactic} ${lem.proofTerm}`);
       } else if (tactic === "ext") {
         emit(`  ext; aesop_cat`);
+      } else if ((tactic === "rw" || tactic === "erw" || tactic === "steps" || tactic === "calc") && lem.tacticSteps?.length) {
+        if (tactic === "calc") emit(`  calc`);
+        for (const step of lem.tacticSteps) {
+          emit(`  ${tactic === "calc" ? "  " : ""}${step}`);
+        }
       } else {
         emit(`  ${tactic}`);
       }

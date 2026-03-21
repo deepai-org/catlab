@@ -52,9 +52,18 @@ export interface LemmaJson {
   lhs: ExprJson;
   rhs: ExprJson;
   /** Proof tactic to use */
-  tactic?: "aesop_cat" | "simp" | "ring" | "omega" | "rfl" | "ext" | "exact";
-  /** For "exact": the proof term */
+  tactic?: "aesop_cat" | "simp" | "ring" | "omega" | "rfl" | "ext" | "exact"
+    | "rw" | "erw" | "apply" | "calc" | "steps";
+  /** For "exact"/"apply": the proof term to use */
   proofTerm?: string;
+  /**
+   * For "rw"/"erw"/"steps": ordered list of tactic steps.
+   * Each string is a complete tactic line, e.g.:
+   *   ["rw [PCA.skk_app]", "rw [PCA.comp_tracker_app]", "exact h"]
+   * This gives the LLM precise directional control over rewrites,
+   * critical for PCA combinator algebra where simp/aesop loop.
+   */
+  tacticSteps?: string[];
   /** Names of other lemmas this depends on */
   dependencies?: string[];
   /** Which axiom this lemma helps prove */

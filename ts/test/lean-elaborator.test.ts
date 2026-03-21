@@ -272,6 +272,7 @@ test("Realizability theory detected by operator elaborator", () => {
 import {
   theoryToOmega, theoryToHyperion, routeToExternal, compileCrossTierFunctor,
   truncateToHomotopyCategory, truncatedTheoryToLean, computeTheoryPushout,
+  computePushoutCocone, transportAxiom,
 } from "../src/external-elaborators";
 import type { CrossTierFunctor } from "../src/external-elaborators";
 
@@ -699,6 +700,136 @@ test("computeTheoryPushout name includes both theories", () => {
   const b: TheoryJson = { name: "B", doctrine: "Category", objects: [], morphisms: [], axioms: [] };
   const pushout = computeTheoryPushout(a, b, base);
   assert.ok(pushout.name.includes("A") && pushout.name.includes("B"), "should name after both theories");
+});
+
+// ── Pushout cocone tests ──────────────────────────────────────────────────
+
+test("computePushoutCocone generates inclusion functors", () => {
+  const base: TheoryJson = {
+    name: "Set", doctrine: "Category",
+    objects: [{ name: "S" }],
+    morphisms: [{ name: "id_S", domain: "S", codomain: "S" }],
+    axioms: [],
+  };
+  const theoryA: TheoryJson = {
+    name: "Mon", doctrine: "LawvereTheory",
+    objects: [{ name: "S" }, { name: "M" }],
+    morphisms: [
+      { name: "id_S", domain: "S", codomain: "S" },
+      { name: "mu", domain: { prod: ["M", "M"] }, codomain: "M" },
+    ],
+    axioms: [{ name: "assoc", lhs: { atom: "l" }, rhs: { atom: "r" } }],
+  };
+  const theoryB: TheoryJson = {
+    name: "Grp", doctrine: "LawvereTheory",
+    objects: [{ name: "S" }, { name: "G" }],
+    morphisms: [
+      { name: "id_S", domain: "S", codomain: "S" },
+      { name: "inv", domain: "G", codomain: "G" },
+    ],
+    axioms: [],
+  };
+
+  const cocone = computePushoutCocone(theoryA, theoryB, base);
+
+  // Inclusion A → P
+  assert.equal(cocone.inclusionA.name, "ι_Mon", "should name inclusion after source");
+  assert.equal(cocone.inclusionA.objectMap["S"], "S", "shared object maps to itself");
+  assert.equal(cocone.inclusionA.objectMap["M"], "M", "unique object maps to itself");
+  assert.equal(cocone.inclusionA.morphismMap["mu"], "mu", "morphism maps to itself");
+
+  // Inclusion B → P
+  assert.equal(cocone.inclusionB.name, "ι_Grp");
+  assert.equal(cocone.inclusionB.objectMap["G"], "G");
+  assert.equal(cocone.inclusionB.morphismMap["inv"], "inv");
+});
+
+test("transportAxiom carries theorem from A into pushout P", () => {
+  const base: TheoryJson = { name: "C", doctrine: "Category", objects: [], morphisms: [], axioms: [] };
+  const theoryA: TheoryJson = {
+    name: "A", doctrine: "Category",
+    objects: [{ name: "X" }], morphisms: [],
+    axioms: [{ name: "thm1", lhs: { atom: "a" }, rhs: { atom: "b" }, description: "important" }],
+  };
+  const theoryB: TheoryJson = {
+    name: "B", doctrine: "Category", objects: [], morphisms: [], axioms: [],
+  };
+
+  const cocone = computePushoutCocone(theoryA, theoryB, base);
+  const transported = transportAxiom(theoryA.axioms[0], cocone.inclusionA);
+
+  assert.ok(transported.name.includes("ι_A"), "transported axiom includes functor name");
+  assert.ok(transported.description?.includes("transported"), "should note transport");
+  // For identity inclusion, lhs/rhs should be unchanged
+  assert.deepEqual(transported.lhs, { atom: "a" });
+  assert.deepEqual(transported.rhs, { atom: "b" });
+});
+
+// ── Expanded tactic tests ─────────────────────────────────────────────────
+
+test("LemmaJson with rw tactic generates rewrite steps", () => {
+  const theory: TheoryJson = {
+    name: "RwTest", doctrine: "Category",
+    objects: [{ name: "X" }],
+    morphisms: [{ name: "f", domain: "X", codomain: "X" }],
+    axioms: [{ name: "idem", lhs: { comp: [{ atom: "f" }, { atom: "f" }] }, rhs: { atom: "f" } }],
+    lemmas: [{
+      name: "step1",
+      lhs: { comp: [{ atom: "f" }, { atom: "f" }] },
+      rhs: { atom: "f" },
+      tactic: "rw",
+      tacticSteps: ["rw [Category.comp_id]", "exact h"],
+      forAxiom: "idem",
+    }],
+  };
+  const { source } = theoryToLean(theory);
+  assert.ok(source.includes("rw [Category.comp_id]"), "should emit rw step");
+  assert.ok(source.includes("exact h"), "should emit exact step");
+});
+
+test("LemmaJson with steps tactic generates arbitrary tactic sequence", () => {
+  const theory: TheoryJson = {
+    name: "StepsTest", doctrine: "Category",
+    objects: [{ name: "X" }],
+    morphisms: [{ name: "f", domain: "X", codomain: "X" }],
+    axioms: [{ name: "ax", lhs: { atom: "a" }, rhs: { atom: "b" } }],
+    lemmas: [{
+      name: "pca_reduce",
+      lhs: { atom: "skk_a" },
+      rhs: { atom: "a" },
+      tactic: "steps",
+      tacticSteps: [
+        "unfold PCA.skk",
+        "rw [PCA.s_app₃]",
+        "rw [PCA.k_app₂]",
+        "rfl",
+      ],
+      forAxiom: "ax",
+    }],
+  };
+  const { source } = theoryToLean(theory);
+  assert.ok(source.includes("unfold PCA.skk"), "should emit unfold");
+  assert.ok(source.includes("rw [PCA.s_app₃]"), "should emit S rewrite");
+  assert.ok(source.includes("rw [PCA.k_app₂]"), "should emit K rewrite");
+});
+
+test("LemmaJson with apply tactic uses proofTerm", () => {
+  const theory: TheoryJson = {
+    name: "ApplyTest", doctrine: "Category",
+    objects: [{ name: "X" }],
+    morphisms: [],
+    axioms: [{ name: "ax", lhs: { atom: "a" }, rhs: { atom: "b" } }],
+    lemmas: [{
+      name: "use_trans",
+      lhs: { atom: "a" },
+      rhs: { atom: "b" },
+      tactic: "apply",
+      proofTerm: "S.trans a c b",
+      forAxiom: "ax",
+    }],
+  };
+  const { source } = theoryToLean(theory);
+  assert.ok(source.includes("apply S.trans a c b"), "should emit apply with proof term");
 });
 
 // ── PER Quotient tests ────────────────────────────────────────────────────
