@@ -82,7 +82,7 @@ export class DeepVerifier implements Verifier {
       };
     }
 
-    // ── Routing: skip deep path for higher categories (Phase 2: Rzk) ─────
+    // ── Routing: higher categories go to Hyperion via external-elaborators ──
     const theory = payload as TheoryJson;
     if (!this.opts.deepVerification) {
       return {

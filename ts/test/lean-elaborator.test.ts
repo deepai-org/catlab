@@ -267,6 +267,177 @@ test("Realizability theory detected by operator elaborator", () => {
   assert.ok(source.includes("tracker"), "should include tracker field");
 });
 
+// ── External elaborator tests ────────────────────────────────────────────────
+
+import { theoryToOmega, theoryToHyperion, routeToExternal } from "../src/external-elaborators";
+
+test("routeToExternal routes LawvereTheory to omega", () => {
+  assert.equal(routeToExternal(MONOID_THEORY), "omega");
+});
+
+test("routeToExternal routes InfinityNCategory to hyperion", () => {
+  const theory: TheoryJson = {
+    name: "Inf2", doctrine: "InfinityNCategory",
+    objects: [{ name: "Cell0" }], morphisms: [], axioms: [],
+  };
+  assert.equal(routeToExternal(theory), "hyperion");
+});
+
+test("routeToExternal returns null for Category", () => {
+  assert.equal(routeToExternal(CATEGORY_THEORY), null);
+});
+
+test("theoryToOmega generates valid sort and constructor declarations", () => {
+  const source = theoryToOmega(MONOID_THEORY);
+  assert.ok(source.includes("(sort M)"), "missing sort");
+  assert.ok(source.includes("(constructor μ : (-> M M M))"), "missing μ constructor");
+  assert.ok(source.includes("(constructor η : M)"), "missing η constructor");
+  assert.ok(source.includes("(theory Monoid"), "missing theory name");
+  assert.ok(source.includes("eq-refl"), "missing eq-refl rule");
+  assert.ok(source.includes(";; @node morphism:μ"), "missing @node annotation");
+});
+
+test("theoryToHyperion generates Category/Substrate/Universe blocks", () => {
+  const theory: TheoryJson = {
+    name: "HoTTTest", doctrine: "MartinLofTypeTheory",
+    objects: [{ name: "Ctx" }, { name: "Ty" }, { name: "Tm" }],
+    morphisms: [{ name: "app", domain: { prod: ["Tm", "Tm"] }, codomain: "Tm" }],
+    axioms: [],
+  };
+  const source = theoryToHyperion(theory);
+  assert.ok(source.includes("[Category HoTTTestCat"), "missing Category block");
+  assert.ok(source.includes("[Substrate HoTTTestSub"), "missing Substrate block");
+  assert.ok(source.includes("[Universe HoTTTestUni"), "missing Universe block");
+  assert.ok(source.includes("[PathType"), "missing PathType for MLTT");
+  assert.ok(source.includes("[JType"), "missing JType for MLTT");
+  assert.ok(source.includes("@equality rewrite-equivalence"), "MLTT should use rewrite, not e-graph");
+});
+
+test("theoryToHyperion uses e-graph for InfinityNCategory", () => {
+  const theory: TheoryJson = {
+    name: "Inf", doctrine: "InfinityNCategory",
+    objects: [{ name: "Cell0" }], morphisms: [], axioms: [],
+  };
+  const source = theoryToHyperion(theory);
+  assert.ok(source.includes("@equality equality-saturation"), "should use e-graph");
+});
+
+test("theoryToHyperion adds PartialElement for CubicalTypeTheory", () => {
+  const theory: TheoryJson = {
+    name: "Cub", doctrine: "CubicalTypeTheory",
+    objects: [{ name: "Ctx" }], morphisms: [], axioms: [],
+  };
+  const source = theoryToHyperion(theory);
+  assert.ok(source.includes("[PartialElement"), "missing PartialElement for cubical");
+});
+
+test("theoryToOmega declares structural combinators when used in axioms", () => {
+  const theory: TheoryJson = {
+    name: "CompTest", doctrine: "LawvereTheory",
+    objects: [{ name: "M" }],
+    morphisms: [{ name: "f", domain: "M", codomain: "M" }],
+    axioms: [
+      { name: "ax", lhs: { comp: [{ atom: "f" }, { atom: "f" }] }, rhs: { atom: "f" } },
+    ],
+  };
+  const source = theoryToOmega(theory);
+  assert.ok(source.includes("(constructor comp :"), "should declare comp when used");
+});
+
+test("theoryToOmega uses auto tactic fallback", () => {
+  const source = theoryToOmega(MONOID_THEORY);
+  assert.ok(source.includes("(try (eq-refl) (auto 10))"), "should use auto as fallback tactic");
+});
+
+test("theoryToOmega detects AC operations for commutative theories", () => {
+  const theory: TheoryJson = {
+    name: "CommMonoid", doctrine: "LawvereTheory",
+    objects: [{ name: "M" }],
+    morphisms: [
+      { name: "op", domain: { prod: ["M", "M"] }, codomain: "M" },
+    ],
+    axioms: [
+      { name: "assoc", lhs: { atom: "op_assoc_l" }, rhs: { atom: "op_assoc_r" } },
+      { name: "commutativity", lhs: { atom: "op_x_y" }, rhs: { atom: "op_y_x" }, description: "Commutativity of op" },
+    ],
+  };
+  const source = theoryToOmega(theory);
+  assert.ok(source.includes("(attribute op :ac)"), "should add :ac attribute");
+  assert.ok(source.includes("commutativity handled by :ac"), "should skip commutativity rewrite");
+});
+
+test("theoryToOmega generates lemmas for theories with many axioms", () => {
+  const theory: TheoryJson = {
+    name: "BigTheory", doctrine: "LawvereTheory",
+    objects: [{ name: "X" }],
+    morphisms: [{ name: "f", domain: "X", codomain: "X" }],
+    axioms: [
+      { name: "ax1", lhs: { atom: "a" }, rhs: { atom: "b" } },
+      { name: "ax2", lhs: { atom: "c" }, rhs: { atom: "d" } },
+      { name: "ax3", lhs: { atom: "e" }, rhs: { atom: "f" } },
+      { name: "ax4", lhs: { atom: "g" }, rhs: { atom: "h" } },
+    ],
+  };
+  const source = theoryToOmega(theory);
+  assert.ok(source.includes("(lemma derived-ax1"), "should generate incremental lemmas");
+});
+
+test("theoryToHyperion generates assert-neq on directed substrate for e-graph doctrines", () => {
+  const theory: TheoryJson = {
+    name: "Inf2Test", doctrine: "InfinityNCategory",
+    objects: [{ name: "Cell0" }, { name: "Cell2" }],
+    morphisms: [{ name: "vcomp", domain: { prod: ["Cell2", "Cell2"] }, codomain: "Cell2" }],
+    axioms: [{ name: "interchange", lhs: { atom: "lhs" }, rhs: { atom: "rhs" } }],
+  };
+  const source = theoryToHyperion(theory);
+  assert.ok(source.includes("[assert-neq interchange-blocked"), "should generate assert-neq on directed substrate");
+  assert.ok(source.includes("@equality rewrite-equivalence"), "should have directed substrate block");
+});
+
+test("theoryToHyperion generates eval-simplify for e-graph doctrines", () => {
+  const theory: TheoryJson = {
+    name: "SimplifyTest", doctrine: "InfinityNCategory",
+    objects: [{ name: "Cell0" }, { name: "Cell2" }],
+    morphisms: [{ name: "vcomp", domain: { prod: ["Cell2", "Cell2"] }, codomain: "Cell2" }],
+    axioms: [{ name: "law1", lhs: { atom: "a" }, rhs: { atom: "b" } }],
+  };
+  const source = theoryToHyperion(theory);
+  assert.ok(source.includes("[eval-simplify canonical-vcomp"), "should generate eval-simplify");
+});
+
+test("theoryToHyperion adds ModalOperator for CohesiveHomotopyTypeTheory", () => {
+  const theory: TheoryJson = {
+    name: "Cohesive", doctrine: "CohesiveHomotopyTypeTheory",
+    objects: [{ name: "Type" }], morphisms: [], axioms: [],
+  };
+  const source = theoryToHyperion(theory);
+  assert.ok(source.includes("[ModalOperator"), "should add ModalOperator for cohesive");
+  assert.ok(source.includes("[PathType"), "should add PathType for cohesive");
+});
+
+test("theoryToHyperion generates Functor :verify for sort-mapping morphisms", () => {
+  const theory: TheoryJson = {
+    name: "FunctorTest", doctrine: "InfinityNCategory",
+    objects: [{ name: "A" }, { name: "B" }],
+    morphisms: [{ name: "F", domain: "A", codomain: "B" }],
+    axioms: [],
+  };
+  const source = theoryToHyperion(theory);
+  assert.ok(source.includes("[Functor F"), "should generate Functor block");
+  assert.ok(source.includes(":verify"), "should include :verify flag");
+});
+
+test("theoryToHyperion uses @rule on rewrite substrate", () => {
+  const theory: TheoryJson = {
+    name: "RuleTest", doctrine: "MartinLofTypeTheory",
+    objects: [{ name: "Tm" }],
+    morphisms: [],
+    axioms: [{ name: "beta", lhs: { atom: "app_lam" }, rhs: { atom: "x" } }],
+  };
+  const source = theoryToHyperion(theory);
+  assert.ok(source.includes("[@rule beta app_lam ==> x]"), "MLTT should use @rule (directed)");
+});
+
 // ── Print generated Lean for inspection ───────────────────────────────────────
 
 console.log("\n── Generated Lean source for Monoid ──\n");

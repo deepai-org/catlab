@@ -118,6 +118,62 @@ evaluateAll (target := TheoryOfCommutativeMonoid)
 
 ---
 
+## Three-Tier Verification
+
+CatLab uses three complementary verification backends, routed automatically by doctrine. All share the same `TheoryJson` wire format — the solver loop and LLM don't need to know which backend is running.
+
+```
+TheoryJson ──┬── Omega     (algebraic doctrines)       ~1ms
+             ├── Lean/Mathlib (1-categorical doctrines) ~seconds
+             └── Hyperion  (higher-categorical doctrines) ~5ms
+```
+
+### Omega — Equational Verification
+
+[Omega](https://github.com/omega-logic/omega) is a logic-agnostic proof kernel where the type theory itself is user-defined as sorts, constructors, judgments, and rewrite rules. CatLab translates `TheoryJson` into `.omega` source and pipes it via `echo '<source>' | omega check --json --stdin`.
+
+**Doctrines routed to Omega:** LawvereTheory, AlgebraicTheory, CartesianClosed, FiniteProduct, MonoidalCategory.
+
+**Features used:**
+- **AC attributes** — `(attribute op :ac)` for commutative operations. Hash-consing canonicalization makes `op(a,b)` and `op(b,a)` definitionally equal, eliminating entire classes of commutativity proofs for rings, lattices, etc.
+- **`auto` tactic** — bounded depth-first search through rules. Proofs use `(try (eq-refl) (auto 10))` so multi-step equational reasoning succeeds where normalization alone fails.
+- **Lemmas (cut rule)** — proven conclusions are registered as derived rules, enabling incremental theory building for complex verifications.
+- **`@node` annotations** — AST node ID passthrough (`axiom:assoc`, `morphism:mu`) for error attribution back to `TheoryJson`.
+
+**Why Omega over CatLab's built-in rewriter:** Omega matches on constructor names, not types, so same-typed operations (e.g., `add` and `mul` in a ring, both `R × R → R`) are never confused. Normalization is bounded (configurable fuel) with clean error messages on exhaustion, not hangs.
+
+### Lean/Mathlib — Deep Categorical Verification
+
+The existing deep path: translates `TheoryJson` into `.lean` source with Mathlib imports, runs the Lean compiler, and maps diagnostics back to AST node IDs. Used for doctrines with deep Mathlib library coverage (Category, Abelian, Topos, etc.).
+
+### Hyperion — Higher-Categorical Coherence Discovery
+
+[Hyperion](https://github.com/omega-logic/hyperion) is a meta-framework that compiles mathematical structures onto computational substrates. Its key capability is **equality saturation via e-graphs**: given a set of axioms, Hyperion can autonomously discover non-obvious equalities that directed search (Lean's `aesop_cat`, type-checking) cannot find.
+
+**Doctrines routed to Hyperion:** MartinLofTypeTheory, InfinityNCategory, PresentableInfinityCategory, CubicalTypeTheory, CohesiveHomotopyTypeTheory, 2Category, Double, Bicategory.
+
+**Features used:**
+- **Equality saturation** — the e-graph substrate discovers theorems, not just verifies them. From 5 independent axioms (interchange + unit laws), Hyperion autonomously discovers the Eckmann-Hilton theorem: that vertical composition is commutative. Neither Lean's `aesop_cat` nor directed type-checking can find this.
+- **`PathType` auto-injection** — declaring `[PathType :refl R :concat C :inv I :ap A]` auto-injects 4-5 rewrite rules (unit laws, associativity, inverse, functoriality), covering HoTT's ground-level path algebra.
+- **`JType` auto-injection** — adds J-beta and transport-refl rules for Martin-Lof type theory.
+- **`PartialElement` auto-injection** — adds hcomp/coe rules for cubical type theory.
+- **`ModalOperator`** — for cohesive HoTT's shape/flat/sharp adjoint triple.
+- **Substrate comparison** — the same theory on different substrates has different provability. CatLab uses this for "try harder" semantics: start with directed rewriting, escalate to e-graph. `assert-neq` on the directed substrate confirms which equalities genuinely require e-graph discovery.
+- **`Functor :verify`** — verifies that doctrine morphisms preserve equational structure.
+- **`eval-simplify`** — extracts canonical forms from the e-graph, giving CatLab simplified representatives.
+
+**Why Hyperion matters:** CatLab has 5 higher-categorical doctrines that were previously stubs — no verification backend could handle them. Hyperion fills this gap. The Eckmann-Hilton result is the concrete proof: directed search provably cannot derive commutativity from interchange + unit laws, but e-graph saturation discovers it in 0.23s. This is the difference between "we can verify what you already know" and "we can discover what you didn't know."
+
+### Implementation
+
+All Omega and Hyperion interaction is centralized in `ts/src/external-elaborators.ts`:
+- `routeToExternal(theory)` — determines backend by doctrine
+- `theoryToOmega(theory)` / `theoryToHyperion(theory)` — source generation
+- `elaborateExternal(theory, opts)` — CLI invocation via stdin, JSON response parsing
+- Automatic integration into `elaborate()` in `lean-elaborator.ts`
+
+---
+
 ## Library
 
 33 registered library theories covering algebra, topology, logic, and higher category theory (plus `InfinityCategory`, defined but not yet registered in the REPL):

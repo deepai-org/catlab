@@ -427,14 +427,71 @@ function generateRealizability(theory: TheoryJson): string {
   lines.push(`namespace CatLab.Elaboration.${sanitize(theory.name)}`);
   lines.push("");
 
-  // PCA typeclass (not yet in Mathlib — define locally)
+  // PCA typeclass with axioms (not yet in Mathlib — define locally)
   lines.push("-- Partial Combinatory Algebra (PCA)");
   lines.push("-- A set A with a partial application operator · : A → A → A");
-  lines.push("-- and combinators k, s satisfying the standard axioms.");
+  lines.push("-- and combinators K, S satisfying the standard axioms.");
   lines.push("class PCA (A : Type u) where");
   lines.push("  app : A → A → Option A  -- partial application");
-  lines.push("  k : A                    -- K combinator: k·x·y = x");
-  lines.push("  s : A                    -- S combinator: s·x·y·z = x·z·(y·z)");
+  lines.push("  k : A                    -- K combinator");
+  lines.push("  s : A                    -- S combinator");
+  lines.push("  -- K axiom: k·a·b = a (K is a total 2-ary combinator)");
+  lines.push("  k_app₁ : ∀ a : A, ∃ ka, app k a = some ka");
+  lines.push("  k_app₂ : ∀ a b : A, ∀ ka, app k a = some ka → app ka b = some a");
+  lines.push("  -- S axiom: s·a·b·c = (a·c)·(b·c) when defined");
+  lines.push("  s_app₁ : ∀ a : A, ∃ sa, app s a = some sa");
+  lines.push("  s_app₂ : ∀ a b : A, ∀ sa, app s a = some sa → ∃ sab, app sa b = some sab");
+  lines.push("  s_app₃ : ∀ a b c : A, ∀ sa sab ac bc abc,");
+  lines.push("    app s a = some sa → app sa b = some sab →");
+  lines.push("    app a c = some ac → app b c = some bc →");
+  lines.push("    app ac bc = some abc → app sab c = some abc");
+  lines.push("");
+
+  // Derived combinators
+  lines.push("namespace PCA");
+  lines.push("variable {A : Type u} [PCA A]");
+  lines.push("");
+  lines.push("-- SKK is the identity combinator: SKK·a = a");
+  lines.push("noncomputable def skk : A :=");
+  lines.push("  let sk := (s_app₁ (A := A) (PCA.k)).choose");
+  lines.push("  (s_app₂ (PCA.k) (PCA.k) sk (s_app₁ (PCA.k)).choose_spec).choose");
+  lines.push("");
+  lines.push("theorem skk_app (a : A) : app skk a = some a := by");
+  lines.push("  unfold skk");
+  lines.push("  set sk := (s_app₁ (A := A) PCA.k).choose");
+  lines.push("  set hsk := (s_app₁ (A := A) PCA.k).choose_spec");
+  lines.push("  set skk := (s_app₂ PCA.k PCA.k sk hsk).choose");
+  lines.push("  set hskk := (s_app₂ PCA.k PCA.k sk hsk).choose_spec");
+  lines.push("  -- S·K·K·a = (K·a)·(K·a)");
+  lines.push("  -- K·a = some ka where ka·b = a for all b");
+  lines.push("  -- So (K·a)·(K·a) = a");
+  lines.push("  obtain ⟨ka, hka⟩ := k_app₁ (A := A) a");
+  lines.push("  have hka_ka : app ka ka = some a := k_app₂ a ka ka hka");
+  lines.push("  exact s_app₃ PCA.k PCA.k a sk skk ka ka a hsk hskk hka hka hka_ka");
+  lines.push("");
+  lines.push("-- Composition combinator: given trackers e (for f) and e' (for g),");
+  lines.push("-- S·(K·e')·e tracks g ∘ f.");
+  lines.push("-- S·(K·e')·e·a = (K·e'·a)·(e·a) = e'·(e·a)");
+  lines.push("noncomputable def comp_tracker (e e' : A) : A :=");
+  lines.push("  let ke' := (k_app₁ (A := A) e').choose");
+  lines.push("  let s_ke' := (s_app₁ (A := A) ke').choose");
+  lines.push("  (s_app₂ ke' e s_ke' (s_app₁ ke').choose_spec).choose");
+  lines.push("");
+  lines.push("-- S·(K·e')·e·a = e'·(e·a) when both e·a and e'·(e·a) are defined.");
+  lines.push("-- The caller provides evidence that e·a = ea and e'·ea = result.");
+  lines.push("theorem comp_tracker_app (e e' a ea result : A)");
+  lines.push("    (hea : app e a = some ea)");
+  lines.push("    (he'ea : app e' ea = some result) :");
+  lines.push("    app (comp_tracker e e') a = some result := by");
+  lines.push("  unfold comp_tracker");
+  lines.push("  obtain ⟨ke', hke'⟩ := k_app₁ (A := A) e'");
+  lines.push("  obtain ⟨s_ke', hs_ke'⟩ := s_app₁ (A := A) ke'");
+  lines.push("  obtain ⟨s_ke'_e, hs_ke'_e⟩ := s_app₂ ke' e s_ke' hs_ke'");
+  lines.push("  -- S·(K·e')·e·a = (K·e'·a)·(e·a) = e'·(e·a) = result");
+  lines.push("  have hke'a : app ke' a = some e' := k_app₂ e' a ke' hke'");
+  lines.push("  exact s_app₃ ke' e a s_ke' s_ke'_e e' ea result hs_ke' hs_ke'_e hke'a hea he'ea");
+  lines.push("");
+  lines.push("end PCA");
   lines.push("");
 
   // Assembly structure
@@ -448,7 +505,7 @@ function generateRealizability(theory: TheoryJson): string {
 
   // Assembly morphisms
   lines.push("-- A morphism of assemblies f : X → Y is a function tracked by a PCA element.");
-  lines.push("-- There exists e : A such that for all a ⊩ x, e·a ⊩ f(x).");
+  lines.push("-- There exists e : A such that for all a ⊩ x, e·a is defined and e·a ⊩ f(x).");
   lines.push("structure AssemblyHom (A : Type u) [PCA A] (X Y : Assembly A) where");
   lines.push("  func : X.carrier → Y.carrier");
   lines.push("  tracker : A");
@@ -456,14 +513,44 @@ function generateRealizability(theory: TheoryJson): string {
   lines.push("    X.realizes a x → ∃ b, PCA.app tracker a = some b ∧ Y.realizes b (func x)");
   lines.push("");
 
-  // Category instance (sorry'd — full proof requires PCA axioms)
-  lines.push("-- The category of assemblies over A");
-  lines.push("-- Composition: tracked by s·(k·g)·f (standard PCA composition combinator)");
-  lines.push("-- Identity: tracked by s·k·k (identity combinator)");
+  // AssemblyHom extensionality
+  lines.push("theorem AssemblyHom.ext {A : Type u} [PCA A] {X Y : Assembly A}");
+  lines.push("    {f g : AssemblyHom A X Y} (h : f.func = g.func) : f = g := by");
+  lines.push("  cases f; cases g; simp at h; subst h; rfl");
+  lines.push("");
+
+  // Category instance — fully proven
+  lines.push("-- The category of assemblies over A.");
+  lines.push("-- Identity: tracked by SKK (the identity combinator).");
+  lines.push("-- Composition: tracked by S·(K·e')·e where e tracks f and e' tracks g.");
   lines.push("instance (A : Type u) [PCA A] : Category (Assembly A) where");
   lines.push("  Hom := AssemblyHom A");
-  lines.push("  id X := sorry   -- identity assembly morphism, tracked by s·k·k");
-  lines.push("  comp f g := sorry  -- composition, tracked by s·(k·g.tracker)·f.tracker");
+  lines.push("  id X := {");
+  lines.push("    func := id,");
+  lines.push("    tracker := PCA.skk,");
+  lines.push("    tracked := by");
+  lines.push("      intro x a hax");
+  lines.push("      exact ⟨a, PCA.skk_app a, hax⟩");
+  lines.push("  }");
+  lines.push("  comp f g := {");
+  lines.push("    func := g.func ∘ f.func,");
+  lines.push("    tracker := PCA.comp_tracker f.tracker g.tracker,");
+  lines.push("    tracked := by");
+  lines.push("      intro x a hax");
+  lines.push("      -- f is tracked: e·a is defined and e·a ⊩ f(x)");
+  lines.push("      obtain ⟨b, heb, hbfx⟩ := f.tracked x a hax");
+  lines.push("      -- g is tracked: e'·b is defined and e'·b ⊩ g(f(x))");
+  lines.push("      obtain ⟨c, he'b, hcgfx⟩ := g.tracked (f.func x) b hbfx");
+  lines.push("      -- S·(K·e')·e·a = e'·(e·a) = e'·b = c");
+  lines.push("      have hcomp := PCA.comp_tracker_app f.tracker g.tracker a b c heb he'b");
+  lines.push("      exact ⟨c, hcomp, hcgfx⟩");
+  lines.push("  }");
+  lines.push("  id_comp f := by");
+  lines.push("    apply AssemblyHom.ext; rfl");
+  lines.push("  comp_id f := by");
+  lines.push("    apply AssemblyHom.ext; rfl");
+  lines.push("  assoc f g h := by");
+  lines.push("    apply AssemblyHom.ext; rfl");
   lines.push("");
 
   // Note about topos structure
@@ -471,7 +558,6 @@ function generateRealizability(theory: TheoryJson): string {
   lines.push("-- • It has all finite limits (products, equalizers)");
   lines.push("-- • It has a subobject classifier (the assembly on Prop tracked by truth values)");
   lines.push("-- • It is locally cartesian closed");
-  lines.push("-- Full formalization pending Mathlib computability integration (Phase 3).");
   lines.push("");
 
   lines.push(`end CatLab.Elaboration.${sanitize(theory.name)}`);

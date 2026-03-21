@@ -15,6 +15,7 @@ import { join } from "path";
 import { tmpdir } from "os";
 import type { TheoryJson, ExprJson, MorphismJson, AxiomJson } from "./types";
 import { detectOperator } from "./operator-elaborators";
+import { elaborateExternal, routeToExternal } from "./external-elaborators";
 
 // ── Result types ──────────────────────────────────────────────────────────────
 
@@ -443,6 +444,10 @@ export interface ElaborationOptions {
   timeoutMs?: number;
   /** Keep generated .lean file for debugging. Default: false */
   keepFile?: boolean;
+  /** Path to omega binary. Default: "omega" */
+  omegaBin?: string;
+  /** Path to hyperion binary. Default: "hyperion" */
+  hyperionBin?: string;
 }
 
 /**
@@ -736,10 +741,13 @@ export async function elaborate(
   theory: TheoryJson,
   opts: ElaborationOptions,
 ): Promise<ElaborationResult> {
-  // Route higher-categorical theories to Rzk (Phase 2 stub)
-  if (shouldRouteToRzk(theory)) {
-    return elaborateViaRzk(theory, opts);
-  }
+  // Route to Omega/Hyperion if the doctrine matches
+  const externalResult = await elaborateExternal(theory, {
+    omegaBin: opts.omegaBin,
+    hyperionBin: opts.hyperionBin,
+    timeoutMs: opts.timeoutMs,
+  });
+  if (externalResult) return externalResult;
 
   // Step 1: Generate Lean source
   const { source, sourceMap } = theoryToLean(theory);
@@ -784,47 +792,6 @@ export async function elaborate(
     errors,
     diagnostics: diagnosticLines.join("\n"),
     leanSource: source,
-  };
-}
-
-// ── Phase 2 Stub: Rzk routing for higher-categorical theories ─────────────
-
-/** Higher-categorical doctrines that should route to Rzk in Phase 2. */
-const HIGHER_CATEGORICAL_DOCTRINES = new Set([
-  "MartinLofTypeTheory",
-  "PresentableInfinityCategory",
-  "InfinityNCategory",
-  "CubicalTypeTheory",
-  "CohesiveHomotopyTypeTheory",
-]);
-
-/**
- * Check if a theory should be routed to Rzk instead of Lean.
- * Returns true for higher-categorical theories (Phase 2).
- */
-export function shouldRouteToRzk(theory: TheoryJson): boolean {
-  return HIGHER_CATEGORICAL_DOCTRINES.has(theory.doctrine);
-}
-
-/**
- * Stub: Elaborate a higher-categorical theory via Rzk.
- * Phase 2 implementation will:
- *   1. Translate TheoryJson → .rzk source
- *   2. Run the Rzk type-checker
- *   3. Map errors back to AST node IDs
- *
- * For now, returns a success result with a note that Rzk verification is pending.
- */
-export async function elaborateViaRzk(
-  theory: TheoryJson,
-  _opts: ElaborationOptions,
-): Promise<ElaborationResult> {
-  return {
-    status: "success",
-    errors: [],
-    diagnostics: `Higher-categorical theory (${theory.doctrine}): structurally valid. ` +
-      `Rzk-based semantic verification pending (Phase 2).`,
-    leanSource: undefined,
   };
 }
 

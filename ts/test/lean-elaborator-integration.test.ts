@@ -3,7 +3,8 @@
  * Requires: `lake exe cache get` (Mathlib oleans downloaded)
  */
 
-import { elaborate, theoryToLean, shouldRouteToRzk } from "../src/lean-elaborator";
+import { elaborate, theoryToLean } from "../src/lean-elaborator";
+import { routeToExternal } from "../src/external-elaborators";
 import type { TheoryJson } from "../src/types";
 
 const PROJECT_ROOT = "/Users/kevin/Desktop/catlab";
@@ -137,8 +138,8 @@ async function main() {
     }
   });
 
-  // Test 6: Rzk routing for higher-categorical theories
-  await test("Higher-categorical theory routes to Rzk stub", async () => {
+  // Test 6: Higher-categorical theories route to Hyperion
+  await test("Higher-categorical theory routes to Hyperion", async () => {
     const theory: TheoryJson = {
       name: "HoTTTest",
       doctrine: "CubicalTypeTheory",
@@ -146,14 +147,9 @@ async function main() {
       morphisms: [],
       axioms: [],
     };
-    if (!shouldRouteToRzk(theory)) {
-      throw new Error("Expected shouldRouteToRzk to return true for CubicalTypeTheory");
-    }
-    const result = await elaborate(theory, opts);
-    console.log(`    Status: ${result.status}`);
-    console.log(`    Diagnostics: ${result.diagnostics}`);
-    if (!result.diagnostics.includes("Rzk")) {
-      throw new Error("Expected Rzk routing message in diagnostics");
+    const backend = routeToExternal(theory);
+    if (backend !== "hyperion") {
+      throw new Error(`Expected hyperion routing, got ${backend}`);
     }
   });
 
