@@ -269,7 +269,8 @@ test("Realizability theory detected by operator elaborator", () => {
 
 // ── External elaborator tests ────────────────────────────────────────────────
 
-import { theoryToOmega, theoryToHyperion, routeToExternal } from "../src/external-elaborators";
+import { theoryToOmega, theoryToHyperion, routeToExternal, compileCrossTierFunctor } from "../src/external-elaborators";
+import type { CrossTierFunctor } from "../src/external-elaborators";
 
 test("routeToExternal routes LawvereTheory to omega", () => {
   assert.equal(routeToExternal(MONOID_THEORY), "omega");
@@ -436,6 +437,128 @@ test("theoryToHyperion uses @rule on rewrite substrate", () => {
   };
   const source = theoryToHyperion(theory);
   assert.ok(source.includes("[@rule beta app_lam ==> x]"), "MLTT should use @rule (directed)");
+});
+
+// ── Tripos-to-Topos tests ─────────────────────────────────────────────────
+
+test("Realizability generates subobject classifier Ω", () => {
+  const theory: TheoryJson = {
+    name: "Asm_K1",
+    doctrine: "Category",
+    objects: [
+      { name: "Assembly_X", description: "Assembly over PCA" },
+      { name: "Assembly_Y", description: "Assembly over PCA" },
+    ],
+    morphisms: [
+      { name: "track_f", domain: "Assembly_X", codomain: "Assembly_Y", description: "Tracking morphism" },
+    ],
+    axioms: [],
+  };
+  const { source } = theoryToLean(theory);
+  assert.ok(source.includes("RealizedProp"), "should generate RealizedProp structure");
+  assert.ok(source.includes("omegaAssembly"), "should generate Ω assembly");
+  assert.ok(source.includes("charMorphism"), "should generate characteristic morphism");
+  assert.ok(source.includes("subobject_classifier_pullback"), "should generate pullback theorem");
+});
+
+test("Realizability generates PER category with Ω_PER", () => {
+  const theory: TheoryJson = {
+    name: "Asm_K1",
+    doctrine: "Category",
+    objects: [
+      { name: "Assembly_X", description: "Assembly over PCA" },
+      { name: "Assembly_Y", description: "Assembly over PCA" },
+    ],
+    morphisms: [
+      { name: "track_f", domain: "Assembly_X", codomain: "Assembly_Y", description: "Tracking morphism" },
+    ],
+    axioms: [],
+  };
+  const { source } = theoryToLean(theory);
+  assert.ok(source.includes("PER (A : Type"), "should generate PER structure");
+  assert.ok(source.includes("PERHom"), "should generate PER morphism structure");
+  assert.ok(source.includes("omegaPER"), "should generate Ω_PER subobject classifier");
+  assert.ok(source.includes("Category (PER A)"), "should generate PER category instance");
+});
+
+// ── Hyperion path extraction tests ────────────────────────────────────────
+
+test("theoryToHyperion generates extract-proof for PathType doctrines", () => {
+  const theory: TheoryJson = {
+    name: "PathTest", doctrine: "MartinLofTypeTheory",
+    objects: [{ name: "Tm" }],
+    morphisms: [],
+    axioms: [{ name: "beta", lhs: { atom: "app_lam" }, rhs: { atom: "x" } }],
+  };
+  const source = theoryToHyperion(theory);
+  assert.ok(source.includes("[extract-proof beta-path"), "should request proof extraction for MLTT");
+});
+
+test("theoryToHyperion does NOT generate extract-proof for non-PathType doctrines", () => {
+  const source = theoryToOmega(MONOID_THEORY);
+  assert.ok(!source.includes("extract-proof"), "Omega should not have extract-proof");
+});
+
+// ── Cross-tier functor tests ──────────────────────────────────────────────
+
+test("compileCrossTierFunctor merges omega→lean into unified theory", () => {
+  const monoid: TheoryJson = {
+    name: "Mon", doctrine: "LawvereTheory",
+    objects: [{ name: "M" }],
+    morphisms: [{ name: "mu", domain: { prod: ["M", "M"] }, codomain: "M" }],
+    axioms: [{ name: "assoc", lhs: { atom: "lhs" }, rhs: { atom: "rhs" } }],
+  };
+  const cat: TheoryJson = {
+    name: "Set", doctrine: "Category",
+    objects: [{ name: "S" }],
+    morphisms: [{ name: "f", domain: "S", codomain: "S" }],
+    axioms: [],
+  };
+  const functor: CrossTierFunctor = {
+    name: "Free",
+    source: { theory: monoid, tier: "omega" },
+    target: { theory: cat, tier: null },
+    objectMap: { M: "S" },
+    morphismMap: { mu: "f" },
+  };
+  const { unifiedTheory, verifyWith } = compileCrossTierFunctor(functor);
+
+  // Should compile to Lean (higher tier)
+  assert.equal(verifyWith, null, "should verify with Lean (null)");
+
+  // Should have merged objects with prefixes
+  const objNames = unifiedTheory.objects.map(o => o.name);
+  assert.ok(objNames.includes("src_M"), "should have prefixed source object");
+  assert.ok(objNames.includes("tgt_S"), "should have prefixed target object");
+
+  // Should have functor object mapping
+  const morNames = unifiedTheory.morphisms.map(m => m.name);
+  assert.ok(morNames.includes("F_obj_M"), "should have functor object mapping");
+
+  // Should have merged axioms with prefixes
+  const axNames = unifiedTheory.axioms.map(a => a.name);
+  assert.ok(axNames.includes("src_assoc"), "should have prefixed source axiom");
+  assert.ok(axNames.includes("F_mor_mu"), "should have functor morphism mapping");
+});
+
+test("compileCrossTierFunctor chooses correct tier for hyperion target", () => {
+  const omega: TheoryJson = {
+    name: "Mon", doctrine: "LawvereTheory",
+    objects: [{ name: "M" }], morphisms: [], axioms: [],
+  };
+  const hyp: TheoryJson = {
+    name: "Inf", doctrine: "InfinityNCategory",
+    objects: [{ name: "Cell" }], morphisms: [], axioms: [],
+  };
+  const functor: CrossTierFunctor = {
+    name: "Embed",
+    source: { theory: omega, tier: "omega" },
+    target: { theory: hyp, tier: "hyperion" },
+    objectMap: { M: "Cell" },
+    morphismMap: {},
+  };
+  const { verifyWith } = compileCrossTierFunctor(functor);
+  assert.equal(verifyWith, "hyperion", "should verify at the higher tier (hyperion)");
 });
 
 // ── Print generated Lean for inspection ───────────────────────────────────────

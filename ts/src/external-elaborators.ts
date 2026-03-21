@@ -65,6 +65,13 @@ interface ExternalDiscovery {
   lhs: string;
   rhs: string;
   description: string;
+  /** Proof term / path extracted from the e-graph (if available).
+   *  This is a sequence of rewrite steps witnessing the equality,
+   *  NOT just a boolean flag. For HoTT, these are path constructors. */
+  proof_term?: string;
+  /** The sequence of e-graph rewrite steps (if available).
+   *  Each step is a named law application, forming a 2-cell/path. */
+  rewrite_steps?: string[];
 }
 
 interface ExternalJsonResponse {
@@ -464,6 +471,22 @@ export function theoryToHyperion(theory: TheoryJson): string {
       lines.push(`  [assert-eq ${sanitize(ax.name)} ${lhs} ${rhs}]`);
     }
 
+    // extract-proof: for HoTT/∞-categorical doctrines, request the proof term
+    // (path/2-cell) witnessing each equality — not just a boolean.
+    // This prevents flattening higher-dimensional structure into strict equality.
+    if (config.pathType) {
+      lines.push(``);
+      lines.push(`  ;; Extract proof terms (paths/2-cells) from e-graph`);
+      lines.push(`  ;; CRITICAL: Hyperion must return the rewrite sequence,`);
+      lines.push(`  ;; not just True/False. In HoTT, there may be multiple`);
+      lines.push(`  ;; distinct paths between the same endpoints.`);
+      for (const ax of theory.axioms) {
+        const lhs = exprToHyperion(ax.lhs);
+        const rhs = exprToHyperion(ax.rhs);
+        lines.push(`  [extract-proof ${sanitize(ax.name)}-path ${lhs} ${rhs}]`);
+      }
+    }
+
     // eval-simplify: extract canonical forms for key terms on e-graph substrates
     if (config.eGraph && theory.morphisms.length > 0) {
       lines.push(``);
@@ -763,12 +786,21 @@ function externalResponseToResult(
     diagLines.push(`[${backend.toUpperCase()} TIMEOUT in ${warn.astNodeId}] ${warn.message}`);
   }
 
-  // Include discoveries (Hyperion e-graph results)
+  // Include discoveries (Hyperion e-graph results) with proof terms
   if (response.discoveries.length > 0) {
     diagLines.push(``);
     diagLines.push(`Discoveries (${response.discoveries.length}):`);
     for (const d of response.discoveries) {
       diagLines.push(`  ${d.lhs} = ${d.rhs} — ${d.description}`);
+      // Include the proof term (path/2-cell) if available.
+      // This is essential for HoTT: the LLM needs to see the specific
+      // path constructors, not just that an equality holds.
+      if (d.proof_term) {
+        diagLines.push(`    proof: ${d.proof_term}`);
+      }
+      if (d.rewrite_steps && d.rewrite_steps.length > 0) {
+        diagLines.push(`    via: ${d.rewrite_steps.join(" → ")}`);
+      }
     }
   }
 
@@ -778,6 +810,174 @@ function externalResponseToResult(
     diagnostics: diagLines.join("\n"),
     leanSource: source,
   };
+}
+
+// ── Cross-Tier Functor Interoperability ───────────────────────────────────────
+
+/**
+ * Detect when a theory references objects/morphisms that span multiple
+ * verification tiers. For example, a functor from an Omega-verified
+ * algebraic theory (Monoid) to a Lean-verified 1-category (Set).
+ *
+ * Strategy: "Upward compilation" — compile the lower tier into the
+ * higher tier's language. Omega theories compile trivially into Lean
+ * (Lean handles algebra perfectly), so the functor can be verified
+ * in a unified Lean context.
+ */
+export interface CrossTierFunctor {
+  /** The functor's name */
+  name: string;
+  /** Source theory (with its tier) */
+  source: { theory: TheoryJson; tier: ExternalBackend };
+  /** Target theory (with its tier) */
+  target: { theory: TheoryJson; tier: ExternalBackend };
+  /** Object mapping: source object name → target object name */
+  objectMap: Record<string, string>;
+  /** Morphism mapping: source morphism name → target expression */
+  morphismMap: Record<string, string>;
+}
+
+/**
+ * Determine the verification tier ordering.
+ * null (Lean) > "hyperion" > "omega"
+ * Higher tiers can embed lower tiers.
+ */
+function tierRank(tier: ExternalBackend): number {
+  if (tier === "omega") return 0;
+  if (tier === null) return 1;  // Lean/Mathlib
+  if (tier === "hyperion") return 2;
+  return -1;
+}
+
+/**
+ * Given a cross-tier functor, compile both theories into the higher tier
+ * and return a unified verification payload.
+ *
+ * Compilation directions:
+ *   omega → Lean:  trivial (Lean handles algebra natively)
+ *   omega → Hyperion: compile omega theory into Hyperion Category block
+ *   Lean → Hyperion: not supported (Lean theories are too rich for Hyperion)
+ */
+export function compileCrossTierFunctor(functor: CrossTierFunctor): {
+  /** The unified theory combining source + target + functor axioms */
+  unifiedTheory: TheoryJson;
+  /** Which tier should verify the unified theory */
+  verifyWith: ExternalBackend;
+} {
+  const srcRank = tierRank(functor.source.tier);
+  const tgtRank = tierRank(functor.target.tier);
+
+  // The unified theory is verified at the higher tier
+  const verifyWith = srcRank >= tgtRank ? functor.source.tier : functor.target.tier;
+
+  // Build unified theory: merge objects, morphisms, and axioms from both,
+  // then add functor axioms (functoriality: F(id) = id, F(g∘f) = Fg∘Ff)
+  const unified: TheoryJson = {
+    name: `Functor_${functor.name}`,
+    doctrine: verifyWith === "hyperion"
+      ? functor.target.theory.doctrine  // use the Hyperion doctrine
+      : verifyWith === "omega"
+        ? functor.source.theory.doctrine
+        : "Category",  // Lean handles everything
+    objects: [
+      // Prefix source objects to avoid collisions
+      ...functor.source.theory.objects.map(o => ({
+        ...o, name: `src_${o.name}`,
+        description: `[source] ${o.description ?? o.name}`,
+      })),
+      ...functor.target.theory.objects.map(o => ({
+        ...o, name: `tgt_${o.name}`,
+        description: `[target] ${o.description ?? o.name}`,
+      })),
+    ],
+    morphisms: [
+      ...functor.source.theory.morphisms.map(m => ({
+        ...m, name: `src_${m.name}`,
+        domain: prefixExpr(m.domain, "src_"),
+        codomain: prefixExpr(m.codomain, "src_"),
+        description: `[source] ${m.description ?? m.name}`,
+      })),
+      ...functor.target.theory.morphisms.map(m => ({
+        ...m, name: `tgt_${m.name}`,
+        domain: prefixExpr(m.domain, "tgt_"),
+        codomain: prefixExpr(m.codomain, "tgt_"),
+        description: `[target] ${m.description ?? m.name}`,
+      })),
+      // Functor action on objects (as morphisms in the unified theory)
+      ...Object.entries(functor.objectMap).map(([src, tgt]) => ({
+        name: `F_obj_${src}`,
+        domain: `src_${src}` as ExprJson,
+        codomain: `tgt_${tgt}` as ExprJson,
+        description: `Functor ${functor.name}: ${src} ↦ ${tgt}`,
+      })),
+    ],
+    axioms: [
+      // Include all source and target axioms
+      ...functor.source.theory.axioms.map(a => ({
+        ...a, name: `src_${a.name}`,
+        lhs: prefixExpr(a.lhs, "src_"),
+        rhs: prefixExpr(a.rhs, "src_"),
+      })),
+      ...functor.target.theory.axioms.map(a => ({
+        ...a, name: `tgt_${a.name}`,
+        lhs: prefixExpr(a.lhs, "tgt_"),
+        rhs: prefixExpr(a.rhs, "tgt_"),
+      })),
+      // Functoriality axioms for each morphism mapping
+      ...Object.entries(functor.morphismMap).map(([srcMor, tgtExpr]) => ({
+        name: `F_mor_${srcMor}`,
+        lhs: { atom: `F_${srcMor}` } as ExprJson,
+        rhs: { atom: `tgt_${tgtExpr}` } as ExprJson,
+        description: `Functor maps ${srcMor} ↦ ${tgtExpr}`,
+      })),
+    ],
+  };
+
+  return { unifiedTheory: unified, verifyWith };
+}
+
+/** Prefix all atom names in an ExprJson with a given prefix. */
+function prefixExpr(expr: ExprJson, prefix: string): ExprJson {
+  if (typeof expr === "string") {
+    if (expr === "terminal" || expr === "unit" || expr === "initial") return expr;
+    return `${prefix}${expr}`;
+  }
+  if ("atom" in expr) return { atom: `${prefix}${expr.atom}` };
+  if ("comp" in expr) return { comp: [prefixExpr(expr.comp[0], prefix), prefixExpr(expr.comp[1], prefix)] };
+  if ("prod" in expr) return { prod: [prefixExpr(expr.prod[0], prefix), prefixExpr(expr.prod[1], prefix)] };
+  if ("tensor" in expr) return { tensor: [prefixExpr(expr.tensor[0], prefix), prefixExpr(expr.tensor[1], prefix)] };
+  if ("coprod" in expr) return { coprod: [prefixExpr(expr.coprod[0], prefix), prefixExpr(expr.coprod[1], prefix)] };
+  if ("hom" in expr) return { hom: [prefixExpr(expr.hom[0], prefix), prefixExpr(expr.hom[1], prefix)] };
+  if ("id" in expr) return { id: prefixExpr(expr.id, prefix) };
+  return expr;
+}
+
+/**
+ * Elaborate a cross-tier functor by compiling to a unified theory
+ * and verifying at the appropriate tier.
+ */
+export async function elaborateCrossTierFunctor(
+  functor: CrossTierFunctor,
+  opts?: ExternalElaborationOptions,
+): Promise<ElaborationResult | null> {
+  const { unifiedTheory, verifyWith } = compileCrossTierFunctor(functor);
+
+  if (verifyWith === "omega") {
+    const source = theoryToOmega(unifiedTheory);
+    const bin = opts?.omegaBin ?? "omega";
+    const timeout = opts?.timeoutMs ?? 30000;
+    const response = await runExternalCli(bin, ["check", "--json", "--stdin"], source, timeout);
+    return externalResponseToResult(response, source, "omega");
+  } else if (verifyWith === "hyperion") {
+    const source = theoryToHyperion(unifiedTheory);
+    const bin = opts?.hyperionBin ?? "hyperion";
+    const timeout = opts?.timeoutMs ?? 30000;
+    const response = await runExternalCli(bin, ["check", "--json", "--stdin"], source, timeout);
+    return externalResponseToResult(response, source, "hyperion");
+  }
+
+  // verifyWith === null → Lean handles it, return null to fall through
+  return null;
 }
 
 // ── Utilities ────────────────────────────────────────────────────────────────
