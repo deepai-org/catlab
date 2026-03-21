@@ -40,6 +40,7 @@ import {
   ComposeVerifier,
 } from "./verifiers";
 import type { Verifier, SolverOptions } from "./types";
+import { DeepVerifier } from "./deep-verifier";
 
 // ── CLI argument parsing ──────────────────────────────────────────────────────
 
@@ -82,6 +83,8 @@ General options:
   --rounds <n>          Max LLM rounds (default: 5)
   --timeout <ms>        Per-Lean-request timeout in ms (default: 30000)
   --lean <path>         Path to catlab repo root
+  --deep                Enable deep Lean/Mathlib verification (two-tier)
+  --deep-timeout <ms>   Lean compilation timeout for deep path (default: 60000)
 
 Environment:
   ANTHROPIC_API_KEY     Required — your Anthropic API key
@@ -157,6 +160,8 @@ function buildVerifier(args: string[]): {
   verifier: Verifier;
   solverOpts: SolverOptions;
   repoRoot?: string;
+  deep?: boolean;
+  deepTimeoutMs?: number;
 } {
   // Shorthand: catlab-solve <target> <forwardOp> [options]
   if (args.length >= 2 && !args[0].startsWith("--")) {
@@ -164,14 +169,18 @@ function buildVerifier(args: string[]): {
     const forwardOp = args[1];
     const solverOpts: SolverOptions = {};
     let repoRoot: string | undefined;
+    let deep = false;
+    let deepTimeoutMs: number | undefined;
 
     for (let i = 2; i < args.length; i++) {
       switch (args[i]) {
-        case "--style":   solverOpts.stylePrompt = args[++i]; break;
-        case "--rounds":  solverOpts.maxRounds = parseInt(args[++i], 10); break;
-        case "--timeout": solverOpts.leanTimeoutMs = parseInt(args[++i], 10); break;
-        case "--lean":    repoRoot = args[++i]; break;
-        case "--reflect": solverOpts.reflect = true; break;
+        case "--style":        solverOpts.stylePrompt = args[++i]; break;
+        case "--rounds":       solverOpts.maxRounds = parseInt(args[++i], 10); break;
+        case "--timeout":      solverOpts.leanTimeoutMs = parseInt(args[++i], 10); break;
+        case "--lean":         repoRoot = args[++i]; break;
+        case "--reflect":      solverOpts.reflect = true; break;
+        case "--deep":         deep = true; break;
+        case "--deep-timeout": deepTimeoutMs = parseInt(args[++i], 10); break;
         default: console.error(`Unknown option: ${args[i]}`); usage();
       }
     }
@@ -180,6 +189,8 @@ function buildVerifier(args: string[]): {
       verifier: new InverseVerifier(targetName, forwardOp),
       solverOpts,
       repoRoot,
+      deep,
+      deepTimeoutMs,
     };
   }
 
@@ -193,23 +204,27 @@ function buildVerifier(args: string[]): {
   let constraintsStr: string | undefined;
   let source: string | undefined;
   let repoRoot: string | undefined;
+  let deep = false;
+  let deepTimeoutMs: number | undefined;
   const solverOpts: SolverOptions = {};
 
   for (let i = 0; i < args.length; i++) {
     switch (args[i]) {
-      case "--problem":    problemType = args[++i]; break;
-      case "--target":     target = args[++i]; break;
-      case "--op":         op = args[++i]; break;
-      case "--base":       base = args[++i]; break;
-      case "--property":   property = args[++i]; break;
-      case "--objectives": objectivesStr = args[++i]; break;
-      case "--constraints": constraintsStr = args[++i]; break;
-      case "--source":     source = args[++i]; break;
-      case "--style":      solverOpts.stylePrompt = args[++i]; break;
-      case "--rounds":     solverOpts.maxRounds = parseInt(args[++i], 10); break;
-      case "--timeout":    solverOpts.leanTimeoutMs = parseInt(args[++i], 10); break;
-      case "--lean":       repoRoot = args[++i]; break;
-      case "--reflect":    solverOpts.reflect = true; break;
+      case "--problem":      problemType = args[++i]; break;
+      case "--target":       target = args[++i]; break;
+      case "--op":           op = args[++i]; break;
+      case "--base":         base = args[++i]; break;
+      case "--property":     property = args[++i]; break;
+      case "--objectives":   objectivesStr = args[++i]; break;
+      case "--constraints":  constraintsStr = args[++i]; break;
+      case "--source":       source = args[++i]; break;
+      case "--style":        solverOpts.stylePrompt = args[++i]; break;
+      case "--rounds":       solverOpts.maxRounds = parseInt(args[++i], 10); break;
+      case "--timeout":      solverOpts.leanTimeoutMs = parseInt(args[++i], 10); break;
+      case "--lean":         repoRoot = args[++i]; break;
+      case "--reflect":      solverOpts.reflect = true; break;
+      case "--deep":         deep = true; break;
+      case "--deep-timeout": deepTimeoutMs = parseInt(args[++i], 10); break;
       default: console.error(`Unknown option: ${args[i]}`); usage();
     }
   }
@@ -301,7 +316,7 @@ function buildVerifier(args: string[]): {
       usage();
   }
 
-  return { verifier, solverOpts, repoRoot };
+  return { verifier, solverOpts, repoRoot, deep, deepTimeoutMs };
 }
 
 async function main(): Promise<void> {
@@ -322,7 +337,21 @@ async function main(): Promise<void> {
     return;
   }
 
-  const { verifier, solverOpts, repoRoot } = buildVerifier(args);
+  const { verifier: baseVerifier, solverOpts, repoRoot, deep, deepTimeoutMs } = buildVerifier(args);
+
+  // Wrap with deep verification if --deep flag is set
+  const projectRoot = repoRoot ?? process.cwd();
+  const verifier: Verifier = deep
+    ? new DeepVerifier(baseVerifier, {
+        deepVerification: true,
+        projectRoot,
+        leanTimeoutMs: deepTimeoutMs,
+      })
+    : baseVerifier;
+
+  if (deep) {
+    console.error(`[solver:INIT] Deep verification enabled (Lean/Mathlib, timeout=${deepTimeoutMs ?? 60000}ms)`);
+  }
 
   // ── Run the solver ────────────────────────────────────────────────────────
   const catlab = new CatlabClient(repoRoot);

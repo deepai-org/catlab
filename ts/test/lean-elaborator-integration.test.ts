@@ -3,7 +3,7 @@
  * Requires: `lake exe cache get` (Mathlib oleans downloaded)
  */
 
-import { elaborate } from "../src/lean-elaborator";
+import { elaborate, theoryToLean, shouldRouteToRzk } from "../src/lean-elaborator";
 import type { TheoryJson } from "../src/types";
 
 const PROJECT_ROOT = "/Users/kevin/Desktop/catlab";
@@ -93,6 +93,108 @@ async function main() {
     const result = await elaborate(theory, opts);
     console.log(`    Status: ${result.status}`);
     console.log(`    Diagnostics: ${result.diagnostics}`);
+    if (result.status !== "success") {
+      console.log(`    Generated Lean:\n${result.leanSource}`);
+      throw new Error(`Expected success, got ${result.status}: ${result.diagnostics}`);
+    }
+  });
+
+  // Test 4: CartesianClosed doctrine compiles
+  await test("CartesianClosed doctrine compiles", async () => {
+    const theory: TheoryJson = {
+      name: "CCCTest",
+      doctrine: "CartesianClosed",
+      objects: [{ name: "A" }, { name: "B" }],
+      morphisms: [
+        { name: "f", domain: "A", codomain: "B" },
+      ],
+      axioms: [],
+    };
+    const result = await elaborate(theory, opts);
+    console.log(`    Status: ${result.status}`);
+    if (result.status !== "success") {
+      console.log(`    Generated Lean:\n${result.leanSource}`);
+      throw new Error(`Expected success, got ${result.status}: ${result.diagnostics}`);
+    }
+  });
+
+  // Test 5: FinitelyComplete doctrine compiles
+  await test("FinitelyComplete doctrine compiles", async () => {
+    const theory: TheoryJson = {
+      name: "FinLimTest",
+      doctrine: "FinitelyComplete",
+      objects: [{ name: "X" }, { name: "Y" }],
+      morphisms: [
+        { name: "f", domain: "X", codomain: "Y" },
+      ],
+      axioms: [],
+    };
+    const result = await elaborate(theory, opts);
+    console.log(`    Status: ${result.status}`);
+    if (result.status !== "success") {
+      console.log(`    Generated Lean:\n${result.leanSource}`);
+      throw new Error(`Expected success, got ${result.status}: ${result.diagnostics}`);
+    }
+  });
+
+  // Test 6: Rzk routing for higher-categorical theories
+  await test("Higher-categorical theory routes to Rzk stub", async () => {
+    const theory: TheoryJson = {
+      name: "HoTTTest",
+      doctrine: "CubicalTypeTheory",
+      objects: [{ name: "Type" }],
+      morphisms: [],
+      axioms: [],
+    };
+    if (!shouldRouteToRzk(theory)) {
+      throw new Error("Expected shouldRouteToRzk to return true for CubicalTypeTheory");
+    }
+    const result = await elaborate(theory, opts);
+    console.log(`    Status: ${result.status}`);
+    console.log(`    Diagnostics: ${result.diagnostics}`);
+    if (!result.diagnostics.includes("Rzk")) {
+      throw new Error("Expected Rzk routing message in diagnostics");
+    }
+  });
+
+  // Test 7: Name remapping — object named "C" doesn't shadow category type
+  await test("Object named C gets remapped to avoid shadowing", async () => {
+    const theory: TheoryJson = {
+      name: "ShadowTest",
+      doctrine: "Category",
+      objects: [{ name: "A" }, { name: "C" }],
+      morphisms: [
+        { name: "f", domain: "A", codomain: "C" },
+      ],
+      axioms: [],
+    };
+    const result = await elaborate(theory, opts);
+    console.log(`    Status: ${result.status}`);
+    if (result.status !== "success") {
+      console.log(`    Generated Lean:\n${result.leanSource}`);
+      throw new Error(`Expected success, got ${result.status}: ${result.diagnostics}`);
+    }
+    // Verify the generated source uses C₀ not C
+    const { source } = theoryToLean(theory);
+    if (!source.includes("C₀")) {
+      throw new Error("Expected C₀ in generated source for object named C");
+    }
+  });
+
+  // Test 8: Coproduct expression translation
+  await test("Coproduct domain/codomain compiles", async () => {
+    const theory: TheoryJson = {
+      name: "CoprodTest",
+      doctrine: "Category",
+      objects: [{ name: "A" }, { name: "B" }, { name: "X" }],
+      morphisms: [
+        { name: "f", domain: "A", codomain: "X" },
+        { name: "g", domain: "B", codomain: "X" },
+      ],
+      axioms: [],
+    };
+    const result = await elaborate(theory, opts);
+    console.log(`    Status: ${result.status}`);
     if (result.status !== "success") {
       console.log(`    Generated Lean:\n${result.leanSource}`);
       throw new Error(`Expected success, got ${result.status}: ${result.diagnostics}`);

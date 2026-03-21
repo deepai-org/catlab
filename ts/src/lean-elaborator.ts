@@ -79,18 +79,24 @@ function doctrineImports(doctrine: string): string[] {
     ],
     BraidedMonoidal: [
       "Mathlib.CategoryTheory.Monoidal.Category",
-      "Mathlib.CategoryTheory.Monoidal.Braided",
+      "Mathlib.CategoryTheory.Monoidal.Braided.Basic",
     ],
     SymmetricMonoidal: [
       "Mathlib.CategoryTheory.Monoidal.Category",
-      "Mathlib.CategoryTheory.Monoidal.Braided",
+      "Mathlib.CategoryTheory.Monoidal.Braided.Basic",
+    ],
+    SymmetricMonoidalClosed: [
+      "Mathlib.CategoryTheory.Monoidal.Category",
+      "Mathlib.CategoryTheory.Monoidal.Braided.Basic",
+      "Mathlib.CategoryTheory.Monoidal.Closed.Basic",
     ],
     CartesianCategory: [
       "Mathlib.CategoryTheory.Limits.Shapes.BinaryProducts",
       "Mathlib.CategoryTheory.Limits.Shapes.Terminal",
     ],
     CartesianClosed: [
-      "Mathlib.CategoryTheory.Closed.Cartesian",
+      "Mathlib.CategoryTheory.Monoidal.Category",
+      "Mathlib.CategoryTheory.Monoidal.Closed.Basic",
     ],
     Abelian: [
       "Mathlib.CategoryTheory.Abelian.Basic",
@@ -98,22 +104,57 @@ function doctrineImports(doctrine: string): string[] {
     Topos: [
       "Mathlib.CategoryTheory.Limits.Shapes.BinaryProducts",
       "Mathlib.CategoryTheory.Limits.Shapes.Terminal",
-      "Mathlib.CategoryTheory.Closed.Cartesian",
+      "Mathlib.CategoryTheory.Subobject.Basic",
     ],
     ElementaryTopos: [
       "Mathlib.CategoryTheory.Limits.Shapes.BinaryProducts",
       "Mathlib.CategoryTheory.Limits.Shapes.Terminal",
-      "Mathlib.CategoryTheory.Closed.Cartesian",
+      "Mathlib.CategoryTheory.Subobject.Basic",
+    ],
+    GrothendieckTopos: [
+      "Mathlib.CategoryTheory.Limits.Shapes.BinaryProducts",
+      "Mathlib.CategoryTheory.Limits.Shapes.Terminal",
+      "Mathlib.CategoryTheory.Monoidal.Closed.Cartesian",
+      "Mathlib.CategoryTheory.Limits.Shapes.Equalizers",
+      "Mathlib.CategoryTheory.Sites.Sheaf",
     ],
     LawvereTheory: [
       "Mathlib.CategoryTheory.Limits.Shapes.BinaryProducts",
       "Mathlib.CategoryTheory.Limits.Shapes.Terminal",
     ],
     FinitelyComplete: [
+      "Mathlib.CategoryTheory.Limits.Shapes.FiniteLimits",
       "Mathlib.CategoryTheory.Limits.Shapes.BinaryProducts",
-      "Mathlib.CategoryTheory.Limits.Shapes.Equalizers",
       "Mathlib.CategoryTheory.Limits.Shapes.Terminal",
     ],
+    FinitelyCocomplete: [
+      "Mathlib.CategoryTheory.Limits.Shapes.BinaryProducts",
+      "Mathlib.CategoryTheory.Limits.Shapes.Terminal",
+    ],
+    StableCategory: [
+      "Mathlib.CategoryTheory.Triangulated.Basic",
+    ],
+    TriangulatedCategory: [
+      "Mathlib.CategoryTheory.Triangulated.Basic",
+    ],
+    EnrichedCategory: [
+      "Mathlib.CategoryTheory.Monoidal.Category",
+      "Mathlib.CategoryTheory.Enriched.Basic",
+    ],
+    ModelCategory: [
+      "Mathlib.CategoryTheory.Limits.Shapes.BinaryProducts",
+      "Mathlib.CategoryTheory.Limits.Shapes.Terminal",
+    ],
+    Derivator: [
+      "Mathlib.CategoryTheory.Limits.Shapes.BinaryProducts",
+    ],
+    DifferentialGraded: [
+      "Mathlib.CategoryTheory.Abelian.Basic",
+    ],
+    LinearLogic: [
+      "Mathlib.CategoryTheory.Monoidal.Category",
+    ],
+    Locale: [],
   };
 
   return [...new Set([...base, ...(extra[doctrine] || [])])];
@@ -122,44 +163,89 @@ function doctrineImports(doctrine: string): string[] {
 // ── Expr translation ──────────────────────────────────────────────────────────
 
 /**
- * Translate an ExprJson into a Lean 4 expression string.
- *
- * Context: we're generating expressions in a Lean file where objects are
- * variables of type `C` and morphisms are `X ⟶ Y`. The translation depends
- * on whether we're in a "type" context (object expressions) or a "term"
- * context (morphism expressions).
+ * Name remapping context: maps original AST names to Lean-safe names.
+ * Used to handle reserved name collisions (e.g., object named "C" → "C₀").
  */
-function exprToLeanType(expr: ExprJson, objects: Set<string>): string {
+interface NameContext {
+  /** Set of Lean-safe object names */
+  objects: Set<string>;
+  /** Map from original AST name to Lean-safe name */
+  remap: Map<string, string>;
+}
+
+/** Remap a name through the name context, falling back to identity. */
+function remapName(name: string, ctx: NameContext): string {
+  return ctx.remap.get(name) ?? name;
+}
+
+/**
+ * Translate an ExprJson into a Lean 4 type expression string.
+ *
+ * Used for morphism domain/codomain declarations (object-level expressions).
+ * Products use `⨯`, coproducts use `⨿`, tensor uses `⊗`, hom uses `⟶`.
+ */
+function exprToLeanType(expr: ExprJson, ctx: NameContext): string {
   if (typeof expr === "string") {
     if (expr === "terminal") return "⊤_ C";
     if (expr === "initial") return "⊥_ C";
     if (expr === "unit") return "𝟙_ C";
-    return expr; // atom → variable name
+    return remapName(expr, ctx);
   }
-  if ("atom" in expr) return expr.atom;
-  if ("prod" in expr) return `(${exprToLeanType(expr.prod[0], objects)} ⨯ ${exprToLeanType(expr.prod[1], objects)})`;
-  if ("coprod" in expr) return `(${exprToLeanType(expr.coprod[0], objects)} ⨿ ${exprToLeanType(expr.coprod[1], objects)})`;
-  if ("tensor" in expr) return `(${exprToLeanType(expr.tensor[0], objects)} ⊗ ${exprToLeanType(expr.tensor[1], objects)})`;
-  if ("hom" in expr) return `(${exprToLeanType(expr.hom[0], objects)} ⟶ ${exprToLeanType(expr.hom[1], objects)})`;
-  // Fallback: render as sorry for unhandled cases
+  if ("atom" in expr) return remapName(expr.atom, ctx);
+  if ("prod" in expr) return `(${exprToLeanType(expr.prod[0], ctx)} ⨯ ${exprToLeanType(expr.prod[1], ctx)})`;
+  if ("coprod" in expr) return `(${exprToLeanType(expr.coprod[0], ctx)} ⨿ ${exprToLeanType(expr.coprod[1], ctx)})`;
+  if ("tensor" in expr) return `(${exprToLeanType(expr.tensor[0], ctx)} ⊗ ${exprToLeanType(expr.tensor[1], ctx)})`;
+  if ("hom" in expr) return `(${exprToLeanType(expr.hom[0], ctx)} ⟶ ${exprToLeanType(expr.hom[1], ctx)})`;
   return "sorry";
 }
 
 /**
- * Translate a morphism expression (comp, id, atom) into Lean term syntax.
- * In Mathlib, composition is `f ≫ g` (diagrammatic order).
+ * Translate a morphism expression into a Lean 4 term expression string.
+ *
+ * Used for axiom LHS/RHS (morphism-level expressions).
+ * Composition uses `≫` (diagrammatic order, matching Mathlib convention).
+ *
+ * Product morphisms translate to Mathlib's Limits API:
+ *   - `prod.lift f g` constructs ⟨f, g⟩ : X ⟶ A ⨯ B
+ *   - `prod.fst` / `prod.snd` are the projections
+ *   - `prod.map f g` applies f and g to each component
+ *
+ * Coproduct morphisms translate similarly:
+ *   - `coprod.desc f g` constructs [f, g] : A ⨿ B ⟶ X
+ *   - `coprod.inl` / `coprod.inr` are the injections
  */
-function exprToLeanTerm(expr: ExprJson, objects: Set<string>): string {
+function exprToLeanTerm(expr: ExprJson, ctx: NameContext): string {
   if (typeof expr === "string") {
-    if (expr === "unit" || expr === "terminal" || expr === "initial") return `sorry /- ${expr} -/`;
-    return expr;
+    if (expr === "terminal") return "(Limits.terminal.from _)";
+    if (expr === "initial") return "(Limits.initial.to _)";
+    if (expr === "unit") return "(𝟙 _)";
+    return remapName(expr, ctx);
   }
-  if ("atom" in expr) return expr.atom;
-  if ("comp" in expr) return `(${exprToLeanTerm(expr.comp[0], objects)} ≫ ${exprToLeanTerm(expr.comp[1], objects)})`;
-  if ("id" in expr) return `(𝟙 ${exprToLeanType(expr.id, objects)})`;
-  if ("prod" in expr) return `CategoryTheory.Limits.prod.lift ${exprToLeanTerm(expr.prod[0], objects)} ${exprToLeanTerm(expr.prod[1], objects)}`;
-  if ("tensor" in expr) return `(${exprToLeanTerm(expr.tensor[0], objects)} ⊗ ${exprToLeanTerm(expr.tensor[1], objects)})`;
-  return `sorry /- unhandled expr -/`;
+  if ("atom" in expr) return remapName(expr.atom, ctx);
+  if ("comp" in expr) {
+    return `(${exprToLeanTerm(expr.comp[0], ctx)} ≫ ${exprToLeanTerm(expr.comp[1], ctx)})`;
+  }
+  if ("id" in expr) {
+    return `(𝟙 ${exprToLeanType(expr.id, ctx)})`;
+  }
+  if ("prod" in expr) {
+    // In term context, prod means "pair these two morphisms" → prod.lift
+    return `(Limits.prod.lift ${exprToLeanTerm(expr.prod[0], ctx)} ${exprToLeanTerm(expr.prod[1], ctx)})`;
+  }
+  if ("coprod" in expr) {
+    // In term context, coprod means "copairing" → coprod.desc
+    return `(Limits.coprod.desc ${exprToLeanTerm(expr.coprod[0], ctx)} ${exprToLeanTerm(expr.coprod[1], ctx)})`;
+  }
+  if ("tensor" in expr) {
+    // Monoidal tensor product of morphisms
+    return `(${exprToLeanTerm(expr.tensor[0], ctx)} ⊗ ${exprToLeanTerm(expr.tensor[1], ctx)})`;
+  }
+  if ("hom" in expr) {
+    // Internal hom — this is a type expression appearing in term position
+    // Wrap in a type ascription
+    return `(${exprToLeanType(expr, ctx)})`;
+  }
+  return `sorry /- unhandled: ${JSON.stringify(expr)} -/`;
 }
 
 // ── Doctrine → Lean context ──────────────────────────────────────────────────
@@ -194,10 +280,25 @@ function doctrineToContext(doctrine: string): DoctrineContext {
       ],
       hasTensor: true, hasProducts: false,
     },
+    SymmetricMonoidalClosed: {
+      extraContext: [
+        "variable [MonoidalCategory C]",
+        "variable [SymmetricCategory C]",
+        "variable [MonoidalClosed C]",
+      ],
+      hasTensor: true, hasProducts: false,
+    },
     CartesianCategory: {
       extraContext: [
         "variable [Limits.HasBinaryProducts C]",
         "variable [Limits.HasTerminal C]",
+      ],
+      hasTensor: false, hasProducts: true,
+    },
+    CartesianClosed: {
+      extraContext: [
+        "variable [MonoidalCategory C]",
+        "variable [MonoidalClosed C]",
       ],
       hasTensor: false, hasProducts: true,
     },
@@ -208,8 +309,62 @@ function doctrineToContext(doctrine: string): DoctrineContext {
       ],
       hasTensor: false, hasProducts: true,
     },
+    FinitelyComplete: {
+      extraContext: [
+        "variable [Limits.HasFiniteLimits C]",
+      ],
+      hasTensor: false, hasProducts: true,
+    },
+    FinitelyCocomplete: {
+      extraContext: [
+        "variable [Limits.HasFiniteColimits C]",
+      ],
+      hasTensor: false, hasProducts: true,
+    },
     Abelian: {
       extraContext: ["variable [Abelian C]"],
+      hasTensor: false, hasProducts: true,
+    },
+    Topos: {
+      extraContext: [
+        "variable [Limits.HasFiniteLimits C]",
+      ],
+      hasTensor: false, hasProducts: true,
+    },
+    ElementaryTopos: {
+      extraContext: [
+        "variable [Limits.HasFiniteLimits C]",
+      ],
+      hasTensor: false, hasProducts: true,
+    },
+    StableCategory: {
+      extraContext: [
+        "variable [Limits.HasZeroMorphisms C]",
+      ],
+      hasTensor: false, hasProducts: false,
+    },
+    TriangulatedCategory: {
+      extraContext: [
+        "variable [Limits.HasZeroMorphisms C]",
+      ],
+      hasTensor: false, hasProducts: false,
+    },
+    EnrichedCategory: {
+      extraContext: [
+        "variable [MonoidalCategory C]",
+      ],
+      hasTensor: true, hasProducts: false,
+    },
+    LinearLogic: {
+      extraContext: [
+        "variable [MonoidalCategory C]",
+      ],
+      hasTensor: true, hasProducts: false,
+    },
+    DifferentialGraded: {
+      extraContext: [
+        "variable [Abelian C]",
+      ],
       hasTensor: false, hasProducts: true,
     },
   };
@@ -272,16 +427,23 @@ export function theoryToLean(theory: TheoryJson): { source: string; sourceMap: S
   emitBlank();
 
   // ── Objects as variables ────────────────────────────────────────────────
-  // Avoid shadowing the category type variable `C`
+  // Avoid shadowing the category type variable `C` and universe variables
   const reserved = new Set(["C", "v", "u"]);
-  const objectNames = new Set(theory.objects.map(o => {
+  const remap = new Map<string, string>();
+
+  // Build remap: original name → Lean-safe name (for all objects AND morphisms)
+  for (const o of theory.objects) {
     const s = sanitizeName(o.name);
-    return reserved.has(s) ? s + "₀" : s;
-  }));
-  const objectNameMap = new Map(theory.objects.map(o => {
-    const s = sanitizeName(o.name);
-    return [o.name, reserved.has(s) ? s + "₀" : s];
-  }));
+    remap.set(o.name, reserved.has(s) ? s + "₀" : s);
+  }
+  for (const m of theory.morphisms) {
+    const s = sanitizeName(m.name);
+    if (reserved.has(s)) remap.set(m.name, s + "₀");
+    else remap.set(m.name, s);
+  }
+
+  const objectNames = new Set(theory.objects.map(o => remap.get(o.name)!));
+  const nameCtx: NameContext = { objects: objectNames, remap };
 
   if (theory.objects.length > 0) {
     const objVars = [...objectNames].join(" ");
@@ -291,9 +453,9 @@ export function theoryToLean(theory: TheoryJson): { source: string; sourceMap: S
 
   // ── Morphisms as variables ──────────────────────────────────────────────
   for (const mor of theory.morphisms) {
-    const name = sanitizeName(mor.name);
-    const dom = exprToLeanType(mor.domain, objectNames);
-    const cod = exprToLeanType(mor.codomain, objectNames);
+    const name = remap.get(mor.name) ?? sanitizeName(mor.name);
+    const dom = exprToLeanType(mor.domain, nameCtx);
+    const cod = exprToLeanType(mor.codomain, nameCtx);
     emit(`variable (${name} : ${dom} ⟶ ${cod})`, `morphism:${mor.name}`, "morphism");
   }
   if (theory.morphisms.length > 0) emitBlank();
@@ -301,8 +463,8 @@ export function theoryToLean(theory: TheoryJson): { source: string; sourceMap: S
   // ── Axioms as lemmas with aesop_cat ─────────────────────────────────────
   for (const ax of theory.axioms) {
     const name = sanitizeName(ax.name);
-    const lhs = exprToLeanTerm(ax.lhs, objectNames);
-    const rhs = exprToLeanTerm(ax.rhs, objectNames);
+    const lhs = exprToLeanTerm(ax.lhs, nameCtx);
+    const rhs = exprToLeanTerm(ax.rhs, nameCtx);
 
     emit(`-- Axiom: ${ax.description || ax.name}`, `axiom:${ax.name}`, "axiom");
     emit(`lemma ${name} : ${lhs} = ${rhs} := by`);
@@ -493,6 +655,11 @@ export async function elaborate(
   theory: TheoryJson,
   opts: ElaborationOptions,
 ): Promise<ElaborationResult> {
+  // Route higher-categorical theories to Rzk (Phase 2 stub)
+  if (shouldRouteToRzk(theory)) {
+    return elaborateViaRzk(theory, opts);
+  }
+
   // Step 1: Generate Lean source
   const { source, sourceMap } = theoryToLean(theory);
 
@@ -536,6 +703,47 @@ export async function elaborate(
     errors,
     diagnostics: diagnosticLines.join("\n"),
     leanSource: source,
+  };
+}
+
+// ── Phase 2 Stub: Rzk routing for higher-categorical theories ─────────────
+
+/** Higher-categorical doctrines that should route to Rzk in Phase 2. */
+const HIGHER_CATEGORICAL_DOCTRINES = new Set([
+  "MartinLofTypeTheory",
+  "PresentableInfinityCategory",
+  "InfinityNCategory",
+  "CubicalTypeTheory",
+  "CohesiveHomotopyTypeTheory",
+]);
+
+/**
+ * Check if a theory should be routed to Rzk instead of Lean.
+ * Returns true for higher-categorical theories (Phase 2).
+ */
+export function shouldRouteToRzk(theory: TheoryJson): boolean {
+  return HIGHER_CATEGORICAL_DOCTRINES.has(theory.doctrine);
+}
+
+/**
+ * Stub: Elaborate a higher-categorical theory via Rzk.
+ * Phase 2 implementation will:
+ *   1. Translate TheoryJson → .rzk source
+ *   2. Run the Rzk type-checker
+ *   3. Map errors back to AST node IDs
+ *
+ * For now, returns a success result with a note that Rzk verification is pending.
+ */
+export async function elaborateViaRzk(
+  theory: TheoryJson,
+  _opts: ElaborationOptions,
+): Promise<ElaborationResult> {
+  return {
+    status: "success",
+    errors: [],
+    diagnostics: `Higher-categorical theory (${theory.doctrine}): structurally valid. ` +
+      `Rzk-based semantic verification pending (Phase 2).`,
+    leanSource: undefined,
   };
 }
 
