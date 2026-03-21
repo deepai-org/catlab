@@ -545,6 +545,28 @@ export function theoryToLean(theory: TheoryJson): { source: string; sourceMap: S
   }
   if (theory.morphisms.length > 0) emitBlank();
 
+  // ── LLM-proposed intermediate lemmas (if any) ──────────────────────────
+  if (theory.lemmas && theory.lemmas.length > 0) {
+    emit("-- ── Intermediate lemmas (LLM-proposed proof steps) ──");
+    emitBlank();
+    for (const lem of theory.lemmas) {
+      const lemName = sanitizeName(lem.name);
+      const lhs = exprToLeanTerm(lem.lhs, nameCtx);
+      const rhs = exprToLeanTerm(lem.rhs, nameCtx);
+      emit(`-- Helper for: ${lem.forAxiom ?? "general"}`, `lemma:${lem.name}`, "axiom");
+      emit(`lemma ${lemName} : ${lhs} = ${rhs} := by`);
+      const tactic = lem.tactic ?? "aesop_cat";
+      if (tactic === "exact" && lem.proofTerm) {
+        emit(`  exact ${lem.proofTerm}`);
+      } else if (tactic === "ext") {
+        emit(`  ext; aesop_cat`);
+      } else {
+        emit(`  ${tactic}`);
+      }
+      emitBlank();
+    }
+  }
+
   // ── Axioms as lemmas with aesop_cat ─────────────────────────────────────
   for (const ax of theory.axioms) {
     const name = sanitizeName(ax.name);
@@ -552,8 +574,16 @@ export function theoryToLean(theory: TheoryJson): { source: string; sourceMap: S
     const rhs = exprToLeanTerm(ax.rhs, nameCtx);
     const rel = ax.relation === "ineq" ? "≤" : "=";
 
+    // If there are lemmas targeting this axiom, use them as `have` steps
+    const helpingLemmas = (theory.lemmas ?? []).filter(l => l.forAxiom === ax.name);
+
     emit(`-- Axiom: ${ax.description || ax.name}`, `axiom:${ax.name}`, "axiom");
     emit(`lemma ${name} : ${lhs} ${rel} ${rhs} := by`);
+    if (helpingLemmas.length > 0) {
+      for (const hl of helpingLemmas) {
+        emit(`  have := ${sanitizeName(hl.name)}`);
+      }
+    }
     emit(`  aesop_cat`);
     emitBlank();
   }

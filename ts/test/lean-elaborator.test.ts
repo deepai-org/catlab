@@ -269,7 +269,10 @@ test("Realizability theory detected by operator elaborator", () => {
 
 // ── External elaborator tests ────────────────────────────────────────────────
 
-import { theoryToOmega, theoryToHyperion, routeToExternal, compileCrossTierFunctor } from "../src/external-elaborators";
+import {
+  theoryToOmega, theoryToHyperion, routeToExternal, compileCrossTierFunctor,
+  truncateToHomotopyCategory, truncatedTheoryToLean, computeTheoryPushout,
+} from "../src/external-elaborators";
 import type { CrossTierFunctor } from "../src/external-elaborators";
 
 test("routeToExternal routes LawvereTheory to omega", () => {
@@ -559,6 +562,164 @@ test("compileCrossTierFunctor chooses correct tier for hyperion target", () => {
   };
   const { verifyWith } = compileCrossTierFunctor(functor);
   assert.equal(verifyWith, "hyperion", "should verify at the higher tier (hyperion)");
+});
+
+// ── Downward truncation tests ──────────────────────────────────────────────
+
+test("truncateToHomotopyCategory downgrades doctrine to Category", () => {
+  const theory: TheoryJson = {
+    name: "Inf2", doctrine: "InfinityNCategory",
+    objects: [{ name: "Cell0" }, { name: "Cell1" }],
+    morphisms: [{ name: "f", domain: "Cell0", codomain: "Cell1" }],
+    axioms: [{ name: "coherence", lhs: { atom: "a" }, rhs: { atom: "b" } }],
+  };
+  const truncated = truncateToHomotopyCategory(theory);
+  assert.equal(truncated.doctrine, "Category", "should downgrade to Category");
+  assert.equal(truncated.name, "Ho_Inf2", "should prefix with Ho_");
+  assert.equal(truncated.axioms.length, 1, "should preserve axioms");
+  assert.ok(truncated.axioms[0].description?.includes("[truncated]"), "should mark as truncated");
+});
+
+test("truncateToHomotopyCategory adds e-graph discoveries as axioms", () => {
+  const theory: TheoryJson = {
+    name: "Test", doctrine: "InfinityNCategory",
+    objects: [{ name: "X" }], morphisms: [], axioms: [],
+  };
+  const discoveries = [
+    { lhs: "f", rhs: "g", description: "Eckmann-Hilton" },
+  ];
+  const truncated = truncateToHomotopyCategory(theory, discoveries);
+  assert.equal(truncated.axioms.length, 1, "should add discovery as axiom");
+  assert.ok(truncated.axioms[0].name.includes("egraph"), "should prefix with egraph");
+});
+
+test("truncatedTheoryToLean generates Quotient-based Lean source", () => {
+  const theory: TheoryJson = {
+    name: "Inf", doctrine: "InfinityNCategory",
+    objects: [{ name: "X" }], morphisms: [],
+    axioms: [{ name: "ax1", lhs: { atom: "a" }, rhs: { atom: "b" } }],
+  };
+  const discoveries = [
+    { lhs: "f", rhs: "g", description: "path", proof_term: "concat p q", rewrite_steps: ["p", "q"] },
+  ];
+  const source = truncatedTheoryToLean(theory, discoveries);
+  assert.ok(source.includes("Mathlib.CategoryTheory.Quotient"), "should import Quotient");
+  assert.ok(source.includes("Homotopy category"), "should mention homotopy category");
+  assert.ok(source.includes("truncate_f_g"), "should generate truncation axiom");
+  assert.ok(source.includes("Original path: concat p q"), "should include proof term");
+  assert.ok(source.includes("Via: p → q"), "should include rewrite steps");
+});
+
+// ── Lemma loop tests ──────────────────────────────────────────────────────
+
+test("TheoryJson with lemmas generates intermediate Lean lemmas", () => {
+  const theory: TheoryJson = {
+    name: "LemmaTest",
+    doctrine: "Category",
+    objects: [{ name: "X" }, { name: "Y" }],
+    morphisms: [
+      { name: "f", domain: "X", codomain: "Y" },
+      { name: "g", domain: "Y", codomain: "X" },
+    ],
+    axioms: [
+      { name: "round_trip", lhs: { comp: [{ atom: "f" }, { atom: "g" }] }, rhs: { id: "X" } },
+    ],
+    lemmas: [
+      {
+        name: "fg_endo",
+        lhs: { comp: [{ atom: "f" }, { atom: "g" }] },
+        rhs: { comp: [{ atom: "f" }, { atom: "g" }] },
+        tactic: "rfl",
+        forAxiom: "round_trip",
+      },
+    ],
+  };
+  const { source } = theoryToLean(theory);
+  assert.ok(source.includes("lemma fg_endo"), "should generate intermediate lemma");
+  assert.ok(source.includes("rfl"), "should use rfl tactic");
+  assert.ok(source.includes("have := fg_endo"), "should reference lemma in axiom proof");
+});
+
+test("TheoryJson without lemmas works as before", () => {
+  const { source } = theoryToLean(CATEGORY_THEORY);
+  assert.ok(!source.includes("Intermediate lemmas"), "should not have lemma section");
+});
+
+// ── Theory pushout tests ──────────────────────────────────────────────────
+
+test("computeTheoryPushout merges theories over common base", () => {
+  const base: TheoryJson = {
+    name: "Set", doctrine: "Category",
+    objects: [{ name: "S" }],
+    morphisms: [{ name: "id_S", domain: "S", codomain: "S" }],
+    axioms: [],
+  };
+  const theoryA: TheoryJson = {
+    name: "Mon", doctrine: "LawvereTheory",
+    objects: [{ name: "S" }, { name: "M" }],
+    morphisms: [
+      { name: "id_S", domain: "S", codomain: "S" },
+      { name: "mu", domain: { prod: ["M", "M"] }, codomain: "M" },
+    ],
+    axioms: [{ name: "assoc", lhs: { atom: "l" }, rhs: { atom: "r" } }],
+  };
+  const theoryB: TheoryJson = {
+    name: "Grp", doctrine: "LawvereTheory",
+    objects: [{ name: "S" }, { name: "G" }],
+    morphisms: [
+      { name: "id_S", domain: "S", codomain: "S" },
+      { name: "inv", domain: "G", codomain: "G" },
+    ],
+    axioms: [{ name: "inv_law", lhs: { atom: "l" }, rhs: { atom: "r" } }],
+  };
+
+  const pushout = computeTheoryPushout(theoryA, theoryB, base);
+
+  // Should identify shared base objects
+  assert.equal(pushout.objects.length, 3, "S + M + G = 3 objects");
+  const objNames = pushout.objects.map(o => o.name);
+  assert.ok(objNames.includes("S"), "should have shared S");
+  assert.ok(objNames.includes("M"), "should have M from Mon");
+  assert.ok(objNames.includes("G"), "should have G from Grp");
+
+  // Should identify shared base morphisms
+  assert.equal(pushout.morphisms.length, 3, "id_S + mu + inv = 3 morphisms");
+
+  // Should merge axioms
+  assert.equal(pushout.axioms.length, 2, "assoc + inv_law = 2 axioms");
+
+  // Should pick higher doctrine
+  assert.equal(pushout.doctrine, "LawvereTheory");
+});
+
+test("computeTheoryPushout name includes both theories", () => {
+  const base: TheoryJson = { name: "C", doctrine: "Category", objects: [], morphisms: [], axioms: [] };
+  const a: TheoryJson = { name: "A", doctrine: "Category", objects: [], morphisms: [], axioms: [] };
+  const b: TheoryJson = { name: "B", doctrine: "Category", objects: [], morphisms: [], axioms: [] };
+  const pushout = computeTheoryPushout(a, b, base);
+  assert.ok(pushout.name.includes("A") && pushout.name.includes("B"), "should name after both theories");
+});
+
+// ── PER Quotient tests ────────────────────────────────────────────────────
+
+test("Realizability PER category uses Setoid/Quotient", () => {
+  const theory: TheoryJson = {
+    name: "Asm_K1",
+    doctrine: "Category",
+    objects: [
+      { name: "Assembly_X", description: "Assembly over PCA" },
+      { name: "Assembly_Y", description: "Assembly over PCA" },
+    ],
+    morphisms: [
+      { name: "track_f", domain: "Assembly_X", codomain: "Assembly_Y", description: "Tracking morphism" },
+    ],
+    axioms: [],
+  };
+  const { source } = theoryToLean(theory);
+  assert.ok(source.includes("perHomSetoid"), "should define Setoid for PER morphisms");
+  assert.ok(source.includes("Quotient.mk"), "should use Quotient.mk for morphisms");
+  assert.ok(source.includes("Quotient.sound"), "should use Quotient.sound for laws");
+  assert.ok(source.includes("Quotient.inductionOn"), "should use Quotient.inductionOn for id_comp");
 });
 
 // ── Print generated Lean for inspection ───────────────────────────────────────

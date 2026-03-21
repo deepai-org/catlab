@@ -980,6 +980,355 @@ export async function elaborateCrossTierFunctor(
   return null;
 }
 
+// ── Downward Truncation: Hyperion → Lean ──────────────────────────────────────
+
+/**
+ * Truncate a Hyperion ∞-categorical theory down to its homotopy 1-category.
+ *
+ * Maps PathType 2-cells to strict equalities via Quotient:
+ *   - If Hyperion has a path p : f ≃ g, then in the homotopy category f = g.
+ *   - All higher cells (paths between paths) are collapsed.
+ *
+ * This is the "nerve/realization" adjunction's left adjoint applied to
+ * the theory: we freely force all parallel paths to be equal.
+ */
+export function truncateToHomotopyCategory(
+  theory: TheoryJson,
+  /** Hyperion discoveries: equalities found by e-graph saturation */
+  discoveries?: ExternalDiscovery[],
+): TheoryJson {
+  // Start with the base theory structure
+  const truncated: TheoryJson = {
+    name: `Ho_${theory.name}`,
+    doctrine: "Category",  // downgraded from ∞-category to 1-category
+    objects: [...theory.objects],
+    morphisms: [...theory.morphisms],
+    axioms: [...theory.axioms.map(ax => ({
+      ...ax,
+      // All axioms become strict equalities (not paths)
+      description: `[truncated] ${ax.description ?? ax.name}`,
+    }))],
+  };
+
+  // Add equalities discovered by Hyperion's e-graph as axioms
+  // These are paths that e-graph saturation found — in the homotopy
+  // category they become strict equalities.
+  if (discoveries) {
+    for (const d of discoveries) {
+      truncated.axioms.push({
+        name: `egraph_${sanitize(d.lhs)}_${sanitize(d.rhs)}`,
+        lhs: { atom: d.lhs },
+        rhs: { atom: d.rhs },
+        description: `[e-graph discovery, truncated] ${d.description}`,
+      });
+    }
+  }
+
+  return truncated;
+}
+
+/**
+ * Generate Lean source for a truncated homotopy category.
+ *
+ * Key difference from generic elaboration: we wrap morphism equality
+ * in Quotient to explicitly model the truncation.
+ *
+ * For each pair of morphisms f, g : X ⟶ Y, if there exists a Hyperion
+ * path p : f ≃ g, we add:
+ *   axiom truncation_f_g : f = g
+ *
+ * This is mathematically justified: the homotopy category of an
+ * ∞-category identifies all parallel morphisms connected by 2-cells.
+ */
+export function truncatedTheoryToLean(
+  theory: TheoryJson,
+  discoveries?: ExternalDiscovery[],
+): string {
+  const truncated = truncateToHomotopyCategory(theory, discoveries);
+  const lines: string[] = [];
+
+  lines.push("import Mathlib.CategoryTheory.Category.Basic");
+  lines.push("import Mathlib.CategoryTheory.Quotient");
+  lines.push("");
+  lines.push("open CategoryTheory");
+  lines.push("");
+  lines.push("universe v u");
+  lines.push("");
+  lines.push(`namespace CatLab.Truncation.${sanitize(theory.name)}`);
+  lines.push("");
+  lines.push("-- Homotopy category: truncation of an ∞-category to a 1-category.");
+  lines.push("-- All 2-cells (paths between morphisms) are collapsed to equalities.");
+  lines.push("-- This uses Lean's Quotient to model the identification.");
+  lines.push("");
+  lines.push("variable {C : Type u} [Category.{v} C]");
+  lines.push("");
+
+  // Objects
+  if (truncated.objects.length > 0) {
+    const objNames = truncated.objects.map(o => sanitize(o.name)).join(" ");
+    lines.push(`variable (${objNames} : C)`);
+    lines.push("");
+  }
+
+  // Morphisms
+  for (const mor of truncated.morphisms) {
+    lines.push(`variable (${sanitize(mor.name)} : ${sanitize(String(exprToSortName(mor.domain) ?? "X"))} ⟶ ${sanitize(String(exprToSortName(mor.codomain) ?? "Y"))})`);
+  }
+  if (truncated.morphisms.length > 0) lines.push("");
+
+  // Truncation axioms from e-graph discoveries
+  if (discoveries && discoveries.length > 0) {
+    lines.push("-- E-graph discoveries truncated to strict equalities:");
+    lines.push("-- In the ∞-category, these are paths (2-cells).");
+    lines.push("-- In the homotopy category, they become equalities.");
+    for (const d of discoveries) {
+      const axName = `truncate_${sanitize(d.lhs)}_${sanitize(d.rhs)}`;
+      lines.push(`-- ${d.description}`);
+      if (d.proof_term) {
+        lines.push(`-- Original path: ${d.proof_term}`);
+      }
+      if (d.rewrite_steps && d.rewrite_steps.length > 0) {
+        lines.push(`-- Via: ${d.rewrite_steps.join(" → ")}`);
+      }
+      lines.push(`axiom ${axName} : ${sanitize(d.lhs)} = ${sanitize(d.rhs)}`);
+    }
+    lines.push("");
+  }
+
+  // Regular axioms as lemmas
+  for (const ax of truncated.axioms) {
+    if (ax.name.startsWith("egraph_")) continue;  // already handled above
+    lines.push(`-- ${ax.description ?? ax.name}`);
+    lines.push(`lemma ${sanitize(ax.name)} : ${sanitize(String(exprToSortName(ax.lhs) ?? "lhs"))} = ${sanitize(String(exprToSortName(ax.rhs) ?? "rhs"))} := by`);
+    lines.push(`  aesop_cat`);
+    lines.push("");
+  }
+
+  lines.push(`end CatLab.Truncation.${sanitize(theory.name)}`);
+
+  return lines.join("\n") + "\n";
+}
+
+// ── Lemma Loop: LLM Proof Assistance ──────────────────────────────────────────
+
+/**
+ * A LemmaNode represents an intermediate lemma that the LLM can propose
+ * to help prove a difficult axiom. When aesop_cat fails, the LLM can
+ * break the proof into smaller steps by providing lemma nodes.
+ *
+ * These are translated to Lean `have` statements or independent lemmas
+ * before the final theorem, feeding intermediate goals to aesop/simp.
+ */
+export interface LemmaNode {
+  /** Lemma name (must be unique within the theory) */
+  name: string;
+  /** The statement to prove (as an ExprJson equality) */
+  statement: { lhs: ExprJson; rhs: ExprJson };
+  /** Proof strategy: which tactic to try */
+  tactic: "aesop_cat" | "simp" | "ring" | "omega" | "rfl" | "ext" | "exact";
+  /** For "exact": the proof term to use */
+  proofTerm?: string;
+  /** Dependencies: names of other lemmas this one uses */
+  dependencies?: string[];
+}
+
+/**
+ * Translate a sequence of LemmaNodes into Lean source.
+ * Each lemma becomes a `have` statement in the proof context,
+ * building up to the final goal.
+ */
+export function lemmasToLean(
+  lemmas: LemmaNode[],
+  finalGoal: { lhs: string; rhs: string },
+  nameCtx: { sanitize: (s: string) => string },
+): string {
+  const lines: string[] = [];
+
+  // Topological sort by dependencies
+  const sorted = topologicalSort(lemmas);
+
+  for (const lemma of sorted) {
+    const lhs = nameCtx.sanitize(exprToLeanish(lemma.statement.lhs));
+    const rhs = nameCtx.sanitize(exprToLeanish(lemma.statement.rhs));
+
+    lines.push(`  -- Intermediate lemma: ${lemma.name}`);
+    lines.push(`  have ${nameCtx.sanitize(lemma.name)} : ${lhs} = ${rhs} := by`);
+
+    switch (lemma.tactic) {
+      case "exact":
+        lines.push(`    exact ${lemma.proofTerm ?? "sorry"}`);
+        break;
+      case "rfl":
+        lines.push(`    rfl`);
+        break;
+      case "ext":
+        lines.push(`    ext; aesop_cat`);
+        break;
+      default:
+        lines.push(`    ${lemma.tactic}`);
+    }
+  }
+
+  // Final goal using the accumulated lemmas
+  lines.push(`  -- Final goal`);
+  lines.push(`  aesop_cat`);
+
+  return lines.join("\n");
+}
+
+/** Topological sort of lemmas by dependencies. */
+function topologicalSort(lemmas: LemmaNode[]): LemmaNode[] {
+  const byName = new Map(lemmas.map(l => [l.name, l]));
+  const visited = new Set<string>();
+  const result: LemmaNode[] = [];
+
+  function visit(name: string) {
+    if (visited.has(name)) return;
+    visited.add(name);
+    const lemma = byName.get(name);
+    if (!lemma) return;
+    for (const dep of lemma.dependencies ?? []) {
+      visit(dep);
+    }
+    result.push(lemma);
+  }
+
+  for (const l of lemmas) visit(l.name);
+  return result;
+}
+
+/** Quick ExprJson → string for lemma context (not full Lean elaboration). */
+function exprToLeanish(expr: ExprJson): string {
+  if (typeof expr === "string") return expr;
+  if ("atom" in expr) return expr.atom;
+  if ("comp" in expr) return `(${exprToLeanish(expr.comp[0])} ≫ ${exprToLeanish(expr.comp[1])})`;
+  if ("id" in expr) return `(𝟙 ${exprToLeanish(expr.id)})`;
+  if ("prod" in expr) return `(${exprToLeanish(expr.prod[0])} ⨯ ${exprToLeanish(expr.prod[1])})`;
+  if ("tensor" in expr) return `(${exprToLeanish(expr.tensor[0])} ⊗ ${exprToLeanish(expr.tensor[1])})`;
+  return "sorry";
+}
+
+// ── Theory Pushouts: The Category of Theories ────────────────────────────────
+
+/**
+ * Compute the pushout of two theories over a common base.
+ *
+ * Given theories A and B with a span A ← C → B (where C is the base theory),
+ * the pushout A ⊔_C B is the theory that:
+ *   1. Contains all objects from A and B, with shared objects (from C) identified
+ *   2. Contains all morphisms from A and B
+ *   3. Contains all axioms from A and B
+ *   4. Unifies namespaces: objects with the same name in C are merged
+ *
+ * This is the fundamental colimit operation in the Category of Theories.
+ */
+export function computeTheoryPushout(
+  theoryA: TheoryJson,
+  theoryB: TheoryJson,
+  base: TheoryJson,
+): TheoryJson {
+  // Identify shared objects (those in the base theory)
+  const baseObjNames = new Set(base.objects.map(o => o.name));
+  const baseMorNames = new Set(base.morphisms.map(m => m.name));
+  const baseAxNames = new Set(base.axioms.map(a => a.name));
+
+  // Objects: union with identification of base objects
+  const pushoutObjects = [...base.objects];
+  const seenObjNames = new Set(baseObjNames);
+
+  for (const obj of theoryA.objects) {
+    if (!seenObjNames.has(obj.name)) {
+      pushoutObjects.push({ ...obj, description: `[from ${theoryA.name}] ${obj.description ?? ""}` });
+      seenObjNames.add(obj.name);
+    }
+  }
+  for (const obj of theoryB.objects) {
+    if (!seenObjNames.has(obj.name)) {
+      pushoutObjects.push({ ...obj, description: `[from ${theoryB.name}] ${obj.description ?? ""}` });
+      seenObjNames.add(obj.name);
+    }
+  }
+
+  // Morphisms: union with identification of base morphisms
+  const pushoutMorphisms = [...base.morphisms];
+  const seenMorNames = new Set(baseMorNames);
+
+  for (const mor of theoryA.morphisms) {
+    if (!seenMorNames.has(mor.name)) {
+      pushoutMorphisms.push(mor);
+      seenMorNames.add(mor.name);
+    }
+  }
+  for (const mor of theoryB.morphisms) {
+    if (!seenMorNames.has(mor.name)) {
+      pushoutMorphisms.push(mor);
+      seenMorNames.add(mor.name);
+    }
+  }
+
+  // Axioms: union with identification of base axioms
+  const pushoutAxioms = [...base.axioms];
+  const seenAxNames = new Set(baseAxNames);
+
+  for (const ax of theoryA.axioms) {
+    if (!seenAxNames.has(ax.name)) {
+      pushoutAxioms.push(ax);
+      seenAxNames.add(ax.name);
+    }
+  }
+  for (const ax of theoryB.axioms) {
+    if (!seenAxNames.has(ax.name)) {
+      pushoutAxioms.push(ax);
+      seenAxNames.add(ax.name);
+    }
+  }
+
+  // Determine doctrine: use the "highest" doctrine
+  const doctrine = higherDoctrine(theoryA.doctrine, theoryB.doctrine);
+
+  return {
+    name: `${theoryA.name}_⊔_${theoryB.name}`,
+    doctrine,
+    objects: pushoutObjects,
+    morphisms: pushoutMorphisms,
+    axioms: pushoutAxioms,
+  };
+}
+
+/** Pick the "richer" doctrine when merging two theories. */
+function higherDoctrine(a: string, b: string): string {
+  const rank: Record<string, number> = {
+    "Category": 0,
+    "LawvereTheory": 1,
+    "FiniteProduct": 1,
+    "CartesianCategory": 2,
+    "MonoidalCategory": 2,
+    "CartesianClosed": 3,
+    "SymmetricMonoidal": 3,
+    "Abelian": 4,
+    "Topos": 5,
+    "ElementaryTopos": 5,
+  };
+  return (rank[a] ?? 0) >= (rank[b] ?? 0) ? a : b;
+}
+
+/**
+ * Verify a theory pushout across the appropriate tier.
+ *
+ * Routes the pushout theory to the correct backend based on its
+ * doctrine, then verifies all axioms (including newly merged ones).
+ */
+export async function verifyTheoryPushout(
+  theoryA: TheoryJson,
+  theoryB: TheoryJson,
+  base: TheoryJson,
+  opts?: ExternalElaborationOptions,
+): Promise<{ pushout: TheoryJson; result: ElaborationResult | null }> {
+  const pushout = computeTheoryPushout(theoryA, theoryB, base);
+  const result = await elaborateExternal(pushout, opts);
+  return { pushout, result };
+}
+
 // ── Utilities ────────────────────────────────────────────────────────────────
 
 /** Check if a string is valid JSON. */

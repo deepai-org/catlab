@@ -42,6 +42,25 @@ export interface AxiomJson {
   description?: string;
 }
 
+/**
+ * An intermediate lemma that the LLM can propose to break a difficult
+ * proof into smaller steps. Translated to `have` statements in Lean.
+ */
+export interface LemmaJson {
+  name: string;
+  /** The statement as an equality */
+  lhs: ExprJson;
+  rhs: ExprJson;
+  /** Proof tactic to use */
+  tactic?: "aesop_cat" | "simp" | "ring" | "omega" | "rfl" | "ext" | "exact";
+  /** For "exact": the proof term */
+  proofTerm?: string;
+  /** Names of other lemmas this depends on */
+  dependencies?: string[];
+  /** Which axiom this lemma helps prove */
+  forAxiom?: string;
+}
+
 export interface TheoryJson {
   name: string;
   /** Doctrine string, e.g. "MonoidalCategory", "Category", "LawvereTheory" */
@@ -49,6 +68,8 @@ export interface TheoryJson {
   objects: ObjectJson[];
   morphisms: MorphismJson[];
   axioms: AxiomJson[];
+  /** Intermediate lemmas proposed by the LLM to assist proofs */
+  lemmas?: LemmaJson[];
 }
 
 // ── VerificationResult ──────────────────────────────────────────────────────────
