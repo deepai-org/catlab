@@ -120,6 +120,13 @@ private partial def checkCompBoundaries (idx : Std.HashMap Name Generator1) (con
   | .app f x => checkCompBoundaries idx context f ++ checkCompBoundaries idx context x
   | .limit d | .colimit d => checkCompBoundaries idx context d
   | .natComponent n x => checkCompBoundaries idx context n ++ checkCompBoundaries idx context x
+  | .path A x y => checkCompBoundaries idx context A ++ checkCompBoundaries idx context x ++ checkCompBoundaries idx context y
+  | .refl x => checkCompBoundaries idx context x
+  | .pathJ mot rc tgt pf => checkCompBoundaries idx context mot ++ checkCompBoundaries idx context rc ++ checkCompBoundaries idx context tgt ++ checkCompBoundaries idx context pf
+  | .hcomp sys base => checkCompBoundaries idx context sys ++ checkCompBoundaries idx context base
+  | .fill sys base => checkCompBoundaries idx context sys ++ checkCompBoundaries idx context base
+  | .coe p a => checkCompBoundaries idx context p ++ checkCompBoundaries idx context a
+  | .lam _ dom body => checkCompBoundaries idx context dom ++ checkCompBoundaries idx context body
   | _ => []
 
 /-- Check composition boundaries across all axioms in a theory -/
@@ -221,7 +228,15 @@ private def exprConstraint : Expr → Doctrine
   | .limit ..     => .FinitelyComplete
   | .colimit ..   => .FinitelyCocomplete
   | .natComponent .. => .Category           -- just functorial, no extra structure
-  | _             => .Category              -- atoms, id, comp, unit, var, app, proj, inj
+  | .path ..      => .MartinLofTypeTheory  -- identity/path type
+  | .refl ..      => .MartinLofTypeTheory  -- reflexivity
+  | .pathJ ..     => .MartinLofTypeTheory  -- J-eliminator (path induction)
+  | .hcomp ..     => .CubicalTypeTheory   -- Kan filler (cubical composition)
+  | .fill ..      => .CubicalTypeTheory   -- box interior (cubical fill)
+  | .coe ..       => .CubicalTypeTheory   -- transport/coercion along path
+  | .lam ..       => .MartinLofTypeTheory  -- λ-abstraction
+  | .univ ..      => .MartinLofTypeTheory  -- universe levels
+  | _             => .Category              -- atoms, id, comp, unit, var, bvar, fvar, app, proj, inj
 
 /-- Walk an Expr tree, collecting the join of all doctrine constraints. -/
 private partial def exprDoctrineWalk (e : Expr) : Doctrine :=
@@ -242,6 +257,13 @@ private partial def exprDoctrineWalk (e : Expr) : Doctrine :=
   | .limit d          => Doctrine.join here (exprDoctrineWalk d)
   | .colimit d        => Doctrine.join here (exprDoctrineWalk d)
   | .natComponent n x => Doctrine.join here (Doctrine.join (exprDoctrineWalk n) (exprDoctrineWalk x))
+  | .path A x y       => Doctrine.join here (Doctrine.join (exprDoctrineWalk A) (Doctrine.join (exprDoctrineWalk x) (exprDoctrineWalk y)))
+  | .refl x           => Doctrine.join here (exprDoctrineWalk x)
+  | .pathJ m r t p    => Doctrine.join here (Doctrine.join (exprDoctrineWalk m) (Doctrine.join (exprDoctrineWalk r) (Doctrine.join (exprDoctrineWalk t) (exprDoctrineWalk p))))
+  | .hcomp sys base   => Doctrine.join here (Doctrine.join (exprDoctrineWalk sys) (exprDoctrineWalk base))
+  | .fill sys base    => Doctrine.join here (Doctrine.join (exprDoctrineWalk sys) (exprDoctrineWalk base))
+  | .coe p a          => Doctrine.join here (Doctrine.join (exprDoctrineWalk p) (exprDoctrineWalk a))
+  | .lam _ d b        => Doctrine.join here (Doctrine.join (exprDoctrineWalk d) (exprDoctrineWalk b))
   | _                 => here
 
 /-- Infer the minimum doctrine required to host a theory, based on the Expr

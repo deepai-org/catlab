@@ -47,6 +47,16 @@ partial def Expr.opposite (t : Theory) : Expr → Expr
   | .limit d => .limit (d.opposite t)
   | .colimit d => .colimit (d.opposite t)
   | .natComponent n x => .natComponent (n.opposite t) (x.opposite t)
+  | .path A x y => .path (A.opposite t) (y.opposite t) (x.opposite t)
+  | .refl x => .refl (x.opposite t)
+  | .pathJ mot rc tgt pf => .pathJ (mot.opposite t) (rc.opposite t) (tgt.opposite t) (pf.opposite t)
+  | .hcomp sys base => .hcomp (sys.opposite t) (base.opposite t)
+  | .fill sys base => .fill (sys.opposite t) (base.opposite t)
+  | .coe p a => .coe (p.opposite t) (a.opposite t)
+  | .bvar i => .bvar i
+  | .fvar uid => .fvar uid
+  | .lam v dom body => .lam v (dom.opposite t) (body.opposite t)
+  | .univ n => .univ n
 
 /-- Compute C^op, the opposite category.
 

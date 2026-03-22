@@ -304,6 +304,30 @@ function exprToOmega(expr: ExprJson): string {
   if ("hom" in expr) {
     return `(hom ${exprToOmega(expr.hom[0])} ${exprToOmega(expr.hom[1])})`;
   }
+  if ("path" in expr) {
+    return `(path ${exprToOmega(expr.path[0])} ${exprToOmega(expr.path[1])} ${exprToOmega(expr.path[2])})`;
+  }
+  if ("refl" in expr) {
+    return `(refl ${exprToOmega(expr.refl)})`;
+  }
+  if ("pathJ" in expr) {
+    return `(J ${exprToOmega(expr.pathJ[0])} ${exprToOmega(expr.pathJ[1])} ${exprToOmega(expr.pathJ[2])} ${exprToOmega(expr.pathJ[3])})`;
+  }
+  if ("hcomp" in expr) {
+    return `(hcomp ${exprToOmega(expr.hcomp[0])} ${exprToOmega(expr.hcomp[1])})`;
+  }
+  if ("fill" in expr) {
+    return `(fill ${exprToOmega(expr.fill[0])} ${exprToOmega(expr.fill[1])})`;
+  }
+  if ("coe" in expr) {
+    return `(coe ${exprToOmega(expr.coe[0])} ${exprToOmega(expr.coe[1])})`;
+  }
+  if ("bvar" in expr) return `#${expr.bvar}`;
+  if ("fvar" in expr) return `?${expr.fvar}`;
+  if ("lam" in expr) {
+    return `(lam ${sanitize(expr.lam.name)} ${exprToOmega(expr.lam.domain)} ${exprToOmega(expr.lam.body)})`;
+  }
+  if ("univ" in expr) return `(U ${expr.univ})`;
   return `?unknown`;
 }
 
@@ -315,6 +339,10 @@ interface HyperionDoctrineConfig {
   jType: boolean;
   partialElement: boolean;
   eGraph: boolean;
+  /** Use proof-relevant e-graph mode (merges create labeled edges, not collapse) */
+  proofRelevant: boolean;
+  /** Add IntervalSort for cubical interval [0,1] with endpoints and connections */
+  intervalSort: boolean;
   /** Extra structures to add to [Category ...] block */
   categoryStructures: string[];
   /** Substrate resource mode */
@@ -324,29 +352,31 @@ interface HyperionDoctrineConfig {
 function hyperionDoctrineConfig(doctrine: string): HyperionDoctrineConfig {
   const base: HyperionDoctrineConfig = {
     pathType: false, jType: false, partialElement: false, eGraph: false,
+    proofRelevant: false, intervalSort: false,
     categoryStructures: [], resourceMode: "optimal-sharing",
   };
 
   switch (doctrine) {
     case "MartinLofTypeTheory":
-      return { ...base, pathType: true, jType: true,
+      return { ...base, pathType: true, jType: true, proofRelevant: true,
         categoryStructures: ["[Evaluator app]"] };
 
     case "CubicalTypeTheory":
-      return { ...base, pathType: true, partialElement: true };
+      return { ...base, pathType: true, partialElement: true,
+        proofRelevant: true, intervalSort: true };
 
     case "CohesiveHomotopyTypeTheory":
-      return { ...base, pathType: true,
+      return { ...base, pathType: true, proofRelevant: true,
         categoryStructures: ["[ModalOperator :ops [esh bflat bsharp]]"] };
 
     case "InfinityNCategory":
     case "PresentableInfinityCategory":
-      return { ...base, pathType: true, eGraph: true };
+      return { ...base, pathType: true, eGraph: true, proofRelevant: true };
 
     case "2Category":
     case "Double":
     case "Bicategory":
-      return { ...base, pathType: true, eGraph: true };
+      return { ...base, pathType: true, eGraph: true, proofRelevant: true };
 
     // Monoidal doctrines routed to Hyperion (when needed for coherence)
     case "BraidedMonoidal":
@@ -411,6 +441,12 @@ export function theoryToHyperion(theory: TheoryJson): string {
   if (config.partialElement) {
     lines.push(`  [PartialElement :hcomp hcomp :coe coe]`);
   }
+  if (config.intervalSort) {
+    // Cubical interval [0,1] with endpoints and connections.
+    // Kernel cubical reductions (coe-refl, coe-concat, coe-inv) are
+    // auto-injected by Hyperion when both PathType and PartialElement are present.
+    lines.push(`  [IntervalSort I :zero i0 :one i1 :connections [min max] :involution rev]`);
+  }
   for (const struct of config.categoryStructures) {
     lines.push(`  ${struct}`);
   }
@@ -419,7 +455,14 @@ export function theoryToHyperion(theory: TheoryJson): string {
   lines.push(``);
 
   // ── Substrate block ────────────────────────────────────────────────────
-  const equality = config.eGraph ? "equality-saturation" : "rewrite-equivalence";
+  // Equality mode selection:
+  // - proof-relevant: for HoTT/cubical (e-graph merges create labeled edges, not collapse)
+  // - equality-saturation: for ∞-categories (standard e-graph)
+  // - topological-homotopy: for path algebra (rewriting + eta)
+  // - rewrite-equivalence: for directed rewriting only
+  const equality = config.proofRelevant
+    ? (config.intervalSort ? "topological-homotopy" : "proof-relevant")
+    : config.eGraph ? "equality-saturation" : "rewrite-equivalence";
   lines.push(`[Substrate ${subName}`);
   lines.push(`  @engine interaction-graph`);
   lines.push(`  @resource-mode ${config.resourceMode}`);
@@ -441,19 +484,26 @@ export function theoryToHyperion(theory: TheoryJson): string {
     lines.push(`  [const ${sanitize(obj.name).toLowerCase()} ${sanitize(obj.name)}]`);
   }
 
-  // Axioms as @law (bidirectional for e-graph) or @rule (directed for rewrite)
+  // Axioms as @law (bidirectional) or @rule (directed).
+  // CRITICAL: bidirectional @law causes exponential e-graph blowup with
+  // associativity-like rules. Use @rule for computational axioms (unit laws,
+  // simplifications) and reserve @law for genuinely symmetric equations.
+  // Cap @law at MAX_BIDIR_LAWS to prevent saturation hangs.
+  const MAX_BIDIR_LAWS = 3;
+  let bidirCount = 0;
+
   for (const ax of theory.axioms) {
     lines.push(`  ;; @node axiom:${ax.name}`);
     const lhs = exprToHyperion(ax.lhs);
     const rhs = exprToHyperion(ax.rhs);
     if (ax.relation === "ineq") {
-      // Inequalities are always directed
       lines.push(`  [@rule ${sanitize(ax.name)} ${lhs} ==> ${rhs}]`);
-    } else if (config.eGraph) {
-      // On e-graph substrate, use @law for bidirectional saturation
+    } else if (config.eGraph && !isComputationalAxiom(ax) && bidirCount < MAX_BIDIR_LAWS) {
+      // Genuinely symmetric equation — safe for bidirectional exploration
       lines.push(`  [@law ${sanitize(ax.name)} ${lhs} === ${rhs}]`);
+      bidirCount++;
     } else {
-      // On rewrite substrate, use @rule for directed rewriting
+      // Computational / overflow — directed rewriting only
       lines.push(`  [@rule ${sanitize(ax.name)} ${lhs} ==> ${rhs}]`);
     }
   }
@@ -471,19 +521,38 @@ export function theoryToHyperion(theory: TheoryJson): string {
       lines.push(`  [assert-eq ${sanitize(ax.name)} ${lhs} ${rhs}]`);
     }
 
-    // extract-proof: for HoTT/∞-categorical doctrines, request the proof term
-    // (path/2-cell) witnessing each equality — not just a boolean.
-    // This prevents flattening higher-dimensional structure into strict equality.
-    if (config.pathType) {
+    // extract-proof: selectively extract structured proof terms.
+    // Only for axioms that genuinely need path inspection (not all of them).
+    // extract-proof enables egg's explanation tracking which adds overhead
+    // to every e-graph merge, so use sparingly.
+    if (config.proofRelevant && theory.axioms.length <= 5) {
       lines.push(``);
-      lines.push(`  ;; Extract proof terms (paths/2-cells) from e-graph`);
-      lines.push(`  ;; CRITICAL: Hyperion must return the rewrite sequence,`);
-      lines.push(`  ;; not just True/False. In HoTT, there may be multiple`);
-      lines.push(`  ;; distinct paths between the same endpoints.`);
+      lines.push(`  ;; Extract structured proof terms (selective — overhead scales with saturation)`);
       for (const ax of theory.axioms) {
         const lhs = exprToHyperion(ax.lhs);
         const rhs = exprToHyperion(ax.rhs);
         lines.push(`  [extract-proof ${sanitize(ax.name)}-path ${lhs} ${rhs}]`);
+      }
+    }
+
+    // assert-exists: for ∞-categorical doctrines, verify Kan filler existence.
+    // Given a horn (boundary with one face missing), assert that a filler exists
+    // in the e-graph. This is the computational content of the Kan condition.
+    if (config.proofRelevant && config.pathType) {
+      lines.push(``);
+      lines.push(`  ;; Kan filler verification: assert existence of fillers`);
+      lines.push(`  ;; for horn inclusions Λ^n_k → Δ^n`);
+      // For each composable pair of morphisms, assert a composite exists
+      for (let i = 0; i < theory.morphisms.length; i++) {
+        for (let j = 0; j < theory.morphisms.length; j++) {
+          const f = theory.morphisms[i];
+          const g = theory.morphisms[j];
+          const fCod = exprToSortName(f.codomain);
+          const gDom = exprToSortName(g.domain);
+          if (fCod && gDom && fCod === gDom) {
+            lines.push(`  [assert-exists comp-${sanitize(f.name)}-${sanitize(g.name)} [comp ${sanitize(g.name)} ${sanitize(f.name)}]]`);
+          }
+        }
       }
     }
 
@@ -607,6 +676,30 @@ function exprToHyperion(expr: ExprJson): string {
   if ("hom" in expr) {
     return `[hom ${exprToHyperion(expr.hom[0])} ${exprToHyperion(expr.hom[1])}]`;
   }
+  if ("path" in expr) {
+    return `[path ${exprToHyperion(expr.path[0])} ${exprToHyperion(expr.path[1])} ${exprToHyperion(expr.path[2])}]`;
+  }
+  if ("refl" in expr) {
+    return `[refl ${exprToHyperion(expr.refl)}]`;
+  }
+  if ("pathJ" in expr) {
+    return `[J ${exprToHyperion(expr.pathJ[0])} ${exprToHyperion(expr.pathJ[1])} ${exprToHyperion(expr.pathJ[2])} ${exprToHyperion(expr.pathJ[3])}]`;
+  }
+  if ("hcomp" in expr) {
+    return `[hcomp ${exprToHyperion(expr.hcomp[0])} ${exprToHyperion(expr.hcomp[1])}]`;
+  }
+  if ("fill" in expr) {
+    return `[fill ${exprToHyperion(expr.fill[0])} ${exprToHyperion(expr.fill[1])}]`;
+  }
+  if ("coe" in expr) {
+    return `[coe ${exprToHyperion(expr.coe[0])} ${exprToHyperion(expr.coe[1])}]`;
+  }
+  if ("bvar" in expr) return `#${expr.bvar}`;
+  if ("fvar" in expr) return `?${expr.fvar}`;
+  if ("lam" in expr) {
+    return `[lam ${sanitize(expr.lam.name)} ${exprToHyperion(expr.lam.domain)} ${exprToHyperion(expr.lam.body)}]`;
+  }
+  if ("univ" in expr) return `[U ${expr.univ}]`;
   return `?unknown`;
 }
 
@@ -688,10 +781,32 @@ function runExternalCli(
 
     const proc = spawn(bin, args, { timeout });
 
+    // Hard kill safety net: if the process doesn't exit within timeout + 5s,
+    // SIGKILL it. Hyperion's e-graph saturation can hang indefinitely with
+    // too many bidirectional @law rules.
+    const killTimer = setTimeout(() => {
+      try { proc.kill("SIGKILL"); } catch { /* already dead */ }
+    }, timeout + 5000);
+
     proc.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });
     proc.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
 
-    proc.on("close", (code) => {
+    proc.on("close", (code, signal) => {
+      clearTimeout(killTimer);
+      if (signal === "SIGTERM" || signal === "SIGKILL") {
+        resolve({
+          status: "timeout",
+          elapsed_ms: timeout,
+          results: [{
+            name: "timeout",
+            node_id: null,
+            status: "timeout",
+            message: `${bin} killed after ${timeout}ms (signal: ${signal})`,
+          }],
+          discoveries: [],
+        });
+        return;
+      }
       // JSON may be on stdout, stderr, or both — try each
       const jsonText = tryParseJson(stdout.trim()) ? stdout.trim()
         : tryParseJson(stderr.trim()) ? stderr.trim()
@@ -977,6 +1092,49 @@ export function adjunctionToHyperion(
   return lines.join("\n");
 }
 
+/**
+ * Generate a WeakEquivalence verification block for Hyperion.
+ *
+ * In HoTT/∞-categorical contexts, two theories may be strictly different
+ * but weakly equivalent. This generates Hyperion's [WeakEquivalence :verify]
+ * directive which checks that corresponding types are connected by
+ * invertible maps (not strict isomorphism).
+ */
+export function weakEquivalenceToHyperion(
+  name: string,
+  theory1: TheoryJson,
+  theory2: TheoryJson,
+  typePairings: Array<[string, string]>,
+  /** Set false during development to skip verification (faster). Default: true. */
+  verify: boolean = true,
+): string {
+  const lines: string[] = [];
+  const cat1 = sanitize(theory1.name) + "Cat";
+  const cat2 = sanitize(theory2.name) + "Cat";
+
+  lines.push(`;; Weak equivalence check: ${theory1.name} ≃ ${theory2.name}`);
+  lines.push(``);
+
+  // Emit both theories
+  lines.push(theoryToHyperion(theory1));
+  lines.push(theoryToHyperion(theory2));
+
+  // WeakEquivalence block
+  lines.push(`[WeakEquivalence ${sanitize(name)}`);
+  lines.push(`  :source ${cat1}`);
+  lines.push(`  :target ${cat2}`);
+  lines.push(`  :on-types [`);
+  for (const [t1, t2] of typePairings) {
+    lines.push(`    [${sanitize(t1)} ${sanitize(t2)}]`);
+  }
+  lines.push(`  ]`);
+  lines.push(`  :verify ${verify}`);
+  lines.push(`]`);
+  lines.push(``);
+
+  return lines.join("\n");
+}
+
 /** Convert a GeneratorMapEntry target (ExprJson) to Hyperion syntax. */
 function mapEntryTargetToHyperion(target: ExprJson): string {
   return exprToHyperion(target);
@@ -1142,12 +1300,59 @@ function collectCombinators(axioms: AxiomJson[]): Set<string> {
     if ("tensor" in expr) { result.add("tensor"); walk(expr.tensor[0]); walk(expr.tensor[1]); }
     if ("coprod" in expr) { result.add("coprod"); walk(expr.coprod[0]); walk(expr.coprod[1]); }
     if ("hom" in expr) { result.add("hom"); walk(expr.hom[0]); walk(expr.hom[1]); }
+    if ("path" in expr) { result.add("path"); walk(expr.path[0]); walk(expr.path[1]); walk(expr.path[2]); }
+    if ("refl" in expr) { result.add("refl"); walk(expr.refl); }
+    if ("pathJ" in expr) { result.add("pathJ"); walk(expr.pathJ[0]); walk(expr.pathJ[1]); walk(expr.pathJ[2]); walk(expr.pathJ[3]); }
+    if ("hcomp" in expr) { result.add("hcomp"); walk(expr.hcomp[0]); walk(expr.hcomp[1]); }
+    if ("fill" in expr) { result.add("fill"); walk(expr.fill[0]); walk(expr.fill[1]); }
+    if ("coe" in expr) { result.add("coe"); walk(expr.coe[0]); walk(expr.coe[1]); }
+    if ("lam" in expr) { result.add("lam"); walk(expr.lam.domain); walk(expr.lam.body); }
+    if ("univ" in expr) { result.add("univ"); }
   }
   for (const ax of axioms) {
     walk(ax.lhs);
     walk(ax.rhs);
   }
   return result;
+}
+
+/**
+ * Classify an axiom as "computational" (should use directed @rule, not @law).
+ * Computational axioms have a clear reduction direction and cause e-graph
+ * blowup when made bidirectional. Examples: unit laws, identity, associativity.
+ */
+function isComputationalAxiom(ax: AxiomJson): boolean {
+  const name = ax.name.toLowerCase();
+  const desc = (ax.description ?? "").toLowerCase();
+  // Unit/identity laws: f ∘ id = f, id ∘ f = f — always reduce
+  if (name.includes("unit") || name.includes("identity")) return true;
+  if (desc.includes("unit law") || desc.includes("identity")) return true;
+  // Associativity: (f ∘ g) ∘ h = f ∘ (g ∘ h) — bidirectional = exponential
+  if (name.includes("assoc")) return true;
+  if (desc.includes("associativ")) return true;
+  // Absorption, idempotence, simplification rules
+  if (name.includes("absorb") || name.includes("idemp") || name.includes("simpl")) return true;
+  // Check structural shape: if one side is strictly simpler (contains fewer
+  // constructors), it's computational (reduce to simpler form)
+  const lhsSize = exprJsonSize(ax.lhs);
+  const rhsSize = exprJsonSize(ax.rhs);
+  if (Math.abs(lhsSize - rhsSize) >= 2) return true;
+  return false;
+}
+
+/** Rough size of an ExprJson for computational axiom classification. */
+function exprJsonSize(expr: ExprJson): number {
+  if (typeof expr === "string") return 1;
+  if ("atom" in expr) return 1;
+  let size = 1;
+  for (const val of Object.values(expr)) {
+    if (Array.isArray(val)) {
+      for (const child of val) size += exprJsonSize(child as ExprJson);
+    } else if (typeof val === "object" && val !== null) {
+      size += exprJsonSize(val as ExprJson);
+    }
+  }
+  return size;
 }
 
 /** Sanitize a name for use in Omega/Hyperion identifiers. */

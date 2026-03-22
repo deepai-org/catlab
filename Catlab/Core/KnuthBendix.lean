@@ -54,7 +54,7 @@ partial def applySubst (σ : Substitution) (e : Expr) : Expr :=
   | .var n => match σ.find? (·.1 == n) with
     | some (_, v) => v  -- single substitution step (no transitive chase)
     | none => e
-  | .atom _ | .unit | .terminal | .initial => e
+  | .atom _ | .unit | .terminal | .initial | .bvar _ | .fvar _ | .univ _ => e
   | .id obj => .id (applySubst σ obj)
   | .comp f g => .comp (applySubst σ f) (applySubst σ g)
   | .prod a b => .prod (applySubst σ a) (applySubst σ b)
@@ -64,6 +64,13 @@ partial def applySubst (σ : Substitution) (e : Expr) : Expr :=
   | .fiber a b => .fiber (applySubst σ a) (applySubst σ b)
   | .app f x => .app (applySubst σ f) (applySubst σ x)
   | .natComponent n x => .natComponent (applySubst σ n) (applySubst σ x)
+  | .path A x y => .path (applySubst σ A) (applySubst σ x) (applySubst σ y)
+  | .refl x => .refl (applySubst σ x)
+  | .pathJ m r t p => .pathJ (applySubst σ m) (applySubst σ r) (applySubst σ t) (applySubst σ p)
+  | .hcomp sys base => .hcomp (applySubst σ sys) (applySubst σ base)
+  | .fill sys base => .fill (applySubst σ sys) (applySubst σ base)
+  | .coe p a => .coe (applySubst σ p) (applySubst σ a)
+  | .lam v d b => .lam v (applySubst σ d) (applySubst σ b)
   | .sigma v b f => .sigma v (applySubst σ b) (applySubst σ f)
   | .pi v b f => .pi v (applySubst σ b) (applySubst σ f)
   | .proj i s => .proj i (applySubst σ s)
@@ -75,12 +82,16 @@ partial def applySubst (σ : Substitution) (e : Expr) : Expr :=
 private partial def occursIn (varName : String) (e : Expr) : Bool :=
   match e with
   | .var n => n == varName
-  | .atom _ | .unit | .terminal | .initial => false
+  | .atom _ | .unit | .terminal | .initial | .bvar _ | .fvar _ | .univ _ => false
   | .id obj => occursIn varName obj
   | .comp f g | .prod f g | .coprod f g | .tensor f g
-  | .hom f g | .fiber f g | .app f g | .natComponent f g =>
+  | .hom f g | .fiber f g | .app f g | .natComponent f g
+  | .hcomp f g | .fill f g | .coe f g =>
     occursIn varName f || occursIn varName g
-  | .sigma _ b f | .pi _ b f => occursIn varName b || occursIn varName f
+  | .path A x y => occursIn varName A || occursIn varName x || occursIn varName y
+  | .refl x => occursIn varName x
+  | .pathJ m r t p => occursIn varName m || occursIn varName r || occursIn varName t || occursIn varName p
+  | .sigma _ b f | .pi _ b f | .lam _ b f => occursIn varName b || occursIn varName f
   | .proj _ s | .inj _ s | .limit s | .colimit s => occursIn varName s
 
 /-- Compose two substitutions: apply σ2 after σ1. -/
@@ -121,6 +132,18 @@ partial def unify (s t : Expr) (σ : Substitution := []) : Option Substitution :
   | .inj i1 s1, .inj i2 s2 => if i1 == i2 then unify s1 s2 σ else none
   | .limit d1, .limit d2 => unify d1 d2 σ
   | .colimit d1, .colimit d2 => unify d1 d2 σ
+  | .path A1 x1 y1, .path A2 x2 y2 => do let σ' ← unify A1 A2 σ; let σ' ← unify x1 x2 σ'; unify y1 y2 σ'
+  | .refl x1, .refl x2 => unify x1 x2 σ
+  | .pathJ m1 r1 t1 p1, .pathJ m2 r2 t2 p2 => do let σ' ← unify m1 m2 σ; let σ' ← unify r1 r2 σ'; let σ' ← unify t1 t2 σ'; unify p1 p2 σ'
+  | .hcomp s1 b1, .hcomp s2 b2 => do let σ' ← unify s1 s2 σ; unify b1 b2 σ'
+  | .fill s1 b1, .fill s2 b2 => do let σ' ← unify s1 s2 σ; unify b1 b2 σ'
+  | .coe p1 a1, .coe p2 a2 => do let σ' ← unify p1 p2 σ; unify a1 a2 σ'
+  | .bvar i1, .bvar i2 => if i1 == i2 then some σ else none
+  | .fvar u1, .fvar u2 => if u1 == u2 then some σ else none
+  | .lam v1 d1 b1, .lam v2 d2 b2 =>
+    if v1 == v2 then do let σ' ← unify d1 d2 σ; unify b1 b2 σ'
+    else none
+  | .univ n1, .univ n2 => if n1 == n2 then some σ else none
   | _, _ => none
 
 /-- Pattern matching: find substitution σ such that applySubst σ pattern = target.
@@ -156,6 +179,18 @@ partial def matchExpr (pat target : Expr) (σ : Substitution := []) : Option Sub
   | .inj i1 s1, .inj i2 s2 => if i1 == i2 then matchExpr s1 s2 σ else none
   | .limit d1, .limit d2 => matchExpr d1 d2 σ
   | .colimit d1, .colimit d2 => matchExpr d1 d2 σ
+  | .path A1 x1 y1, .path A2 x2 y2 => do let σ' ← matchExpr A1 A2 σ; let σ' ← matchExpr x1 x2 σ'; matchExpr y1 y2 σ'
+  | .refl x1, .refl x2 => matchExpr x1 x2 σ
+  | .pathJ m1 r1 t1 p1, .pathJ m2 r2 t2 p2 => do let σ' ← matchExpr m1 m2 σ; let σ' ← matchExpr r1 r2 σ'; let σ' ← matchExpr t1 t2 σ'; matchExpr p1 p2 σ'
+  | .hcomp s1 b1, .hcomp s2 b2 => do let σ' ← matchExpr s1 s2 σ; matchExpr b1 b2 σ'
+  | .fill s1 b1, .fill s2 b2 => do let σ' ← matchExpr s1 s2 σ; matchExpr b1 b2 σ'
+  | .coe p1 a1, .coe p2 a2 => do let σ' ← matchExpr p1 p2 σ; matchExpr a1 a2 σ'
+  | .bvar i1, .bvar i2 => if i1 == i2 then some σ else none
+  | .fvar u1, .fvar u2 => if u1 == u2 then some σ else none
+  | .lam v1 d1 b1, .lam v2 d2 b2 =>
+    if v1 == v2 then do let σ' ← matchExpr d1 d2 σ; matchExpr b1 b2 σ'
+    else none
+  | .univ n1, .univ n2 => if n1 == n2 then some σ else none
   | _, _ => none
 
 -- ============================================================
@@ -166,19 +201,23 @@ partial def matchExpr (pat target : Expr) (σ : Substitution := []) : Option Sub
 private partial def varNames (e : Expr) : List String :=
   match e with
   | .var n => [n]
-  | .atom _ | .unit | .terminal | .initial => []
+  | .atom _ | .unit | .terminal | .initial | .bvar _ | .fvar _ | .univ _ => []
   | .id obj => varNames obj
   | .comp f g | .prod f g | .coprod f g | .tensor f g
-  | .hom f g | .fiber f g | .app f g | .natComponent f g =>
+  | .hom f g | .fiber f g | .app f g | .natComponent f g
+  | .hcomp f g | .fill f g | .coe f g =>
     varNames f ++ varNames g
-  | .sigma _ b f | .pi _ b f => varNames b ++ varNames f
+  | .path A x y => varNames A ++ varNames x ++ varNames y
+  | .refl x => varNames x
+  | .pathJ m r t p => varNames m ++ varNames r ++ varNames t ++ varNames p
+  | .sigma _ b f | .pi _ b f | .lam _ b f => varNames b ++ varNames f
   | .proj _ s | .inj _ s | .limit s | .colimit s => varNames s
 
 /-- Rename all variables in an expression by adding a suffix. -/
 private partial def renameVars (e : Expr) (suffix : String) : Expr :=
   match e with
   | .var n => .var (n ++ suffix)
-  | .atom _ | .unit | .terminal | .initial => e
+  | .atom _ | .unit | .terminal | .initial | .bvar _ | .fvar _ | .univ _ => e
   | .id obj => .id (renameVars obj suffix)
   | .comp f g => .comp (renameVars f suffix) (renameVars g suffix)
   | .prod a b => .prod (renameVars a suffix) (renameVars b suffix)
@@ -188,6 +227,13 @@ private partial def renameVars (e : Expr) (suffix : String) : Expr :=
   | .fiber a b => .fiber (renameVars a suffix) (renameVars b suffix)
   | .app f x => .app (renameVars f suffix) (renameVars x suffix)
   | .natComponent n x => .natComponent (renameVars n suffix) (renameVars x suffix)
+  | .path A x y => .path (renameVars A suffix) (renameVars x suffix) (renameVars y suffix)
+  | .refl x => .refl (renameVars x suffix)
+  | .pathJ m r t p => .pathJ (renameVars m suffix) (renameVars r suffix) (renameVars t suffix) (renameVars p suffix)
+  | .hcomp sys base => .hcomp (renameVars sys suffix) (renameVars base suffix)
+  | .fill sys base => .fill (renameVars sys suffix) (renameVars base suffix)
+  | .coe p a => .coe (renameVars p suffix) (renameVars a suffix)
+  | .lam v d b => .lam v (renameVars d suffix) (renameVars b suffix)
   | .sigma v b f => .sigma v (renameVars b suffix) (renameVars f suffix)
   | .pi v b f => .pi v (renameVars b suffix) (renameVars f suffix)
   | .proj i s => .proj i (renameVars s suffix)
@@ -221,6 +267,16 @@ private def headPrecedence : Expr → Nat
   | .limit _     => 50
   | .colimit _   => 51
   | .natComponent _ _ => 52
+  | .path _ _ _     => 53
+  | .refl _         => 54
+  | .pathJ _ _ _ _  => 55
+  | .hcomp _ _    => 57
+  | .fill _ _     => 58
+  | .coe _ _      => 59
+  | .bvar _       => 4
+  | .fvar _       => 5
+  | .lam _ _ _    => 42
+  | .univ _       => 6
 
 /-- Get the immediate subexpressions of an expression. -/
 private def subexprs : Expr → List Expr
@@ -238,6 +294,16 @@ private def subexprs : Expr → List Expr
   | .fiber a b   => [a, b]
   | .app a b     => [a, b]
   | .natComponent a b => [a, b]
+  | .path A x y     => [A, x, y]
+  | .refl x         => [x]
+  | .pathJ m r t p  => [m, r, t, p]
+  | .hcomp a b    => [a, b]
+  | .fill a b     => [a, b]
+  | .coe a b      => [a, b]
+  | .lam _ d b    => [d, b]
+  | .bvar _       => []
+  | .fvar _       => []
+  | .univ _       => []
   | .sigma _ b f => [b, f]
   | .pi _ b f    => [b, f]
   | .proj _ s    => [s]
@@ -352,6 +418,37 @@ private partial def rewriteOnce (rules : List Rule) (e : Expr) : Option Expr :=
       match rewriteOnce rules n with
       | some n' => some (.natComponent n' x)
       | none    => (rewriteOnce rules x).map (.natComponent n)
+    | .path A x y =>
+      match rewriteOnce rules A with
+      | some A' => some (.path A' x y)
+      | none    => match rewriteOnce rules x with
+        | some x' => some (.path A x' y)
+        | none    => (rewriteOnce rules y).map (.path A x)
+    | .refl x => (rewriteOnce rules x).map .refl
+    | .pathJ m r t p =>
+      match rewriteOnce rules m with
+      | some m' => some (.pathJ m' r t p)
+      | none    => match rewriteOnce rules r with
+        | some r' => some (.pathJ m r' t p)
+        | none    => match rewriteOnce rules t with
+          | some t' => some (.pathJ m r t' p)
+          | none    => (rewriteOnce rules p).map (.pathJ m r t)
+    | .hcomp sys base =>
+      match rewriteOnce rules sys with
+      | some sys' => some (.hcomp sys' base)
+      | none      => (rewriteOnce rules base).map (.hcomp sys)
+    | .fill sys base =>
+      match rewriteOnce rules sys with
+      | some sys' => some (.fill sys' base)
+      | none      => (rewriteOnce rules base).map (.fill sys)
+    | .coe p a =>
+      match rewriteOnce rules p with
+      | some p' => some (.coe p' a)
+      | none    => (rewriteOnce rules a).map (.coe p)
+    | .lam v d b =>
+      match rewriteOnce rules d with
+      | some d' => some (.lam v d' b)
+      | none    => (rewriteOnce rules b).map (.lam v d)
     | _ => none
 
 /-- Normalize an expression to normal form under the given rules.
@@ -433,6 +530,28 @@ private partial def criticalPairsFrom (r1 r2 : Rule) : List Equation :=
       | .natComponent n x =>
         atPos n (fun n' => ctx (.natComponent n' x)) ++
         atPos x (fun x' => ctx (.natComponent n x'))
+      | .path A x y =>
+        atPos A (fun A' => ctx (.path A' x y)) ++
+        atPos x (fun x' => ctx (.path A x' y)) ++
+        atPos y (fun y' => ctx (.path A x y'))
+      | .refl x => atPos x (fun x' => ctx (.refl x'))
+      | .pathJ m r t p =>
+        atPos m (fun m' => ctx (.pathJ m' r t p)) ++
+        atPos r (fun r' => ctx (.pathJ m r' t p)) ++
+        atPos t (fun t' => ctx (.pathJ m r t' p)) ++
+        atPos p (fun p' => ctx (.pathJ m r t p'))
+      | .hcomp sys base =>
+        atPos sys (fun sys' => ctx (.hcomp sys' base)) ++
+        atPos base (fun base' => ctx (.hcomp sys base'))
+      | .fill sys base =>
+        atPos sys (fun sys' => ctx (.fill sys' base)) ++
+        atPos base (fun base' => ctx (.fill sys base'))
+      | .coe p a =>
+        atPos p (fun p' => ctx (.coe p' a)) ++
+        atPos a (fun a' => ctx (.coe p a'))
+      | .lam v d b =>
+        atPos d (fun d' => ctx (.lam v d' b)) ++
+        atPos b (fun b' => ctx (.lam v d b'))
       | _ => []
     rootPairs ++ subPairs
   atPos r1.lhs (fun x => x)
@@ -586,14 +705,28 @@ def completeTheory (axioms : List Generator2) : List Rule :=
       if partialRules.isEmpty then eqs.filterMap orient
       else partialRules
 
-/-- Normalize an expression using KB-completed rules from a theory's axioms. -/
-def kbNormalize (axioms : List Generator2) (e : Expr) (fuel : Nat := 1000) : Expr :=
-  let rules := completeTheory axioms
-  normalize rules e fuel
+/-- Normalize an expression using KB-completed rules from a theory's axioms.
+    For higher-categorical doctrines (HoTT, cubical, ∞-categories), KB rewriting
+    is unsound — it destroys coherence data (paths). Returns the expression
+    unchanged in those cases; verification is delegated to Hyperion. -/
+def kbNormalize (axioms : List Generator2) (e : Expr) (fuel : Nat := 1000)
+    (doctrine : Option Doctrine := none) : Expr :=
+  -- KB bypass: higher-categorical doctrines must not use term rewriting
+  -- because equality is proof-relevant (paths, not propositions)
+  if doctrine.any (·.isHigherCategorical) then e
+  else
+    let rules := completeTheory axioms
+    normalize rules e fuel
 
-/-- Check equality under a theory's axioms via KB normalization. -/
-def kbEqual (axioms : List Generator2) (e1 e2 : Expr) : Bool :=
-  let rules := completeTheory axioms
-  normalize rules e1 1000 == normalize rules e2 1000
+/-- Check equality under a theory's axioms via KB normalization.
+    Returns false (inconclusive) for higher-categorical doctrines —
+    equality there requires proof-relevant verification via Hyperion. -/
+def kbEqual (axioms : List Generator2) (e1 e2 : Expr)
+    (doctrine : Option Doctrine := none) : Bool :=
+  -- For higher-categorical doctrines, KB cannot decide equality
+  if doctrine.any (·.isHigherCategorical) then e1 == e2
+  else
+    let rules := completeTheory axioms
+    normalize rules e1 1000 == normalize rules e2 1000
 
 end CatLab.KnuthBendix

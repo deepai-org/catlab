@@ -71,7 +71,7 @@ def checkNaturality
       -- RHS: G(f) ∘ α_A
       let rhs := Expr.comp (.atom compDom.id) (gOnMor.apply f.id)
       -- Check via KB
-      if KnuthBendix.kbEqual t.axioms lhs rhs then
+      if KnuthBendix.kbEqual t.axioms lhs rhs (doctrine := some t.doctrine.doctrine) then
         .ok s!"Naturality at {f.id.name}: α_cod ∘ F(f) = G(f) ∘ α_dom"
       else
         .failed s!"Naturality fails at {f.id.name}: α_cod ∘ F(f) ≠ G(f) ∘ α_dom"

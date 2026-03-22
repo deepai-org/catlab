@@ -28,6 +28,16 @@ partial def Expr.pp : Expr → String
   | .limit d => s!"lim({d.pp})"
   | .colimit d => s!"colim({d.pp})"
   | .natComponent n x => s!"{n.pp}_{x.pp}"
+  | .path A x y => s!"{x.pp} =_{A.pp} {y.pp}"
+  | .refl x => s!"refl({x.pp})"
+  | .pathJ mot rc tgt pf => s!"J({mot.pp}, {rc.pp}, {tgt.pp}, {pf.pp})"
+  | .hcomp sys base => s!"hcomp({sys.pp}, {base.pp})"
+  | .fill sys base => s!"fill({sys.pp}, {base.pp})"
+  | .coe p a => s!"coe({p.pp}, {a.pp})"
+  | .bvar i => s!"#{i}"
+  | .fvar uid => s!"?{uid}"
+  | .lam v dom body => s!"λ ({v} : {dom.pp}), {body.pp}"
+  | .univ n => s!"U_{n}"
 
 instance : ToString Expr where
   toString := Expr.pp

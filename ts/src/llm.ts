@@ -23,12 +23,14 @@ const DEFAULT_ANSWER_SCHEMA: Record<string, unknown> = {
   type: "object",
   properties: {
     name:      { type: "string", description: "Theory name" },
-    doctrine:  { type: "string", description: "Doctrine string, e.g. MonoidalCategory" },
+    doctrine:  { type: "string", description: "Doctrine string, e.g. MonoidalCategory or MartinLofTypeTheory" },
     objects:   { type: "array",  description: "List of {name, description?} objects",
                  items: { type: "object" } },
     morphisms: { type: "array",  description: "List of {name, domain, codomain, description?}",
                  items: { type: "object" } },
     axioms:    { type: "array",  description: "List of {name, lhs, rhs, description?}",
+                 items: { type: "object" } },
+    hitDecls:  { type: "array",  description: "Optional list of Higher Inductive Type declarations: {name, params?, constructors: [{name, isPath, body}], eliminatorName, eliminatorType}",
                  items: { type: "object" } },
   },
   required: ["name", "objects", "morphisms", "axioms"],
@@ -183,10 +185,63 @@ Key insight for \`opposite\`: endomorphisms (\`f: A→A\`) are self-dual. \`comp
 | \`"unit"\` | Unit object I |
 | \`"terminal"\` | Terminal object 1 |
 | \`"initial"\` | Initial object 0 |
+| \`{"univ": n}\` | Universe U_n (type of types at level n) |
+| \`{"path": [A, x, y]}\` | Identity/path type x =_A y |
+| \`{"refl": x}\` | Reflexivity proof refl(x) : x =_A x |
+| \`{"pathJ": [motive, reflCase, target, proof]}\` | J-eliminator (path induction) |
+| \`{"pi": [varName, base, body]}\` | Dependent product Π(x : base). body |
+| \`{"sigma": [varName, base, body]}\` | Dependent sum Σ(x : base). body |
+| \`{"lam": [varName, domain, body]}\` | Lambda abstraction λ(x : domain). body |
+| \`{"app": [f, arg]}\` | Function application f(arg) |
+| \`{"bvar": n}\` | Bound variable (de Bruijn index n) |
+| \`{"coe": [path, term]}\` | Transport/coercion along a path |
+
+## HoTT / ∞-Topos Constructs
+
+When working in doctrine \`MartinLofTypeTheory\`, you have access to the full HoTT toolkit:
+
+**Paths vs. strict equations:** In HoTT, use \`path\` types instead of strict equalities. An axiom like \`f(x) = g(x)\` becomes a term of type \`path(A, f(x), g(x))\`. Use \`refl\` for trivial equalities and \`pathJ\` for path induction.
+
+**Universes:** \`{"univ": 0}\` is the universe of small types. Types themselves live in universes: if \`A : U_0\`, then \`U_0 : U_1\`. Use \`path({"univ": 0}, A, B)\` to state that two types are equal (univalence makes this equivalent to equivalence).
+
+**Dependent types:** Use \`pi\` for dependent function types and \`sigma\` for dependent pair types. Bodies use de Bruijn indices (\`{"bvar": 0}\` = most recently bound variable).
+
+**Higher Inductive Types (HITs):** For colimits, truncations, and quotients, use the \`hitDecls\` field in your theory:
+
+\`\`\`json
+{
+  "hitDecls": [{
+    "name": "Circle",
+    "params": [],
+    "constructors": [
+      {"name": "base", "isPath": false, "body": "Circle"},
+      {"name": "loop", "isPath": true, "body": {"path": ["Circle", "base", "base"]}}
+    ],
+    "eliminatorName": "Circle_ind",
+    "eliminatorType": "Circle"
+  }]
+}
+\`\`\`
+
+**Key HIT patterns:**
+- **Propositional truncation** \`||A||₋₁\`: point constructor \`inc : A → ||A||\`, path constructor \`squash : Π(x y : ||A||). path(||A||, x, y)\`. Use for logical existence (∃).
+- **Homotopy pushout** of A ←f— C —g→ B: point constructors \`inl\`/\`inr\`, path constructor \`glue(c) : inl(f(c)) = inr(g(c))\`. Use for coproducts and colimits in HoTT.
+- **Homotopy coproduct**: pushout over the initial (empty) theory. No glue axioms.
+- **Suspension**: pushout of ⊤ ← A → ⊤. Produces north/south poles with meridian paths.
+
+**Equivalences:** An equivalence between types A and B is \`Σ(f : A → B). isEquiv(f)\` where \`isEquiv(f) = Π(y : B). isContr(fiber(f, y))\`. The univalence axiom states \`(A =_U B) ≃ (A ≃ B)\`.
+
+**When to use HoTT vs. strict categorical constructs:**
+- If the problem asks for a "coproduct of spaces/types," use \`homotopyCoproduct\` (HIT), not strict categorical pushout.
+- If the problem involves "truncation" or "propositional truncation," use the HIT with \`squash\` path constructor.
+- If the problem mentions "equivalence" between types, construct the \`Equiv\` Σ-type.
+- For standard algebraic theories (monoids, groups, rings), strict categorical constructs are still correct.
 
 ## Doctrine Strings
 
 Valid values: Category, CartesianCategory, MonoidalCategory, BraidedMonoidal, SymmetricMonoidal, FinitelyComplete, Abelian, Topos, LawvereTheory, ElementaryTopos, MartinLofTypeTheory, ModelCategory, and others.
+
+Use \`MartinLofTypeTheory\` when your theory involves path types, universes, dependent types, or HITs.
 
 ## Deep Verification (Lean/Mathlib)
 

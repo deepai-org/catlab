@@ -183,6 +183,16 @@ private def exprSize : Expr → Nat
   | .limit d     => 1 + exprSize d
   | .colimit d   => 1 + exprSize d
   | .natComponent n x => 1 + exprSize n + exprSize x
+  | .path A x y => 1 + exprSize A + exprSize x + exprSize y
+  | .refl x => 1 + exprSize x
+  | .pathJ m r t p => 1 + exprSize m + exprSize r + exprSize t + exprSize p
+  | .hcomp sys base => 1 + exprSize sys + exprSize base
+  | .fill sys base => 1 + exprSize sys + exprSize base
+  | .coe p a => 1 + exprSize p + exprSize a
+  | .bvar _      => 1
+  | .fvar _      => 1
+  | .lam _ d b   => 1 + exprSize d + exprSize b
+  | .univ _      => 1
 
 /-- Orient axioms so the larger side is always on the left (the rewrite target).
     This prevents expansion loops when operators like `opposite` swap LHS↔RHS,

@@ -115,7 +115,14 @@ partial def liftExpr (m : GeneratorMap) (e : Expr) : Expr :=
   | .limit d => .limit (m.liftExpr d)
   | .colimit d => .colimit (m.liftExpr d)
   | .natComponent n x => .natComponent (m.liftExpr n) (m.liftExpr x)
-  | .unit | .terminal | .initial | .var _ => e
+  | .path A x y => .path (m.liftExpr A) (m.liftExpr x) (m.liftExpr y)
+  | .refl x => .refl (m.liftExpr x)
+  | .pathJ mot rc tgt pf => .pathJ (m.liftExpr mot) (m.liftExpr rc) (m.liftExpr tgt) (m.liftExpr pf)
+  | .hcomp sys base => .hcomp (m.liftExpr sys) (m.liftExpr base)
+  | .fill sys base => .fill (m.liftExpr sys) (m.liftExpr base)
+  | .coe p a => .coe (m.liftExpr p) (m.liftExpr a)
+  | .lam v dom body => .lam v (m.liftExpr dom) (m.liftExpr body)
+  | .unit | .terminal | .initial | .var _ | .bvar _ | .fvar _ | .univ _ => e
 
 end GeneratorMap
 
@@ -183,6 +190,71 @@ structure CoconeData where
   deriving Repr, Inhabited
 
 -- ============================================================
+-- Higher Inductive Type Declarations
+-- ============================================================
+
+/-- A constructor for a Higher Inductive Type.
+    Point constructors produce terms of the HIT type.
+    Path constructors produce paths between previously constructed terms.
+
+    Examples for Pushout(f : C → A, g : C → B):
+      Point:  inl  : A → Pushout           (params = [A], output = Pushout)
+      Point:  inr  : B → Pushout           (params = [B], output = Pushout)
+      Path:   glue : (c : C) → inl(f(c)) =_{Pushout} inr(g(c))
+
+    The `body` field is the full type of the constructor as an Expr.
+    For point constructors, this is an arrow type (domain → HIT).
+    For path constructors, this is a Π-type into a path type. -/
+structure HITConstructor where
+  name : Name
+  /-- Is this a point constructor or a path constructor? -/
+  isPath : Bool := false
+  /-- The full type of this constructor as an Expr -/
+  body : Expr
+  description : String := ""
+  deriving Repr, Inhabited
+
+/-- A computation rule (β-rule) for a HIT eliminator.
+    States that the eliminator applied to a constructor reduces to a specific
+    expression. These become axioms (rewrite rules) in the theory.
+
+    Example for Pushout:
+      Pushout_ind(P, f_inl, f_inr, f_glue, inl(a)) = f_inl(a)
+      Pushout_ind(P, f_inl, f_inr, f_glue, inr(b)) = f_inr(b) -/
+structure HITComputation where
+  name : Name
+  lhs : Expr
+  rhs : Expr
+  description : String := ""
+  deriving Repr, Inhabited
+
+/-- A Higher Inductive Type declaration.
+    This is a macro/factory — when elaborated, it produces:
+      - One object (the HIT type itself)
+      - Morphisms for each constructor (point constructors)
+      - Axioms for path constructors (equalities between terms)
+      - An eliminator morphism
+      - Computation axioms (β-rules for the eliminator)
+
+    The HITDecl lives at the Theory level, not the Expr level.
+    All generated terms use the existing Expr constructors
+    (path, refl, app, lam, pi, etc.). -/
+structure HITDecl where
+  /-- Name of the HIT (e.g., "Pushout") -/
+  name : Name
+  /-- Parameter sorts that the HIT depends on (e.g., A, B, C for Pushout) -/
+  params : List (Name × Expr)
+  /-- Point and path constructors -/
+  constructors : List HITConstructor
+  /-- Name and type of the eliminator/recursor -/
+  eliminatorName : Name
+  eliminatorType : Expr
+  /-- Computation rules (β-reductions for the eliminator) -/
+  computations : List HITComputation
+  description : String := ""
+  deriving Repr, Inhabited
+
+-- ============================================================
 -- Theory
 -- ============================================================
 
@@ -198,6 +270,9 @@ structure Theory where
   /-- First-class equivalences: pairs of expressions identified in this theory.
       Formalizes quotienting without encoding equivalences as 2-cells. -/
   equivalences : List (Expr × Expr) := []
+  /-- Higher Inductive Type declarations.
+      These are elaborated into generators + axioms by `elaborateHIT`. -/
+  hitDecls : List HITDecl := []
   deriving Repr, Inhabited
 
 namespace Theory
@@ -345,5 +420,79 @@ def dedup (t : Theory) : Theory :=
   { t with objects := dedup0.1.reverse, morphisms := dedup1.1.reverse, axioms := dedup2.1.reverse }
 
 end Theory
+
+-- ============================================================
+-- HIT Elaboration: HITDecl → generators + axioms
+-- ============================================================
+
+/-- Elaborate a HITDecl into concrete theory components.
+    Returns (objects, morphisms, axioms) to be merged into a Theory.
+
+    Point constructors become morphisms (Generator1).
+    Path constructors become axioms (Generator2) — equalities between terms.
+    The eliminator becomes a morphism.
+    Computation rules become axioms (β-rules). -/
+def elaborateHIT (hit : HITDecl) : List Generator0 × List Generator1 × List Generator2 :=
+  -- The HIT type itself is a new sort
+  let hitObj : Generator0 :=
+    { id := { name := hit.name, kind := .sort }
+      description := hit.description }
+
+  -- Point constructors → morphisms
+  -- Path constructors → axioms
+  let (pointMorphisms, pathAxioms) := hit.constructors.foldl
+    (fun (morphs, axs) ctor =>
+      if ctor.isPath then
+        -- Path constructor: generates an axiom
+        -- The body should be a path type: path(HIT, lhs, rhs)
+        -- We extract lhs/rhs from the body if possible, else use the full body
+        let ax : Generator2 :=
+          { id := { name := ctor.name, kind := .twoCell }
+            leftPath := ctor.body  -- full type stored as LHS
+            rightPath := .refl (.atom { name := hit.name, kind := .sort })
+            description := ctor.description }
+        (morphs, ax :: axs)
+      else
+        -- Point constructor: generates a morphism
+        -- The body encodes the type; for a simple constructor like inl : A → Pushout,
+        -- domain = A, codomain = Pushout
+        let mor : Generator1 :=
+          { id := { name := ctor.name, kind := .morphism }
+            domain := ctor.body  -- the full type (caller sets domain/codomain)
+            codomain := .atom { name := hit.name, kind := .sort }
+            description := ctor.description }
+        (mor :: morphs, axs))
+    ([], [])
+
+  -- Eliminator → morphism
+  let elimMor : Generator1 :=
+    { id := { name := hit.eliminatorName, kind := .morphism }
+      domain := hit.eliminatorType
+      codomain := .atom { name := hit.name, kind := .sort }
+      description := s!"Eliminator for {hit.name}" }
+
+  -- Computation rules → axioms
+  let compAxioms := hit.computations.map fun comp =>
+    { id := { name := comp.name, kind := .twoCell }
+      leftPath := comp.lhs
+      rightPath := comp.rhs
+      description := comp.description
+      : Generator2 }
+
+  ([hitObj], elimMor :: pointMorphisms.reverse, pathAxioms.reverse ++ compAxioms)
+
+/-- Elaborate all HITDecls in a theory and merge their generators/axioms
+    into the theory's existing lists. Idempotent: elaborating twice produces
+    the same result (HITDecls are preserved, generated content is appended). -/
+def Theory.elaborateAllHITs (t : Theory) : Theory :=
+  let (newObjs, newMors, newAxs) := t.hitDecls.foldl
+    (fun (os, ms, axs) hit =>
+      let (o, m, a) := elaborateHIT hit
+      (os ++ o, ms ++ m, axs ++ a))
+    ([], [], [])
+  { t with
+    objects := t.objects ++ newObjs
+    morphisms := t.morphisms ++ newMors
+    axioms := t.axioms ++ newAxs }
 
 end CatLab

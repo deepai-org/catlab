@@ -33,6 +33,16 @@ def Expr.mirror : Expr → Expr
   | .limit d => .colimit d.mirror
   | .colimit d => .limit d.mirror
   | .natComponent n x => .natComponent n.mirror x.mirror
+  | .path A x y => .path A.mirror y.mirror x.mirror  -- swap endpoints (mirror reverses)
+  | .refl x => .refl x.mirror
+  | .pathJ mot rc tgt pf => .pathJ mot.mirror rc.mirror tgt.mirror pf.mirror
+  | .hcomp sys base => .hcomp sys.mirror base.mirror
+  | .fill sys base => .fill sys.mirror base.mirror
+  | .coe p a => .coe p.mirror a.mirror
+  | .bvar i => .bvar i
+  | .fvar uid => .fvar uid
+  | .lam v dom body => .lam v dom.mirror body.mirror
+  | .univ n => .univ n
 
 /-- The Mirror operator: compute C^op.
 

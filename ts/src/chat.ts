@@ -301,9 +301,21 @@ When constructing theories, use this format:
 | \`{"prod": [e1, e2]}\` | e1 × e2 |
 | \`{"id": "X"}\` | identity on X |
 | \`"terminal"\` | terminal object 1 |
+| \`{"univ": n}\` | Universe U_n |
+| \`{"path": [A, x, y]}\` | Path/identity type x =_A y |
+| \`{"refl": x}\` | Reflexivity proof |
+| \`{"pi": [var, base, body]}\` | Dependent product Π(x:base).body |
+| \`{"sigma": [var, base, body]}\` | Dependent sum Σ(x:base).body |
+| \`{"lam": [var, dom, body]}\` | Lambda λ(x:dom).body |
+| \`{"app": [f, arg]}\` | Application f(arg) |
+| \`{"bvar": n}\` | Bound variable (de Bruijn index) |
+| \`{"coe": [path, term]}\` | Transport along path |
+
+## HoTT Support:
+For \`MartinLofTypeTheory\` doctrine, use path types instead of strict equations, universes for classifying types, and HITs for colimits/truncations. Add HITs via the \`hitDecls\` field with point constructors (isPath: false) and path constructors (isPath: true).
 
 ## Doctrines:
-LawvereTheory (single-sorted algebraic), Category, MonoidalCategory, CartesianCategory, SymmetricMonoidal, Abelian, Topos, etc.
+LawvereTheory (single-sorted algebraic), Category, MonoidalCategory, CartesianCategory, SymmetricMonoidal, Abelian, Topos, MartinLofTypeTheory (HoTT with paths, universes, HITs), etc.
 
 ## Multi-step computation:
 Results from apply_operator, compute_pushout, and submit_theory are automatically stored by name.

@@ -83,6 +83,7 @@ import Catlab.Operators.PER
 import Catlab.Operators.Product
 import Catlab.Operators.Pullback
 import Catlab.Operators.Pushout
+import Catlab.Operators.HomotopyPushout
 import Catlab.Operators.Quotient
 import Catlab.Operators.Realizability
 import Catlab.Operators.Sheafify

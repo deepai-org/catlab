@@ -99,6 +99,16 @@ private partial def eraseNames (e : Expr) : Expr :=
   | .limit d => .limit (eraseNames d)
   | .colimit d => .colimit (eraseNames d)
   | .natComponent n x => .natComponent (eraseNames n) (eraseNames x)
+  | .path A x y => .path (eraseNames A) (eraseNames x) (eraseNames y)
+  | .refl x => .refl (eraseNames x)
+  | .pathJ m r t p => .pathJ (eraseNames m) (eraseNames r) (eraseNames t) (eraseNames p)
+  | .hcomp sys base => .hcomp (eraseNames sys) (eraseNames base)
+  | .fill sys base => .fill (eraseNames sys) (eraseNames base)
+  | .coe p a => .coe (eraseNames p) (eraseNames a)
+  | .bvar i => .bvar i
+  | .fvar uid => .fvar uid
+  | .lam v dom body => .lam v (eraseNames dom) (eraseNames body)
+  | .univ n => .univ n
 
 /-- Shape-multiset comparison: same generator counts AND same multiset of
     morphism (domain,codomain) shapes AND same multiset of axiom (LHS,RHS)

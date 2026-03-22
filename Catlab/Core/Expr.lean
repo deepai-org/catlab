@@ -168,6 +168,35 @@ inductive Expr where
   | colimit (diagram : Expr)
   -- Natural transformation component: α_X
   | natComponent (nat : Expr) (atObj : Expr)
+  -- ── Identity/Path types (HoTT) ─────────────────────────────────────────────
+  -- The type of paths between x and y in space A: x =_A y
+  | path (A x y : Expr)
+  -- Reflexivity: the constant path at x
+  | refl (x : Expr)
+  -- Path induction (J-eliminator): J motive reflCase target proof
+  --   motive   : Π (y : A) (p : x =_A y). U    (the dependent motive)
+  --   reflCase : motive x (refl x)               (what to return at refl)
+  --   target   : A                                (the endpoint)
+  --   proof    : x =_A target                     (the path being eliminated)
+  | pathJ (motive reflCase target proof : Expr)
+  -- ── Cubical/HoTT constructors ─────────────────────────────────────────────
+  -- Homogeneous composition: Kan filler output (the missing face of a box)
+  | hcomp (system base : Expr)
+  -- Fill: the interior of the box (the actual higher-dimensional cell)
+  | fill (system base : Expr)
+  -- Coercion/transport: given path p : A = B and term a : A, produce a term of B
+  | coe (path term : Expr)
+  -- ── Locally nameless variable binding ──────────────────────────────────────
+  -- Bound variable: de Bruijn index (only appears under a binder)
+  | bvar (index : Nat)
+  -- Free variable: unique identifier (introduced when opening a binder)
+  | fvar (uid : Nat)
+  -- Lambda abstraction: λ (binderName : domain). body
+  -- The body uses bvar 0 for the bound variable
+  | lam (binderName : String) (domain : Expr) (body : Expr)
+  -- ── Universe levels ──────────────────────────────────────────────────────
+  -- The universe of types at level n: U_n : U_{n+1}
+  | univ (level : Nat)
 
 instance : Inhabited Expr := ⟨.unit⟩
 deriving instance Repr for Expr
@@ -223,12 +252,22 @@ partial def Expr.toName : Expr → Name
   | .limit d => .app (.root "lim") d.toName
   | .colimit d => .app (.root "colim") d.toName
   | .natComponent n x => .app n.toName x.toName
+  | .path A x y => .app (.app (.app (.root "=") A.toName) x.toName) y.toName
+  | .refl x => .app (.root "refl") x.toName
+  | .pathJ mot rc tgt pf => .app (.app (.app (.app (.root "J") mot.toName) rc.toName) tgt.toName) pf.toName
+  | .hcomp sys base => .app (.app (.root "hcomp") sys.toName) base.toName
+  | .fill sys base => .app (.app (.root "fill") sys.toName) base.toName
+  | .coe p a => .app (.app (.root "coe") p.toName) a.toName
+  | .bvar i => .root s!"#{i}"
+  | .fvar uid => .root s!"?{uid}"
+  | .lam v dom body => .app (.app (.root s!"λ_{v}") dom.toName) body.toName
+  | .univ n => .root s!"U_{n}"
 
 /-- Substitution: replace free occurrences of var name with replacement -/
 def Expr.subst (e : Expr) (name : String) (replacement : Expr) : Expr :=
   match e with
   | .var n => if n == name then replacement else e
-  | .atom _ | .unit | .terminal | .initial => e
+  | .atom _ | .unit | .terminal | .initial | .bvar _ | .fvar _ | .univ _ => e
   | .id obj => .id (obj.subst name replacement)
   | .comp f g => .comp (f.subst name replacement) (g.subst name replacement)
   | .prod a b => .prod (a.subst name replacement) (b.subst name replacement)
@@ -248,12 +287,20 @@ def Expr.subst (e : Expr) (name : String) (replacement : Expr) : Expr :=
   | .limit d => .limit (d.subst name replacement)
   | .colimit d => .colimit (d.subst name replacement)
   | .natComponent n x => .natComponent (n.subst name replacement) (x.subst name replacement)
+  | .path A x y => .path (A.subst name replacement) (x.subst name replacement) (y.subst name replacement)
+  | .refl x => .refl (x.subst name replacement)
+  | .pathJ mot rc tgt pf => .pathJ (mot.subst name replacement) (rc.subst name replacement) (tgt.subst name replacement) (pf.subst name replacement)
+  | .hcomp sys base => .hcomp (sys.subst name replacement) (base.subst name replacement)
+  | .fill sys base => .fill (sys.subst name replacement) (base.subst name replacement)
+  | .coe p a => .coe (p.subst name replacement) (a.subst name replacement)
+  | .lam v dom body =>
+    .lam v (dom.subst name replacement) (body.subst name replacement)
 
 /-- Apply a function to every atom in an expression -/
 partial def Expr.mapAtoms (e : Expr) (f : Expr → Expr) : Expr :=
   match e with
   | .atom _ => f e
-  | .unit | .terminal | .initial | .var _ => e
+  | .unit | .terminal | .initial | .var _ | .bvar _ | .fvar _ | .univ _ => e
   | .id obj => .id (obj.mapAtoms f)
   | .comp a b => .comp (a.mapAtoms f) (b.mapAtoms f)
   | .prod a b => .prod (a.mapAtoms f) (b.mapAtoms f)
@@ -269,12 +316,19 @@ partial def Expr.mapAtoms (e : Expr) (f : Expr → Expr) : Expr :=
   | .limit d => .limit (d.mapAtoms f)
   | .colimit d => .colimit (d.mapAtoms f)
   | .natComponent n x => .natComponent (n.mapAtoms f) (x.mapAtoms f)
+  | .path A x y => .path (A.mapAtoms f) (x.mapAtoms f) (y.mapAtoms f)
+  | .refl x => .refl (x.mapAtoms f)
+  | .pathJ mot rc tgt pf => .pathJ (mot.mapAtoms f) (rc.mapAtoms f) (tgt.mapAtoms f) (pf.mapAtoms f)
+  | .hcomp sys base => .hcomp (sys.mapAtoms f) (base.mapAtoms f)
+  | .fill sys base => .fill (sys.mapAtoms f) (base.mapAtoms f)
+  | .coe p a => .coe (p.mapAtoms f) (a.mapAtoms f)
+  | .lam v dom body => .lam v (dom.mapAtoms f) (body.mapAtoms f)
 
 /-- Map over generator names in an expression -/
 partial def Expr.mapNames (e : Expr) (f : Name → Name) : Expr :=
   match e with
   | .atom gid => .atom { gid with name := f gid.name }
-  | .unit | .terminal | .initial | .var _ => e
+  | .unit | .terminal | .initial | .var _ | .bvar _ | .fvar _ | .univ _ => e
   | .id obj => .id (obj.mapNames f)
   | .comp a b => .comp (a.mapNames f) (b.mapNames f)
   | .prod a b => .prod (a.mapNames f) (b.mapNames f)
@@ -290,6 +344,13 @@ partial def Expr.mapNames (e : Expr) (f : Name → Name) : Expr :=
   | .limit d => .limit (d.mapNames f)
   | .colimit d => .colimit (d.mapNames f)
   | .natComponent n x => .natComponent (n.mapNames f) (x.mapNames f)
+  | .path A x y => .path (A.mapNames f) (x.mapNames f) (y.mapNames f)
+  | .refl x => .refl (x.mapNames f)
+  | .pathJ mot rc tgt pf => .pathJ (mot.mapNames f) (rc.mapNames f) (tgt.mapNames f) (pf.mapNames f)
+  | .hcomp sys base => .hcomp (sys.mapNames f) (base.mapNames f)
+  | .fill sys base => .fill (sys.mapNames f) (base.mapNames f)
+  | .coe p a => .coe (p.mapNames f) (a.mapNames f)
+  | .lam v dom body => .lam v (dom.mapNames f) (body.mapNames f)
 
 /-- Collect all atom GeneratorIds referenced in an expression -/
 def Expr.atomIds : Expr → List GeneratorId
@@ -309,10 +370,208 @@ def Expr.atomIds : Expr → List GeneratorId
   | .limit d => d.atomIds
   | .colimit d => d.atomIds
   | .natComponent n x => n.atomIds ++ x.atomIds
-  | .unit | .terminal | .initial | .var _ => []
+  | .path A x y => A.atomIds ++ x.atomIds ++ y.atomIds
+  | .refl x => x.atomIds
+  | .pathJ mot rc tgt pf => mot.atomIds ++ rc.atomIds ++ tgt.atomIds ++ pf.atomIds
+  | .hcomp sys base => sys.atomIds ++ base.atomIds
+  | .fill sys base => sys.atomIds ++ base.atomIds
+  | .coe p a => p.atomIds ++ a.atomIds
+  | .lam _ dom body => dom.atomIds ++ body.atomIds
+  | .unit | .terminal | .initial | .var _ | .bvar _ | .fvar _ | .univ _ => []
 
 /-- Collect all atom names referenced in an expression -/
 def Expr.atoms (e : Expr) : List Name :=
   e.atomIds.map (·.name)
+
+-- ============================================================
+-- Locally Nameless Binding Operations
+-- ============================================================
+
+/-- Lift (shift) all bound variable indices ≥ cutoff by `offset`.
+    Used when pushing a term under additional binders. -/
+partial def Expr.liftBVars (e : Expr) (offset : Nat) (cutoff : Nat := 0) : Expr :=
+  match e with
+  | .bvar i => if i >= cutoff then .bvar (i + offset) else e
+  | .fvar _ | .atom _ | .unit | .terminal | .initial | .var _ | .univ _ => e
+  | .id obj => .id (obj.liftBVars offset cutoff)
+  | .comp f g => .comp (f.liftBVars offset cutoff) (g.liftBVars offset cutoff)
+  | .prod a b => .prod (a.liftBVars offset cutoff) (b.liftBVars offset cutoff)
+  | .coprod a b => .coprod (a.liftBVars offset cutoff) (b.liftBVars offset cutoff)
+  | .hom a b => .hom (a.liftBVars offset cutoff) (b.liftBVars offset cutoff)
+  | .tensor a b => .tensor (a.liftBVars offset cutoff) (b.liftBVars offset cutoff)
+  | .sigma v base fam => .sigma v (base.liftBVars offset cutoff) (fam.liftBVars offset (cutoff + 1))
+  | .pi v base fam => .pi v (base.liftBVars offset cutoff) (fam.liftBVars offset (cutoff + 1))
+  | .lam v dom body => .lam v (dom.liftBVars offset cutoff) (body.liftBVars offset (cutoff + 1))
+  | .fiber m p => .fiber (m.liftBVars offset cutoff) (p.liftBVars offset cutoff)
+  | .proj i s => .proj i (s.liftBVars offset cutoff)
+  | .inj i t => .inj i (t.liftBVars offset cutoff)
+  | .app f x => .app (f.liftBVars offset cutoff) (x.liftBVars offset cutoff)
+  | .limit d => .limit (d.liftBVars offset cutoff)
+  | .colimit d => .colimit (d.liftBVars offset cutoff)
+  | .natComponent n x => .natComponent (n.liftBVars offset cutoff) (x.liftBVars offset cutoff)
+  | .path A x y => .path (A.liftBVars offset cutoff) (x.liftBVars offset cutoff) (y.liftBVars offset cutoff)
+  | .refl x => .refl (x.liftBVars offset cutoff)
+  | .pathJ mot rc tgt pf => .pathJ (mot.liftBVars offset cutoff) (rc.liftBVars offset cutoff) (tgt.liftBVars offset cutoff) (pf.liftBVars offset cutoff)
+  | .hcomp sys base => .hcomp (sys.liftBVars offset cutoff) (base.liftBVars offset cutoff)
+  | .fill sys base => .fill (sys.liftBVars offset cutoff) (base.liftBVars offset cutoff)
+  | .coe p a => .coe (p.liftBVars offset cutoff) (a.liftBVars offset cutoff)
+
+/-- Instantiate: replace `bvar level` with `replacement` and decrement higher bvars.
+    This is the "open" operation — it substitutes a term for the outermost bound variable.
+    Call with level=0 to open the outermost binder. -/
+partial def Expr.instantiate (e : Expr) (level : Nat) (replacement : Expr) : Expr :=
+  match e with
+  | .bvar i =>
+    if i == level then replacement
+    else if i > level then .bvar (i - 1)
+    else e
+  | .fvar _ | .atom _ | .unit | .terminal | .initial | .var _ | .univ _ => e
+  | .id obj => .id (obj.instantiate level replacement)
+  | .comp f g => .comp (f.instantiate level replacement) (g.instantiate level replacement)
+  | .prod a b => .prod (a.instantiate level replacement) (b.instantiate level replacement)
+  | .coprod a b => .coprod (a.instantiate level replacement) (b.instantiate level replacement)
+  | .hom a b => .hom (a.instantiate level replacement) (b.instantiate level replacement)
+  | .tensor a b => .tensor (a.instantiate level replacement) (b.instantiate level replacement)
+  | .sigma v base fam =>
+    .sigma v (base.instantiate level replacement) (fam.instantiate (level + 1) (replacement.liftBVars 1))
+  | .pi v base fam =>
+    .pi v (base.instantiate level replacement) (fam.instantiate (level + 1) (replacement.liftBVars 1))
+  | .lam v dom body =>
+    .lam v (dom.instantiate level replacement) (body.instantiate (level + 1) (replacement.liftBVars 1))
+  | .fiber m p => .fiber (m.instantiate level replacement) (p.instantiate level replacement)
+  | .proj i s => .proj i (s.instantiate level replacement)
+  | .inj i t => .inj i (t.instantiate level replacement)
+  | .app f x => .app (f.instantiate level replacement) (x.instantiate level replacement)
+  | .limit d => .limit (d.instantiate level replacement)
+  | .colimit d => .colimit (d.instantiate level replacement)
+  | .natComponent n x => .natComponent (n.instantiate level replacement) (x.instantiate level replacement)
+  | .path A x y => .path (A.instantiate level replacement) (x.instantiate level replacement) (y.instantiate level replacement)
+  | .refl x => .refl (x.instantiate level replacement)
+  | .pathJ mot rc tgt pf => .pathJ (mot.instantiate level replacement) (rc.instantiate level replacement) (tgt.instantiate level replacement) (pf.instantiate level replacement)
+  | .hcomp sys base => .hcomp (sys.instantiate level replacement) (base.instantiate level replacement)
+  | .fill sys base => .fill (sys.instantiate level replacement) (base.instantiate level replacement)
+  | .coe p a => .coe (p.instantiate level replacement) (a.instantiate level replacement)
+
+/-- Abstract: replace `fvar uid` with `bvar level` and increment higher bvars.
+    This is the "close" operation — it captures a free variable under a binder.
+    Call with level=0 to abstract the outermost binder. -/
+partial def Expr.abstractOver (e : Expr) (uid : Nat) (level : Nat := 0) : Expr :=
+  match e with
+  | .fvar u => if u == uid then .bvar level else e
+  | .bvar i => if i >= level then .bvar (i + 1) else e
+  | .atom _ | .unit | .terminal | .initial | .var _ | .univ _ => e
+  | .id obj => .id (obj.abstractOver uid level)
+  | .comp f g => .comp (f.abstractOver uid level) (g.abstractOver uid level)
+  | .prod a b => .prod (a.abstractOver uid level) (b.abstractOver uid level)
+  | .coprod a b => .coprod (a.abstractOver uid level) (b.abstractOver uid level)
+  | .hom a b => .hom (a.abstractOver uid level) (b.abstractOver uid level)
+  | .tensor a b => .tensor (a.abstractOver uid level) (b.abstractOver uid level)
+  | .sigma v base fam =>
+    .sigma v (base.abstractOver uid level) (fam.abstractOver uid (level + 1))
+  | .pi v base fam =>
+    .pi v (base.abstractOver uid level) (fam.abstractOver uid (level + 1))
+  | .lam v dom body =>
+    .lam v (dom.abstractOver uid level) (body.abstractOver uid (level + 1))
+  | .fiber m p => .fiber (m.abstractOver uid level) (p.abstractOver uid level)
+  | .proj i s => .proj i (s.abstractOver uid level)
+  | .inj i t => .inj i (t.abstractOver uid level)
+  | .app f x => .app (f.abstractOver uid level) (x.abstractOver uid level)
+  | .limit d => .limit (d.abstractOver uid level)
+  | .colimit d => .colimit (d.abstractOver uid level)
+  | .natComponent n x => .natComponent (n.abstractOver uid level) (x.abstractOver uid level)
+  | .path A x y => .path (A.abstractOver uid level) (x.abstractOver uid level) (y.abstractOver uid level)
+  | .refl x => .refl (x.abstractOver uid level)
+  | .pathJ mot rc tgt pf => .pathJ (mot.abstractOver uid level) (rc.abstractOver uid level) (tgt.abstractOver uid level) (pf.abstractOver uid level)
+  | .hcomp sys base => .hcomp (sys.abstractOver uid level) (base.abstractOver uid level)
+  | .fill sys base => .fill (sys.abstractOver uid level) (base.abstractOver uid level)
+  | .coe p a => .coe (p.abstractOver uid level) (a.abstractOver uid level)
+
+/-- Convenience: open the outermost binder with a fresh fvar -/
+def Expr.openBinder (e : Expr) (uid : Nat) : Expr :=
+  e.instantiate 0 (.fvar uid)
+
+/-- Convenience: close over a fvar to form a binder body -/
+def Expr.closeBinder (e : Expr) (uid : Nat) : Expr :=
+  e.abstractOver uid 0
+
+/-- Check if an expression has any dangling bvars (bvar ≥ depth).
+    Well-formed closed expressions should return false. -/
+partial def Expr.hasFreeBVars (e : Expr) (depth : Nat := 0) : Bool :=
+  match e with
+  | .bvar i => i >= depth
+  | .fvar _ | .atom _ | .unit | .terminal | .initial | .var _ | .univ _ => false
+  | .id obj => obj.hasFreeBVars depth
+  | .comp f g | .prod f g | .coprod f g | .hom f g | .tensor f g
+  | .fiber f g | .app f g | .natComponent f g
+  | .hcomp f g | .fill f g | .coe f g =>
+    f.hasFreeBVars depth || g.hasFreeBVars depth
+  | .path A x y => A.hasFreeBVars depth || x.hasFreeBVars depth || y.hasFreeBVars depth
+  | .refl x => x.hasFreeBVars depth
+  | .pathJ mot rc tgt pf => mot.hasFreeBVars depth || rc.hasFreeBVars depth || tgt.hasFreeBVars depth || pf.hasFreeBVars depth
+  | .sigma _ b f | .pi _ b f | .lam _ b f =>
+    b.hasFreeBVars depth || f.hasFreeBVars (depth + 1)
+  | .proj _ s | .inj _ s | .limit s | .colimit s => s.hasFreeBVars depth
+
+/-- Collect all fvar uids in an expression -/
+partial def Expr.fvarIds (e : Expr) : List Nat :=
+  match e with
+  | .fvar uid => [uid]
+  | .bvar _ | .atom _ | .unit | .terminal | .initial | .var _ | .univ _ => []
+  | .id obj => obj.fvarIds
+  | .comp f g | .prod f g | .coprod f g | .hom f g | .tensor f g
+  | .fiber f g | .app f g | .natComponent f g
+  | .hcomp f g | .fill f g | .coe f g =>
+    f.fvarIds ++ g.fvarIds
+  | .path A x y => A.fvarIds ++ x.fvarIds ++ y.fvarIds
+  | .refl x => x.fvarIds
+  | .pathJ mot rc tgt pf => mot.fvarIds ++ rc.fvarIds ++ tgt.fvarIds ++ pf.fvarIds
+  | .sigma _ b f | .pi _ b f | .lam _ b f =>
+    b.fvarIds ++ f.fvarIds
+  | .proj _ s | .inj _ s | .limit s | .colimit s => s.fvarIds
+
+-- ============================================================
+-- Derived path operations (macros over J)
+-- ============================================================
+
+/-- Path composition (transitivity): given p : x =_A y and q : y =_A z,
+    produce (p ⬝ q) : x =_A z.
+
+    Built via J-elimination on q:
+      motive  = λ (z : A) (q : y =_A z). x =_A z
+      reflCase = p   (when q is refl y, the composite is just p)
+      target  = z
+      proof   = q
+
+    The J-eliminator reduces: J motive p z q
+    When q = refl y, this reduces to p.
+    The e-graph / Hyperion will handle associativity natively. -/
+def Expr.trans (A x y z p q : Expr) : Expr :=
+  -- motive: λ (z : A) (q : y =_A z). x =_A z
+  -- Using locally nameless: body references bvar 1 for z, bvar 0 for q
+  let motive := Expr.lam "z" A (.lam "q" (.path A y (.bvar 1)) (.path A x (.bvar 1)))
+  .pathJ motive p z q
+
+/-- Path inverse (symmetry): given p : x =_A y, produce p⁻¹ : y =_A x.
+
+    Built via J-elimination on p:
+      motive  = λ (y : A) (p : x =_A y). y =_A x
+      reflCase = refl x   (when p is refl x, the inverse is refl x)
+      target  = y
+      proof   = p -/
+def Expr.symm (A x y p : Expr) : Expr :=
+  let motive := Expr.lam "y" A (.lam "p" (.path A x (.bvar 1)) (.path A (.bvar 1) x))
+  .pathJ motive (.refl x) y p
+
+/-- ap (functorial action on paths): given f : A → B and p : x =_A y,
+    produce ap f p : f(x) =_B f(y).
+
+    Built via J-elimination on p:
+      motive  = λ (y : A) (p : x =_A y). f(x) =_B f(y)
+      reflCase = refl (f x)
+      target  = y
+      proof   = p -/
+def Expr.ap (A B x y f p : Expr) : Expr :=
+  let motive := Expr.lam "y" A (.lam "p" (.path A x (.bvar 1)) (.path B (.app f x) (.app f (.bvar 1))))
+  .pathJ motive (.refl (.app f x)) y p
 
 end CatLab

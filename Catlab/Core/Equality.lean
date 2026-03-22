@@ -33,6 +33,16 @@ def Expr.beq : Expr → Expr → Bool
   | .limit d1, .limit d2 => d1.beq d2
   | .colimit d1, .colimit d2 => d1.beq d2
   | .natComponent n1 x1, .natComponent n2 x2 => n1.beq n2 && x1.beq x2
+  | .path A1 x1 y1, .path A2 x2 y2 => A1.beq A2 && x1.beq x2 && y1.beq y2
+  | .refl x1, .refl x2 => x1.beq x2
+  | .pathJ m1 r1 t1 p1, .pathJ m2 r2 t2 p2 => m1.beq m2 && r1.beq r2 && t1.beq t2 && p1.beq p2
+  | .hcomp s1 b1, .hcomp s2 b2 => s1.beq s2 && b1.beq b2
+  | .fill s1 b1, .fill s2 b2 => s1.beq s2 && b1.beq b2
+  | .coe p1 a1, .coe p2 a2 => p1.beq p2 && a1.beq a2
+  | .bvar i1, .bvar i2 => i1 == i2
+  | .fvar u1, .fvar u2 => u1 == u2
+  | .lam v1 d1 b1, .lam v2 d2 b2 => v1 == v2 && d1.beq d2 && b1.beq b2
+  | .univ n1, .univ n2 => n1 == n2
   | _, _ => false
 
 instance : BEq Expr where beq := Expr.beq
@@ -111,6 +121,34 @@ partial def Expr.alphaEquivM (e1 e2 : Expr)
   | .natComponent n1 x1, .natComponent n2 x2 => do
     let (m, r) ← n1.alphaEquivM n2 mapping revMapping
     x1.alphaEquivM x2 m r
+  | .path A1 x1 y1, .path A2 x2 y2 => do
+    let (m, r) ← A1.alphaEquivM A2 mapping revMapping
+    let (m, r) ← x1.alphaEquivM x2 m r
+    y1.alphaEquivM y2 m r
+  | .refl x1, .refl x2 => x1.alphaEquivM x2 mapping revMapping
+  | .pathJ m1 r1 t1 p1, .pathJ m2 r2 t2 p2 => do
+    let (m, r) ← m1.alphaEquivM m2 mapping revMapping
+    let (m, r) ← r1.alphaEquivM r2 m r
+    let (m, r) ← t1.alphaEquivM t2 m r
+    p1.alphaEquivM p2 m r
+  | .hcomp s1 b1, .hcomp s2 b2 => do
+    let (m, r) ← s1.alphaEquivM s2 mapping revMapping
+    b1.alphaEquivM b2 m r
+  | .fill s1 b1, .fill s2 b2 => do
+    let (m, r) ← s1.alphaEquivM s2 mapping revMapping
+    b1.alphaEquivM b2 m r
+  | .coe p1 a1, .coe p2 a2 => do
+    let (m, r) ← p1.alphaEquivM p2 mapping revMapping
+    a1.alphaEquivM a2 m r
+  | .bvar i1, .bvar i2 =>
+    if i1 == i2 then some (mapping, revMapping) else none
+  | .fvar u1, .fvar u2 =>
+    if u1 == u2 then some (mapping, revMapping) else none
+  | .lam _ d1 b1, .lam _ d2 b2 => do
+    let (m, r) ← d1.alphaEquivM d2 mapping revMapping
+    b1.alphaEquivM b2 m r
+  | .univ n1, .univ n2 =>
+    if n1 == n2 then some (mapping, revMapping) else none
   | _, _ => none
 
 /-- Alpha-equivalence: equality up to consistent bijective renaming of generators. -/
@@ -235,7 +273,7 @@ partial def Expr.applyNameMap (e : Expr) (m : List (Name × Name)) : Expr :=
     match m.find? (fun (k, _) => k == gid.name) with
     | some (_, v) => .atom { gid with name := v }
     | none => e
-  | .unit | .terminal | .initial | .var _ => e
+  | .unit | .terminal | .initial | .var _ | .bvar _ | .fvar _ | .univ _ => e
   | .id obj => .id (obj.applyNameMap m)
   | .comp f g => .comp (f.applyNameMap m) (g.applyNameMap m)
   | .prod a b => .prod (a.applyNameMap m) (b.applyNameMap m)
@@ -251,6 +289,13 @@ partial def Expr.applyNameMap (e : Expr) (m : List (Name × Name)) : Expr :=
   | .limit d => .limit (d.applyNameMap m)
   | .colimit d => .colimit (d.applyNameMap m)
   | .natComponent n x => .natComponent (n.applyNameMap m) (x.applyNameMap m)
+  | .path A x y => .path (A.applyNameMap m) (x.applyNameMap m) (y.applyNameMap m)
+  | .refl x => .refl (x.applyNameMap m)
+  | .pathJ mot rc tgt pf => .pathJ (mot.applyNameMap m) (rc.applyNameMap m) (tgt.applyNameMap m) (pf.applyNameMap m)
+  | .hcomp sys base => .hcomp (sys.applyNameMap m) (base.applyNameMap m)
+  | .fill sys base => .fill (sys.applyNameMap m) (base.applyNameMap m)
+  | .coe p a => .coe (p.applyNameMap m) (a.applyNameMap m)
+  | .lam v dom body => .lam v (dom.applyNameMap m) (body.applyNameMap m)
 
 /-- Structural match: check that t2 is t1 with names renamed according to the
     given mapping. Verifies that every morphism's domain/codomain and every

@@ -185,7 +185,12 @@ partial def exprFromJson (j : Json) : Except String Expr :=
         -- Try "id"
         match j.getObjVal? "id" with
         | .ok inner => (exprFromJson inner).map .id
-        | .error _  => .error s!"unrecognized Expr tag in: {j.compress}"
+        | .error _  =>
+          -- Try "univ"
+          match j.getObjVal? "univ" with
+          | .ok (.num n) => .ok (.univ n.mantissa.toNat)
+          | .ok _        => .error "'univ' value must be a number"
+          | .error _     => .error s!"unrecognized Expr tag in: {j.compress}"
   | other => .error s!"expected string or object Expr, got: {other.compress}"
 
 -- ============================================================
@@ -264,6 +269,16 @@ partial def exprToJson : Expr → Json
   | .prod a b   => Json.mkObj [("prod",   .arr #[exprToJson a, exprToJson b])]
   | .hom a b    => Json.mkObj [("hom",    .arr #[exprToJson a, exprToJson b])]
   | .coprod a b => Json.mkObj [("coprod", .arr #[exprToJson a, exprToJson b])]
+  | .path A x y => Json.mkObj [("path", .arr #[exprToJson A, exprToJson x, exprToJson y])]
+  | .refl x     => Json.mkObj [("refl", exprToJson x)]
+  | .pathJ m r t p => Json.mkObj [("pathJ", .arr #[exprToJson m, exprToJson r, exprToJson t, exprToJson p])]
+  | .hcomp sys base => Json.mkObj [("hcomp", .arr #[exprToJson sys, exprToJson base])]
+  | .fill sys base  => Json.mkObj [("fill", .arr #[exprToJson sys, exprToJson base])]
+  | .coe p a        => Json.mkObj [("coe", .arr #[exprToJson p, exprToJson a])]
+  | .bvar i         => Json.mkObj [("bvar", .num ⟨Int.ofNat i, 0⟩)]
+  | .fvar uid       => Json.mkObj [("fvar", .num ⟨Int.ofNat uid, 0⟩)]
+  | .lam v dom body => Json.mkObj [("lam", Json.mkObj [("name", .str v), ("domain", exprToJson dom), ("body", exprToJson body)])]
+  | .univ n     => Json.mkObj [("univ", .num ⟨Int.ofNat n, 0⟩)]
   | .unit       => .str "unit"
   | .terminal   => .str "terminal"
   | .initial    => .str "initial"

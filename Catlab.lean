@@ -123,3 +123,8 @@ import Catlab.Operators.Pullback
 import Catlab.Operators.TheoryFamily
 import Catlab.Tests.Test_Higher
 import Catlab.Tests.Test_TheoryFamily
+import Catlab.Operators.HomotopyPushout
+import Catlab.Tests.Test_HomotopyPushout
+import Catlab.Operators.PropTrunc
+import Catlab.Library.Univalence
+import Catlab.Tests.Test_InfinityTopos

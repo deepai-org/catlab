@@ -17,7 +17,17 @@ export type ExprJson =
   | { prod: [ExprJson, ExprJson] }
   | { hom: [ExprJson, ExprJson] }
   | { coprod: [ExprJson, ExprJson] }
-  | { id: ExprJson };
+  | { id: ExprJson }
+  | { path: [ExprJson, ExprJson, ExprJson] }
+  | { refl: ExprJson }
+  | { pathJ: [ExprJson, ExprJson, ExprJson, ExprJson] }
+  | { hcomp: [ExprJson, ExprJson] }
+  | { fill: [ExprJson, ExprJson] }
+  | { coe: [ExprJson, ExprJson] }
+  | { bvar: number }
+  | { fvar: number }
+  | { lam: { name: string; domain: ExprJson; body: ExprJson } }
+  | { univ: number };
 
 // ── Theory JSON ───────────────────────────────────────────────────────────────
 
