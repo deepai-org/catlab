@@ -119,4 +119,7 @@ import Catlab.Tests.Test_Limits
 import Catlab.Tests.Test_Coherence
 import Catlab.Core.Coherence
 import Catlab.Operators.Truncate
+import Catlab.Operators.Pullback
+import Catlab.Operators.TheoryFamily
 import Catlab.Tests.Test_Higher
+import Catlab.Tests.Test_TheoryFamily

@@ -114,6 +114,87 @@ def pushout (f g : TheoryMorphism) : Option Theory :=
       morphisms := keptMorphisms
       axioms    := keptAxioms }
 
+/-- A pushout cocone: the apex theory P plus the two inclusion morphisms
+    (cocone legs) with correct name mappings.
+    Unlike computing inclusions post-hoc via `TheoryMorphism.inclusion`,
+    these legs are constructed at pushout time and correctly account for
+    the inl/inr tagging and Union-Find collapse. -/
+structure PushoutCocone where
+  apex : Theory
+  /-- Left leg: T₁ → P, mapping each T₁-generator to rep(inl(x)) in P -/
+  leftLeg : TheoryMorphism
+  /-- Right leg: T₂ → P, mapping each T₂-generator to rep(inr(x)) in P -/
+  rightLeg : TheoryMorphism
+
+/-- Compute the pushout cocone with correct cocone leg mappings.
+    The key insight: at pushout construction time, we know that generator x
+    in T₁ maps to `rep(inl(x))` in P, and generator y in T₂ maps to
+    `rep(inr(y))` in P. This avoids the name-matching failure of
+    `TheoryMorphism.inclusion` on pushout outputs. -/
+def pushoutCocone (f g : TheoryMorphism) : Option PushoutCocone :=
+  if f.source.name != g.source.name then none
+  else
+    let t0 := f.source
+    let t1 := f.target
+    let t2 := g.target
+
+    -- Recompute the same Union-Find as `pushout` to get `rep`
+    let tag1 : Name → Name := .inl
+    let tag2 : Name → Name := .inr
+
+    let equations : List (Name × Name) :=
+      (t0.objects.filterMap fun o =>
+        match (f.onObjects.apply o.id).mapNames tag1,
+              (g.onObjects.apply o.id).mapNames tag2 with
+        | .atom l, .atom r => some (l.name, r.name)
+        | _, _ => none) ++
+      (t0.morphisms.filterMap fun m =>
+        match (f.onMorphisms.apply m.id).mapNames tag1,
+              (g.onMorphisms.apply m.id).mapNames tag2 with
+        | .atom l, .atom r => some (l.name, r.name)
+        | _, _ => none)
+
+    let uf := equations.foldl (fun uf (a, b) => uf.union a b) UnionFind.empty
+    let rep : Name → Name := uf.find
+
+    -- Get the actual pushout theory
+    match pushout f g with
+    | none => none
+    | some apex =>
+      -- Left leg: T₁ → P. Each T₁-generator x maps to rep(inl(x)) in P.
+      let leftOnObjects := GeneratorMap.ofList
+        (t1.objects.map fun o =>
+          let pushoutName := rep (tag1 o.id.name)
+          (o.id, .atom { o.id with name := pushoutName }))
+      let leftOnMorphisms := GeneratorMap.ofList
+        (t1.morphisms.map fun m =>
+          let pushoutName := rep (tag1 m.id.name)
+          (m.id, .atom { m.id with name := pushoutName }))
+      let leftLeg : TheoryMorphism :=
+        { name := s!"ι₁ : {t1.name} → {apex.name}"
+          source := t1
+          target := apex
+          onObjects := leftOnObjects
+          onMorphisms := leftOnMorphisms }
+
+      -- Right leg: T₂ → P. Each T₂-generator y maps to rep(inr(y)) in P.
+      let rightOnObjects := GeneratorMap.ofList
+        (t2.objects.map fun o =>
+          let pushoutName := rep (tag2 o.id.name)
+          (o.id, .atom { o.id with name := pushoutName }))
+      let rightOnMorphisms := GeneratorMap.ofList
+        (t2.morphisms.map fun m =>
+          let pushoutName := rep (tag2 m.id.name)
+          (m.id, .atom { m.id with name := pushoutName }))
+      let rightLeg : TheoryMorphism :=
+        { name := s!"ι₂ : {t2.name} → {apex.name}"
+          source := t2
+          target := apex
+          onObjects := rightOnObjects
+          onMorphisms := rightOnMorphisms }
+
+      some { apex, leftLeg, rightLeg }
+
 /-- Coproduct as pushout over ⊥.  Equivalent to `coproductCategory` but derived
     from first principles, making the algebraic relationship explicit. -/
 def theoryCoproduct (t1 t2 : Theory) : Theory :=

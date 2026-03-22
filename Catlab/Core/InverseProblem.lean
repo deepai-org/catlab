@@ -97,6 +97,11 @@ structure AxiomViolation where
   rhsReduced : Expr
   depthUsed  : Nat
   status     : VerificationStatus
+  /-- Names of axioms fired during LHS normalization (last N steps).
+      On timeout, this shows the LLM which rules are cycling. -/
+  lhsTrace   : List Name := []
+  /-- Names of axioms fired during RHS normalization (last N steps). -/
+  rhsTrace   : List Name := []
   deriving Repr, Inhabited
 
 instance : ToString AxiomViolation where
@@ -192,51 +197,60 @@ private def orientAxioms (axioms : List Generator2) : List Generator2 :=
     Quantified axioms are skipped (word problem).
     We do NOT fire right-to-left: symmetric firing creates ping-pong cycles
     (lhs→rhs on the left, rhs→lhs on the right) where both sides swap each
-    step and never converge, causing false violations. -/
-private def fireAxiomRoot (ax : Generator2) (e : Expr) : Option Expr :=
+    step and never converge, causing false violations.
+    Returns (result, axiomName) so the caller can build a rewrite trace. -/
+private def fireAxiomRoot (ax : Generator2) (e : Expr) : Option (Expr × Name) :=
   if !ax.quantifiers.isEmpty then none   -- skip: word problem
-  else if e == ax.leftPath then some ax.rightPath
+  else if e == ax.leftPath then some (ax.rightPath, ax.id.name)
   else none
 
 /-- One rewriting step: try all axioms at root, then recurse into the first
     subterm that fires (leftmost-outermost strategy).
-    Returns `none` if the expression is already in normal form under these axioms. -/
-private partial def rewriteStep (axioms : List Generator2) (e : Expr) : Option Expr :=
+    Returns `none` if the expression is already in normal form under these axioms.
+    When a step fires, returns (result, axiomName) for the rewrite trace. -/
+private partial def rewriteStep (axioms : List Generator2) (e : Expr) : Option (Expr × Name) :=
   -- Try root first
   match axioms.findSome? (fireAxiomRoot · e) with
-  | some e' => some e'
+  | some hit => some hit
   | none    =>
     -- Recurse into subterms (leftmost-outermost)
     match e with
     | .comp f g =>
       match rewriteStep axioms f with
-      | some f' => some (.comp f' g)
-      | none    => (rewriteStep axioms g).map (.comp f)
-    | .id obj   => (rewriteStep axioms obj).map .id
+      | some (f', n) => some (.comp f' g, n)
+      | none    => (rewriteStep axioms g).map fun (g', n) => (.comp f g', n)
+    | .id obj   => (rewriteStep axioms obj).map fun (o', n) => (.id o', n)
     | .prod a b =>
       match rewriteStep axioms a with
-      | some a' => some (.prod a' b)
-      | none    => (rewriteStep axioms b).map (.prod a)
+      | some (a', n) => some (.prod a' b, n)
+      | none    => (rewriteStep axioms b).map fun (b', n) => (.prod a b', n)
     | .tensor a b =>
       match rewriteStep axioms a with
-      | some a' => some (.tensor a' b)
-      | none    => (rewriteStep axioms b).map (.tensor a)
+      | some (a', n) => some (.tensor a' b, n)
+      | none    => (rewriteStep axioms b).map fun (b', n) => (.tensor a b', n)
     | .hom a b =>
       match rewriteStep axioms a with
-      | some a' => some (.hom a' b)
-      | none    => (rewriteStep axioms b).map (.hom a)
+      | some (a', n) => some (.hom a' b, n)
+      | none    => (rewriteStep axioms b).map fun (b', n) => (.hom a b', n)
     | _ => none   -- atoms, unit, terminal, initial, var: already normal
 
 /-- Reduce `e` using `axioms` as rewrite rules, up to `maxDepth` steps.
-    Returns (normalForm, stepsUsed). If stepsUsed = maxDepth, the expression
-    may not be fully normalized — report as Timeout, not failure. -/
-def boundedNormalize (axioms : List Generator2) (e : Expr) (maxDepth : Nat) : Expr × Nat :=
-  let rec go (e : Expr) (depth : Nat) : Expr × Nat :=
-    if depth >= maxDepth then (e, depth)
+    Returns (normalForm, stepsUsed, rewriteTrace). If stepsUsed = maxDepth,
+    the expression may not be fully normalized — report as Timeout, not failure.
+    The rewrite trace records axiom names in firing order (last N steps kept). -/
+def boundedNormalize (axioms : List Generator2) (e : Expr) (maxDepth : Nat)
+    : Expr × Nat × List Name :=
+  -- Keep only last `traceLimit` steps to avoid unbounded memory
+  let traceLimit := min maxDepth 10
+  let rec go (e : Expr) (depth : Nat) (trace : List Name) : Expr × Nat × List Name :=
+    if depth >= maxDepth then (e, depth, trace)
     else match rewriteStep axioms e with
-      | none    => (e, depth)    -- normal form reached
-      | some e' => go e' (depth + 1)
-  go e 0
+      | none    => (e, depth, trace)    -- normal form reached
+      | some (e', axName) =>
+        let trace' := if trace.length < traceLimit then trace ++ [axName]
+                      else trace.tail! ++ [axName]  -- sliding window
+        go e' (depth + 1) trace'
+  go e 0 []
 
 /-- Generate both orientations of each axiom (for equational closure).
     Filters to closed axioms only. Deduplicates symmetric axioms. -/
@@ -265,7 +279,7 @@ def boundedEquationalCheck (axioms : List Generator2) (lhs rhs : Expr)
       let next := frontier.foldl (fun acc e =>
         biAxioms.foldl (fun acc2 ax =>
           match rewriteStep [ax] e with
-          | some e' =>
+          | some (e', _) =>
             if visited.any (· == e') || acc2.any (· == e') then acc2
             else e' :: acc2
           | none => acc2
@@ -453,8 +467,8 @@ def computeStructuralDiff
         if directlyPresent then none   -- trivially satisfied as a stated axiom
         else
           -- Bounded L→R rewriting (size-oriented axioms)
-          let (lhsNorm, lhsD) := boundedNormalize oriented lhsTrans maxDepth
-          let (rhsNorm, rhsD) := boundedNormalize oriented rhsTrans maxDepth
+          let (lhsNorm, lhsD, lhsTrace) := boundedNormalize oriented lhsTrans maxDepth
+          let (rhsNorm, rhsD, rhsTrace) := boundedNormalize oriented rhsTrans maxDepth
           if lhsNorm == rhsNorm then none
           else
             -- NOTE: boundedEquationalCheck (bidirectional BFS) is DISABLED —
@@ -465,7 +479,8 @@ def computeStructuralDiff
                 if depth >= maxDepth then .Timeout maxDepth
                 else .Failed s!"LHS→{lhsNorm.toName}, RHS→{rhsNorm.toName}"
               some { sourceAxiom := ax, lhsReduced := lhsNorm, rhsReduced := rhsNorm,
-                     depthUsed := depth, status }
+                     depthUsed := depth, status,
+                     lhsTrace := lhsTrace, rhsTrace := rhsTrace }
 
   -- ── Overall status ────────────────────────────────────────────────────────
   let hasTimeout := axiomViolations.any fun v =>

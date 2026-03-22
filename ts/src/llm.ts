@@ -510,6 +510,15 @@ export function formatStructuralDiff(result: VerificationResult): string {
     lines.push("");
   }
 
+  // Doctrine inference: if the CAS auto-upgraded, let the LLM know
+  if (result.doctrine) {
+    lines.push(
+      `ℹ️  Doctrine auto-inferred: Your theory was upgraded to **${result.doctrine}** ` +
+      `based on the Expr constructors you used (e.g., prod → CartesianCategory). ` +
+      `You don't need to worry about getting the doctrine label right — just write the math.\n`,
+    );
+  }
+
   // Distance signal
   if (result.distance !== undefined) {
     lines.push(`### Distance Score: ${result.distance} (0 = perfect match)\n`);
@@ -581,10 +590,47 @@ export function formatStructuralDiff(result: VerificationResult): string {
           `appear collapsed (e.g. mul→add), this is position-normalization — use the canonical name.`,
         );
       } else {
-        lines.push(
-          `    💡 STRATEGY: Timeout means your axioms may form circular rewriting loops. ` +
-          `Rewrite this axiom so LHS is strictly more complex than RHS (left-to-right reduction).`,
-        );
+        // Timeout: show the partial normal forms — the LLM needs to see WHERE
+        // the rewriter got stuck, not just that it timed out.
+        lines.push(`    LHS reduced to: ${v.lhsReduced}  (after ${v.depthUsed} steps)`);
+        lines.push(`    RHS reduced to: ${v.rhsReduced}  (after ${v.depthUsed} steps)`);
+        lines.push(`    → Rewriter hit depth limit before these could be shown equal`);
+        // Show rewrite trace — which axioms fired (and whether they cycle)
+        const lhsTrace = v.lhsTrace ?? [];
+        const rhsTrace = v.rhsTrace ?? [];
+        if (lhsTrace.length > 0 || rhsTrace.length > 0) {
+          if (lhsTrace.length > 0) {
+            lines.push(`    LHS rewrite trace (last ${lhsTrace.length} steps): ${lhsTrace.join(" → ")}`);
+          }
+          if (rhsTrace.length > 0) {
+            lines.push(`    RHS rewrite trace (last ${rhsTrace.length} steps): ${rhsTrace.join(" → ")}`);
+          }
+          // Detect cycling: if any rule appears 3+ times in a trace, it's looping
+          const allRules = [...lhsTrace, ...rhsTrace];
+          const counts = new Map<string, number>();
+          for (const r of allRules) counts.set(r, (counts.get(r) ?? 0) + 1);
+          const cyclers = [...counts.entries()].filter(([, c]) => c >= 3).map(([r]) => r);
+          if (cyclers.length > 0) {
+            lines.push(
+              `    ⚠️  CYCLING DETECTED: Rules [${cyclers.join(", ")}] fired 3+ times. ` +
+              `These axioms are ping-ponging. Rewrite them so LHS is strictly larger than RHS, ` +
+              `or remove the reverse direction.`,
+            );
+          }
+        }
+        if (v.lhsReduced === v.rhsReduced) {
+          lines.push(
+            `    💡 STRATEGY: The normal forms match — this may be a false timeout. Try submitting again.`,
+          );
+        } else {
+          lines.push(
+            `    💡 STRATEGY: The rewriter got stuck at these partial forms after ${v.depthUsed} steps. ` +
+            `Two likely causes: (1) Your axioms form circular rewriting loops — ` +
+            `check the trace above for repeated rules. (2) A missing axiom — the equation ` +
+            `'${v.lhsReduced} = ${v.rhsReduced}' may need to be stated directly. ` +
+            `Try adding this equation as an explicit axiom.`,
+          );
+        }
       }
     }
     lines.push("");

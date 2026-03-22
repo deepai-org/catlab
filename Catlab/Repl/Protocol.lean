@@ -34,6 +34,7 @@
 import Lean
 import Catlab.Core.Theory
 import Catlab.Core.Doctrine
+import Catlab.Core.Validate
 import Catlab.Core.InverseProblem
 
 namespace CatLab.Repl
@@ -246,7 +247,10 @@ def theoryFromJson (j : Json) : Except String Theory := do
   let objects   ← objsArr.toList.mapM objectFromJson
   let morphisms ← morsArr.toList.mapM morphismFromJson
   let axioms    ← axsArr.toList.mapM axiomFromJson
-  .ok { name, doctrine := { doctrine }, objects, morphisms, axioms }
+  let theory : Theory := { name, doctrine := { doctrine }, objects, morphisms, axioms }
+  -- Auto-upgrade doctrine: if the LLM wrote `prod` but labeled it "Category",
+  -- infer the actual minimum doctrine and upgrade silently.
+  .ok theory.autoUpgradeDoctrine
 
 -- ============================================================
 -- Serialization: Theory → Json
@@ -301,12 +305,19 @@ def missingSignatureToJson (s : MorphismSignature) : Json :=
     ("sourceName",    .str s.sourceName.toString)]
 
 def axiomViolationToJson (v : AxiomViolation) : Json :=
-  Json.mkObj [
+  let base := [
     ("sourceAxiom", .str v.sourceAxiom.id.name.toString),
     ("status",      .str (toString v.status)),
     ("lhsReduced",  .str v.lhsReduced.toName.toString),
     ("rhsReduced",  .str v.rhsReduced.toName.toString),
     ("depthUsed",   natJson v.depthUsed)]
+  -- Include rewrite traces when non-empty (timeout diagnostics)
+  let withTrace := base ++
+    (if v.lhsTrace.isEmpty then [] else
+      [("lhsTrace", .arr (v.lhsTrace.map (.str ∘ toString)).toArray)]) ++
+    (if v.rhsTrace.isEmpty then [] else
+      [("rhsTrace", .arr (v.rhsTrace.map (.str ∘ toString)).toArray)])
+  Json.mkObj withTrace
 
 def verificationToJson (r : VerificationResult) : Json :=
   Json.mkObj [
@@ -315,7 +326,29 @@ def verificationToJson (r : VerificationResult) : Json :=
     ("verificationStatus", .str (toString r.status)),
     ("missingSignatures",  .arr (r.missingSignatures.map missingSignatureToJson).toArray),
     ("unmappedObjects",    .arr (r.unmappedObjects.map (.str ∘ toString)).toArray),
-    ("axiomViolations",    .arr (r.axiomViolations.map axiomViolationToJson).toArray)]
+    ("axiomViolations",    .arr (r.axiomViolations.map axiomViolationToJson).toArray),
+    ("doctrine",           .str (toString (repr r.candidate.doctrine.doctrine)))]
+
+-- ============================================================
+-- Serialization: TheoryMorphism → Json
+-- ============================================================
+
+/-- Serialize a GeneratorMap entry as a JSON object { "source": "name", "target": <expr> } -/
+def generatorMapEntryToJson (entry : GeneratorId × Expr) : Json :=
+  Json.mkObj [
+    ("source", .str entry.1.name.toString),
+    ("target", exprToJson entry.2)]
+
+/-- Serialize a TheoryMorphism to JSON.
+    Exposes the explicit generator mappings so the TS orchestrator can
+    inspect functor action on objects and morphisms. -/
+def theoryMorphismToJson (tm : TheoryMorphism) : Json :=
+  Json.mkObj [
+    ("name",         .str tm.name),
+    ("source",       .str tm.source.name),
+    ("target",       .str tm.target.name),
+    ("onObjects",    .arr (tm.onObjects.toList.map generatorMapEntryToJson).toArray),
+    ("onMorphisms",  .arr (tm.onMorphisms.toList.map generatorMapEntryToJson).toArray)]
 
 -- ============================================================
 -- Response helpers

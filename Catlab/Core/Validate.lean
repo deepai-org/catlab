@@ -202,4 +202,102 @@ def typecheckTheory (t : Theory) : List String :=
     | .error e, _ => some s!"Axiom '{ax.id.name}' LHS: {e}"
     | _, .error e => some s!"Axiom '{ax.id.name}' RHS: {e}"
 
+-- ============================================================
+-- Doctrine Inference
+-- ============================================================
+
+/-- Collect doctrine constraints from a single Expr node (non-recursive).
+    Returns the minimum doctrine required by this node's constructor. -/
+private def exprConstraint : Expr → Doctrine
+  | .prod ..      => .CartesianCategory
+  | .terminal     => .CartesianCategory
+  | .coprod ..    => .FinitelyCocomplete
+  | .initial      => .FinitelyCocomplete
+  | .tensor ..    => .MonoidalCategory
+  | .hom ..       => .CartesianClosed       -- internal hom
+  | .sigma ..     => .MartinLofTypeTheory   -- Σ-types
+  | .pi ..        => .MartinLofTypeTheory   -- Π-types
+  | .fiber ..     => .FinitelyComplete      -- pullback/fiber
+  | .limit ..     => .FinitelyComplete
+  | .colimit ..   => .FinitelyCocomplete
+  | .natComponent .. => .Category           -- just functorial, no extra structure
+  | _             => .Category              -- atoms, id, comp, unit, var, app, proj, inj
+
+/-- Walk an Expr tree, collecting the join of all doctrine constraints. -/
+private partial def exprDoctrineWalk (e : Expr) : Doctrine :=
+  let here := exprConstraint e
+  match e with
+  | .comp f g         => Doctrine.join here (Doctrine.join (exprDoctrineWalk f) (exprDoctrineWalk g))
+  | .prod a b         => Doctrine.join here (Doctrine.join (exprDoctrineWalk a) (exprDoctrineWalk b))
+  | .coprod a b       => Doctrine.join here (Doctrine.join (exprDoctrineWalk a) (exprDoctrineWalk b))
+  | .tensor a b       => Doctrine.join here (Doctrine.join (exprDoctrineWalk a) (exprDoctrineWalk b))
+  | .hom a b          => Doctrine.join here (Doctrine.join (exprDoctrineWalk a) (exprDoctrineWalk b))
+  | .id obj           => Doctrine.join here (exprDoctrineWalk obj)
+  | .sigma _ b f      => Doctrine.join here (Doctrine.join (exprDoctrineWalk b) (exprDoctrineWalk f))
+  | .pi _ b f         => Doctrine.join here (Doctrine.join (exprDoctrineWalk b) (exprDoctrineWalk f))
+  | .fiber m p        => Doctrine.join here (Doctrine.join (exprDoctrineWalk m) (exprDoctrineWalk p))
+  | .proj _ s         => Doctrine.join here (exprDoctrineWalk s)
+  | .inj _ s          => Doctrine.join here (exprDoctrineWalk s)
+  | .app f x          => Doctrine.join here (Doctrine.join (exprDoctrineWalk f) (exprDoctrineWalk x))
+  | .limit d          => Doctrine.join here (exprDoctrineWalk d)
+  | .colimit d        => Doctrine.join here (exprDoctrineWalk d)
+  | .natComponent n x => Doctrine.join here (Doctrine.join (exprDoctrineWalk n) (exprDoctrineWalk x))
+  | _                 => here
+
+/-- Infer the minimum doctrine required to host a theory, based on the Expr
+    constructors used in its morphism signatures and axiom paths.
+
+    This is a bottom-up constraint-collection pass: every Expr node contributes
+    a minimum doctrine (e.g., `prod` → CartesianCategory, `tensor` → Monoidal),
+    and the join across all nodes gives the inferred doctrine.
+
+    Named generators (e.g., an object called "Ω") also contribute:
+    an object named Ω implies a subobject classifier → Topos doctrine. -/
+def inferDoctrine (t : Theory) : Doctrine :=
+  let base := Doctrine.Category
+  -- Collect from morphism domains/codomains
+  let fromMorphisms := t.morphisms.foldl (fun acc m =>
+    Doctrine.join acc (Doctrine.join (exprDoctrineWalk m.domain) (exprDoctrineWalk m.codomain))
+  ) base
+  -- Collect from axiom paths
+  let fromAxioms := t.axioms.foldl (fun acc ax =>
+    Doctrine.join acc (Doctrine.join (exprDoctrineWalk ax.leftPath) (exprDoctrineWalk ax.rightPath))
+  ) fromMorphisms
+  -- Named generator heuristics
+  let hasOmega := t.objects.any fun o =>
+    o.id.name == Name.root "Ω" || o.id.name == Name.root "Omega"
+  let withOmega := if hasOmega then Doctrine.join fromAxioms .ElementaryTopos else fromAxioms
+  withOmega
+
+/-- Result of doctrine inference: whether the stated doctrine matches, needs
+    upgrading, or is higher than what the theory actually uses. -/
+inductive DoctrineInferenceResult where
+  | matches         : DoctrineInferenceResult
+  | upgraded (stated inferred : Doctrine) : DoctrineInferenceResult
+  | overstated (stated inferred : Doctrine) : DoctrineInferenceResult
+  deriving Repr
+
+instance : ToString DoctrineInferenceResult where
+  toString
+    | .matches => "Doctrine matches"
+    | .upgraded s i => s!"Doctrine upgraded: {repr s} → {repr i}"
+    | .overstated s i => s!"Doctrine overstated: stated {repr s}, only needs {repr i}"
+
+/-- Check a theory's stated doctrine against its inferred doctrine.
+    If the inferred doctrine is richer, returns `upgraded` with the correct doctrine. -/
+def checkDoctrineInference (t : Theory) : DoctrineInferenceResult :=
+  let inferred := inferDoctrine t
+  let stated := t.doctrine.doctrine
+  if stated == inferred then .matches
+  else if inferred.rank > stated.rank then .upgraded stated inferred
+  else .overstated stated inferred
+
+/-- Auto-upgrade a theory's doctrine to the minimum required by its content.
+    Returns the theory unchanged if the stated doctrine is already sufficient. -/
+def Theory.autoUpgradeDoctrine (t : Theory) : Theory :=
+  let inferred := inferDoctrine t
+  if inferred.rank > t.doctrine.doctrine.rank then
+    { t with doctrine := { t.doctrine with doctrine := inferred } }
+  else t
+
 end CatLab

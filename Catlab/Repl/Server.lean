@@ -17,6 +17,8 @@
     summary          { theory }          → Theory.summary string
     apply_operator   { operator, theory }→ operator(theory) as Theory JSON
     compute_pushout  { theory1, theory2, base } → pushout result
+    compute_pushout_cocone { theory1, theory2, base } → pushout + inclusion morphisms
+    compute_morphism { source, target, kind } → TheoryMorphism as JSON
     evaluate_inverse { target, forward_op, candidate } → VerificationResult
     solve_inverse    { target, forward_op, candidates } → first passing candidate
 -/
@@ -79,6 +81,7 @@ import Catlab.Operators.OperadEnvelope
 import Catlab.Operators.Opposite
 import Catlab.Operators.PER
 import Catlab.Operators.Product
+import Catlab.Operators.Pullback
 import Catlab.Operators.Pushout
 import Catlab.Operators.Quotient
 import Catlab.Operators.Realizability
@@ -339,6 +342,95 @@ def handleComputePushout (j : Json) (id : String) : Json :=
         okResponse id [("theory", theoryToJson po), ("summary", .str po.summary)]
     | .error e, _, _ | _, .error e, _ | _, _, .error e => errorResponse id e
   | .error e, _, _ | _, .error e, _ | _, _, .error e   => errorResponse id e
+
+-- ============================================================
+-- compute_pushout_cocone command
+-- Like compute_pushout but also returns the inclusion morphisms
+-- ============================================================
+
+def handleComputePushoutCocone (j : Json) (id : String) : Json :=
+  match getStr j "theory1", getStr j "theory2", getStr j "base" with
+  | .ok n1, .ok n2, .ok nb =>
+    match lookupTheory n1, lookupTheory n2, lookupTheory nb with
+    | .ok t1, .ok t2, .ok base =>
+      let f := TheoryMorphism.inclusion base t1
+      let g := TheoryMorphism.inclusion base t2
+      match pushoutCocone f g with
+      | none    => errorResponse id s!"pushout cocone failed: source theories don't share base '{nb}'"
+      | some cocone =>
+        okResponse id [
+          ("theory",      theoryToJson cocone.apex),
+          ("summary",     .str cocone.apex.summary),
+          ("inclusionA",  theoryMorphismToJson cocone.leftLeg),
+          ("inclusionB",  theoryMorphismToJson cocone.rightLeg)]
+    | .error e, _, _ | _, .error e, _ | _, _, .error e => errorResponse id e
+  | .error e, _, _ | _, .error e, _ | _, _, .error e   => errorResponse id e
+
+-- ============================================================
+-- compute_pullback command
+-- Computes pullback (inclusion target theory1) (inclusion target theory2)
+-- ============================================================
+
+def handleComputePullback (j : Json) (id : String) : Json :=
+  match getStr j "theory1", getStr j "theory2", getStr j "base" with
+  | .ok n1, .ok n2, .ok nb =>
+    match lookupTheory n1, lookupTheory n2, lookupTheory nb with
+    | .ok t1, .ok t2, .ok base =>
+      let f := TheoryMorphism.inclusion base t1
+      let g := TheoryMorphism.inclusion base t2
+      match theoryPullback f g with
+      | none    => errorResponse id s!"pullback failed: theories don't share base '{nb}'"
+      | some pb =>
+        okResponse id [("theory", theoryToJson pb), ("summary", .str pb.summary)]
+    | .error e, _, _ | _, .error e, _ | _, _, .error e => errorResponse id e
+  | .error e, _, _ | _, .error e, _ | _, _, .error e   => errorResponse id e
+
+-- ============================================================
+-- compute_pullback_cone command
+-- Like compute_pullback but also returns the projection morphisms
+-- ============================================================
+
+def handleComputePullbackCone (j : Json) (id : String) : Json :=
+  match getStr j "theory1", getStr j "theory2", getStr j "base" with
+  | .ok n1, .ok n2, .ok nb =>
+    match lookupTheory n1, lookupTheory n2, lookupTheory nb with
+    | .ok t1, .ok t2, .ok base =>
+      let f := TheoryMorphism.inclusion base t1
+      let g := TheoryMorphism.inclusion base t2
+      match pullbackCone f g with
+      | none    => errorResponse id s!"pullback cone failed: theories don't share base '{nb}'"
+      | some cone =>
+        okResponse id [
+          ("theory",      theoryToJson cone.apex),
+          ("summary",     .str cone.apex.summary),
+          ("leftProj",    theoryMorphismToJson cone.leftProj),
+          ("rightProj",   theoryMorphismToJson cone.rightProj)]
+    | .error e, _, _ | _, .error e, _ | _, _, .error e => errorResponse id e
+  | .error e, _, _ | _, .error e, _ | _, _, .error e   => errorResponse id e
+
+-- ============================================================
+-- compute_morphism command
+-- Computes a TheoryMorphism between two theories and returns it as JSON
+-- ============================================================
+
+def handleComputeMorphism (j : Json) (id : String) : Json :=
+  match getStr j "source", getStr j "target", getStr j "kind" with
+  | .ok srcName, .ok tgtName, .ok kind =>
+    match lookupTheory srcName, lookupTheory tgtName with
+    | .ok src, .ok tgt =>
+      match kind with
+      | "inclusion" =>
+        let tm := TheoryMorphism.inclusion src tgt
+        let preserves := tm.preservesTyping
+        okResponse id [
+          ("morphism",        theoryMorphismToJson tm),
+          ("preservesTyping", .bool preserves)]
+      | "identity" =>
+        let tm := TheoryMorphism.id src
+        okResponse id [("morphism", theoryMorphismToJson tm)]
+      | k => errorResponse id s!"Unknown morphism kind '{k}'. Use 'inclusion' or 'identity'."
+    | .error e, _ | _, .error e => errorResponse id e
+  | .error e, _, _ | _, .error e, _ | _, _, .error e => errorResponse id e
 
 -- ============================================================
 -- evaluate_inverse command
@@ -890,7 +982,11 @@ def handleRequest (line : String) : Json :=
       | "summary"          => handleSummary         j id
       | "validate"         => handleValidate        j id
       | "apply_operator"   => handleApplyOp         j id
-      | "compute_pushout"  => handleComputePushout  j id
+      | "compute_pushout"         => handleComputePushout        j id
+      | "compute_pushout_cocone"  => handleComputePushoutCocone j id
+      | "compute_pullback"         => handleComputePullback       j id
+      | "compute_pullback_cone"    => handleComputePullbackCone  j id
+      | "compute_morphism"        => handleComputeMorphism      j id
       | "evaluate_inverse"             => handleEvaluateInverse            j id
       | "solve_inverse"                => handleSolveInverse               j id
       | "evaluate_pushout_complement"  => handleEvaluatePushoutComplement  j id

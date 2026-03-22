@@ -270,12 +270,10 @@ test("Realizability theory detected by operator elaborator", () => {
 // ── External elaborator tests ────────────────────────────────────────────────
 
 import {
-  theoryToOmega, theoryToHyperion, routeToExternal, compileCrossTierFunctor,
-  truncateToHomotopyCategory, truncatedTheoryToLean, computeTheoryPushout,
-  computePushoutCocone, transportAxiom,
+  theoryToOmega, theoryToHyperion, routeToExternal,
+  morphismToHyperion, adjunctionToHyperion,
 } from "../src/external-elaborators";
-import type { CrossTierFunctor } from "../src/external-elaborators";
-
+import type { TheoryMorphismJson } from "../src/types";
 test("routeToExternal routes LawvereTheory to omega", () => {
   assert.equal(routeToExternal(MONOID_THEORY), "omega");
 });
@@ -504,112 +502,303 @@ test("theoryToHyperion does NOT generate extract-proof for non-PathType doctrine
   assert.ok(!source.includes("extract-proof"), "Omega should not have extract-proof");
 });
 
-// ── Cross-tier functor tests ──────────────────────────────────────────────
+// ── Geometric morphism elaboration tests ─────────────────────────────────
 
-test("compileCrossTierFunctor merges omega→lean into unified theory", () => {
-  const monoid: TheoryJson = {
-    name: "Mon", doctrine: "LawvereTheory",
-    objects: [{ name: "M" }],
-    morphisms: [{ name: "mu", domain: { prod: ["M", "M"] }, codomain: "M" }],
-    axioms: [{ name: "assoc", lhs: { atom: "lhs" }, rhs: { atom: "rhs" } }],
-  };
-  const cat: TheoryJson = {
-    name: "Set", doctrine: "Category",
-    objects: [{ name: "S" }],
-    morphisms: [{ name: "f", domain: "S", codomain: "S" }],
+test("morphismToHyperion generates Functor block with object/morphism mappings", () => {
+  const source: TheoryJson = {
+    name: "A", doctrine: "InfinityNCategory",
+    objects: [{ name: "X" }],
+    morphisms: [{ name: "f", domain: "X", codomain: "X" }],
     axioms: [],
   };
-  const functor: CrossTierFunctor = {
-    name: "Free",
-    source: { theory: monoid, tier: "omega" },
-    target: { theory: cat, tier: null },
-    objectMap: { M: "S" },
-    morphismMap: { mu: "f" },
+  const target: TheoryJson = {
+    name: "B", doctrine: "InfinityNCategory",
+    objects: [{ name: "Y" }],
+    morphisms: [{ name: "g", domain: "Y", codomain: "Y" }],
+    axioms: [],
   };
-  const { unifiedTheory, verifyWith } = compileCrossTierFunctor(functor);
+  const morphism: TheoryMorphismJson = {
+    name: "F",
+    source: "A",
+    target: "B",
+    onObjects: [{ source: "X", target: { atom: "Y" } }],
+    onMorphisms: [{ source: "f", target: { atom: "g" } }],
+  };
 
-  // Should compile to Lean (higher tier)
-  assert.equal(verifyWith, null, "should verify with Lean (null)");
-
-  // Should have merged objects with prefixes
-  const objNames = unifiedTheory.objects.map(o => o.name);
-  assert.ok(objNames.includes("src_M"), "should have prefixed source object");
-  assert.ok(objNames.includes("tgt_S"), "should have prefixed target object");
-
-  // Should have functor object mapping
-  const morNames = unifiedTheory.morphisms.map(m => m.name);
-  assert.ok(morNames.includes("F_obj_M"), "should have functor object mapping");
-
-  // Should have merged axioms with prefixes
-  const axNames = unifiedTheory.axioms.map(a => a.name);
-  assert.ok(axNames.includes("src_assoc"), "should have prefixed source axiom");
-  assert.ok(axNames.includes("F_mor_mu"), "should have functor morphism mapping");
+  const hyp = morphismToHyperion(morphism, source, target);
+  assert.ok(hyp.includes("[Functor F"), "should generate Functor block");
+  assert.ok(hyp.includes("[on-object X Y]"), "should map objects");
+  assert.ok(hyp.includes("[on-morphism f g]"), "should map morphisms");
+  assert.ok(hyp.includes(":preserve-paths true"), "should preserve paths for ∞-categories");
+  assert.ok(hyp.includes(":verify true"), "should request verification");
 });
 
-test("compileCrossTierFunctor chooses correct tier for hyperion target", () => {
-  const omega: TheoryJson = {
-    name: "Mon", doctrine: "LawvereTheory",
-    objects: [{ name: "M" }], morphisms: [], axioms: [],
-  };
-  const hyp: TheoryJson = {
-    name: "Inf", doctrine: "InfinityNCategory",
-    objects: [{ name: "Cell" }], morphisms: [], axioms: [],
-  };
-  const functor: CrossTierFunctor = {
-    name: "Embed",
-    source: { theory: omega, tier: "omega" },
-    target: { theory: hyp, tier: "hyperion" },
-    objectMap: { M: "Cell" },
-    morphismMap: {},
-  };
-  const { verifyWith } = compileCrossTierFunctor(functor);
-  assert.equal(verifyWith, "hyperion", "should verify at the higher tier (hyperion)");
-});
-
-// ── Downward truncation tests ──────────────────────────────────────────────
-
-test("truncateToHomotopyCategory downgrades doctrine to Category", () => {
-  const theory: TheoryJson = {
-    name: "Inf2", doctrine: "InfinityNCategory",
-    objects: [{ name: "Cell0" }, { name: "Cell1" }],
-    morphisms: [{ name: "f", domain: "Cell0", codomain: "Cell1" }],
-    axioms: [{ name: "coherence", lhs: { atom: "a" }, rhs: { atom: "b" } }],
-  };
-  const truncated = truncateToHomotopyCategory(theory);
-  assert.equal(truncated.doctrine, "Category", "should downgrade to Category");
-  assert.equal(truncated.name, "Ho_Inf2", "should prefix with Ho_");
-  assert.equal(truncated.axioms.length, 1, "should preserve axioms");
-  assert.ok(truncated.axioms[0].description?.includes("[truncated]"), "should mark as truncated");
-});
-
-test("truncateToHomotopyCategory adds e-graph discoveries as axioms", () => {
-  const theory: TheoryJson = {
-    name: "Test", doctrine: "InfinityNCategory",
+test("morphismToHyperion skips path preservation for non-PathType doctrines", () => {
+  const source: TheoryJson = {
+    name: "A", doctrine: "Category",
     objects: [{ name: "X" }], morphisms: [], axioms: [],
   };
-  const discoveries = [
-    { lhs: "f", rhs: "g", description: "Eckmann-Hilton" },
-  ];
-  const truncated = truncateToHomotopyCategory(theory, discoveries);
-  assert.equal(truncated.axioms.length, 1, "should add discovery as axiom");
-  assert.ok(truncated.axioms[0].name.includes("egraph"), "should prefix with egraph");
+  const target: TheoryJson = {
+    name: "B", doctrine: "Category",
+    objects: [{ name: "Y" }], morphisms: [], axioms: [],
+  };
+  const morphism: TheoryMorphismJson = {
+    name: "F", source: "A", target: "B",
+    onObjects: [{ source: "X", target: { atom: "Y" } }],
+    onMorphisms: [],
+  };
+
+  const hyp = morphismToHyperion(morphism, source, target);
+  assert.ok(!hyp.includes(":preserve-paths"), "should not preserve paths for plain Category");
 });
 
-test("truncatedTheoryToLean generates Quotient-based Lean source", () => {
-  const theory: TheoryJson = {
-    name: "Inf", doctrine: "InfinityNCategory",
-    objects: [{ name: "X" }], morphisms: [],
-    axioms: [{ name: "ax1", lhs: { atom: "a" }, rhs: { atom: "b" } }],
+test("adjunctionToHyperion generates adjoint pair with verification", () => {
+  const source: TheoryJson = {
+    name: "E", doctrine: "InfinityNCategory",
+    objects: [{ name: "A" }], morphisms: [], axioms: [],
   };
-  const discoveries = [
-    { lhs: "f", rhs: "g", description: "path", proof_term: "concat p q", rewrite_steps: ["p", "q"] },
-  ];
-  const source = truncatedTheoryToLean(theory, discoveries);
-  assert.ok(source.includes("Mathlib.CategoryTheory.Quotient"), "should import Quotient");
-  assert.ok(source.includes("Homotopy category"), "should mention homotopy category");
-  assert.ok(source.includes("truncate_f_g"), "should generate truncation axiom");
-  assert.ok(source.includes("Original path: concat p q"), "should include proof term");
-  assert.ok(source.includes("Via: p → q"), "should include rewrite steps");
+  const target: TheoryJson = {
+    name: "F", doctrine: "InfinityNCategory",
+    objects: [{ name: "B" }], morphisms: [], axioms: [],
+  };
+  const inverseImage: TheoryMorphismJson = {
+    name: "f_star", source: "F", target: "E",
+    onObjects: [{ source: "B", target: { atom: "A" } }],
+    onMorphisms: [],
+  };
+  const directImage: TheoryMorphismJson = {
+    name: "f_lower", source: "E", target: "F",
+    onObjects: [{ source: "A", target: { atom: "B" } }],
+    onMorphisms: [],
+  };
+
+  const hyp = adjunctionToHyperion("geom_f", inverseImage, directImage, source, target);
+  assert.ok(hyp.includes("[Adjunction geom_f"), "should generate Adjunction block");
+  assert.ok(hyp.includes(":left geom_f_star"), "should reference left adjoint");
+  assert.ok(hyp.includes(":right geom_f_lower"), "should reference right adjoint");
+  assert.ok(hyp.includes("[Functor geom_f_star"), "should emit inverse image functor");
+  assert.ok(hyp.includes("[Functor geom_f_lower"), "should emit direct image functor");
+  assert.ok(hyp.includes(":preserve-paths true"), "inverse image should preserve paths");
+});
+
+// ── ∞-Topos integration tests ─────────────────────────────────────────────
+// These tests verify the full pipeline: define two ∞-topoi with higher-categorical
+// structure (object classifier, descent, mapping spaces), construct a geometric
+// morphism between them, and verify that Hyperion elaboration correctly:
+//   1. Emits PathType + e-graph structures for both topoi
+//   2. The inverse image functor preserves paths (finite limit preservation)
+//   3. The adjunction is declared with :verify true
+//   4. The object classifier (univalent universe) appears in the generated source
+
+test("∞-topos geometric morphism: Spaces → Sh(X) with object classifier", () => {
+  // ∞-topos of spaces (the terminal ∞-topos)
+  const spaces: TheoryJson = {
+    name: "Spaces",
+    doctrine: "PresentableInfinityCategory",
+    objects: [
+      { name: "Ob", description: "Objects (spaces)" },
+      { name: "Map", description: "Morphisms (continuous maps)" },
+      { name: "Spc", description: "Mapping spaces (∞-groupoids)" },
+    ],
+    morphisms: [
+      { name: "src", domain: "Map", codomain: "Ob" },
+      { name: "tgt", domain: "Map", codomain: "Ob" },
+      { name: "id_map", domain: "Ob", codomain: "Map" },
+      { name: "hom_space", domain: { prod: ["Ob", "Ob"] }, codomain: "Spc" },
+      { name: "U_obj", domain: "terminal", codomain: "Ob", description: "Universe object" },
+      { name: "U_tilde", domain: "terminal", codomain: "Ob", description: "Pointed universe" },
+      { name: "univ_fib", domain: "terminal", codomain: "Map", description: "Universal fibration p : Ũ → U" },
+      { name: "colim", domain: "Spc", codomain: "Ob" },
+      { name: "lim", domain: "Spc", codomain: "Ob" },
+    ],
+    axioms: [
+      {
+        name: "univ_fib_src",
+        lhs: { comp: [{ atom: "univ_fib" }, { atom: "src" }] },
+        rhs: { atom: "U_tilde" },
+        description: "src(univ_fib) = Ũ",
+      },
+      {
+        name: "univ_fib_tgt",
+        lhs: { comp: [{ atom: "univ_fib" }, { atom: "tgt" }] },
+        rhs: { atom: "U_obj" },
+        description: "tgt(univ_fib) = U",
+      },
+      {
+        name: "descent_axiom",
+        lhs: { comp: [{ atom: "colim" }, { atom: "lim" }] },
+        rhs: { id: "Spc" },
+        description: "Colimits are universal (descent)",
+      },
+    ],
+  };
+
+  // ∞-topos of sheaves on a space X
+  const shX: TheoryJson = {
+    name: "ShX",
+    doctrine: "PresentableInfinityCategory",
+    objects: [
+      { name: "ShOb", description: "Sheaf objects" },
+      { name: "ShMap", description: "Sheaf morphisms" },
+      { name: "ShSpc", description: "Sheaf mapping spaces" },
+    ],
+    morphisms: [
+      { name: "sh_src", domain: "ShMap", codomain: "ShOb" },
+      { name: "sh_tgt", domain: "ShMap", codomain: "ShOb" },
+      { name: "sh_id", domain: "ShOb", codomain: "ShMap" },
+      { name: "sh_hom", domain: { prod: ["ShOb", "ShOb"] }, codomain: "ShSpc" },
+      { name: "ShU", domain: "terminal", codomain: "ShOb", description: "Sheaf universe" },
+      { name: "ShU_tilde", domain: "terminal", codomain: "ShOb" },
+      { name: "sh_univ_fib", domain: "terminal", codomain: "ShMap" },
+      { name: "sh_colim", domain: "ShSpc", codomain: "ShOb" },
+      { name: "sh_lim", domain: "ShSpc", codomain: "ShOb" },
+    ],
+    axioms: [
+      {
+        name: "sh_descent",
+        lhs: { comp: [{ atom: "sh_colim" }, { atom: "sh_lim" }] },
+        rhs: { id: "ShSpc" },
+      },
+    ],
+  };
+
+  // Geometric morphism f : Sh(X) → Spaces
+  // f* : Spaces → Sh(X) (inverse image = constant sheaf functor)
+  const inverseImage: TheoryMorphismJson = {
+    name: "const_sheaf", source: "Spaces", target: "ShX",
+    onObjects: [
+      { source: "Ob", target: { atom: "ShOb" } },
+      { source: "Map", target: { atom: "ShMap" } },
+      { source: "Spc", target: { atom: "ShSpc" } },
+    ],
+    onMorphisms: [
+      { source: "src", target: { atom: "sh_src" } },
+      { source: "tgt", target: { atom: "sh_tgt" } },
+      { source: "id_map", target: { atom: "sh_id" } },
+      { source: "colim", target: { atom: "sh_colim" } },
+      { source: "lim", target: { atom: "sh_lim" } },
+    ],
+  };
+
+  // f_* : Sh(X) → Spaces (direct image = global sections functor)
+  const directImage: TheoryMorphismJson = {
+    name: "global_sections", source: "ShX", target: "Spaces",
+    onObjects: [
+      { source: "ShOb", target: { atom: "Ob" } },
+      { source: "ShMap", target: { atom: "Map" } },
+      { source: "ShSpc", target: { atom: "Spc" } },
+    ],
+    onMorphisms: [
+      { source: "sh_src", target: { atom: "src" } },
+      { source: "sh_tgt", target: { atom: "tgt" } },
+      { source: "sh_id", target: { atom: "id_map" } },
+    ],
+  };
+
+  const hyp = adjunctionToHyperion("f", inverseImage, directImage, spaces, shX);
+
+  // ── Structural checks ──────────────────────────────────────────────────
+
+  // Both theories should appear as full Hyperion Category blocks with PathType
+  assert.ok(hyp.includes("[Category SpacesCat"), "should emit Spaces category");
+  assert.ok(hyp.includes("[Category ShXCat"), "should emit ShX category");
+
+  // PathType must be injected for PresentableInfinityCategory doctrine
+  const pathTypeCount = (hyp.match(/\[PathType/g) || []).length;
+  assert.ok(pathTypeCount >= 2, `should have PathType in both theories, got ${pathTypeCount}`);
+
+  // E-graph equality saturation (needed for ∞-categorical coherence)
+  assert.ok(hyp.includes("equality-saturation"), "should use e-graph for ∞-categories");
+
+  // Object classifier / universe should appear in the generated source
+  assert.ok(hyp.includes("U_obj"), "should include universe object");
+  assert.ok(hyp.includes("univ_fib"), "should include universal fibration");
+
+  // ── Functor checks ─────────────────────────────────────────────────────
+
+  // Inverse image: f* must preserve paths (finite limits)
+  assert.ok(hyp.includes("[Functor f_star"), "should emit inverse image functor");
+  assert.ok(hyp.includes("[Functor f_lower"), "should emit direct image functor");
+
+  // The inverse image functor must have :preserve-paths true
+  // (this is what makes it a geometric morphism, not just any adjunction)
+  const fStarStart = hyp.indexOf("[Functor f_star");
+  const fStarBlock = hyp.slice(fStarStart, fStarStart + 500);
+  assert.ok(fStarBlock.includes(":preserve-paths true"), "f* must preserve paths (finite limits)");
+
+  // ── Adjunction checks ──────────────────────────────────────────────────
+
+  assert.ok(hyp.includes("[Adjunction f"), "should declare adjunction");
+  assert.ok(hyp.includes(":left f_star"), "f* should be left adjoint");
+  assert.ok(hyp.includes(":right f_lower"), "f_* should be right adjoint");
+  assert.ok(hyp.includes(":verify true"), "adjunction should request verification");
+
+  // ── Descent axiom should appear in proofs ──────────────────────────────
+
+  assert.ok(hyp.includes("descent_axiom"), "should include descent axiom");
+  assert.ok(hyp.includes("[assert-eq"), "should generate assertion blocks");
+
+  // ── Extract-proof for higher paths ─────────────────────────────────────
+  // For PathType doctrines, Hyperion must extract proof terms (paths/2-cells),
+  // not just check boolean equality. This is the key ∞-categorical requirement.
+  assert.ok(hyp.includes("[extract-proof"), "should extract proof terms for PathType doctrine");
+});
+
+test("∞-topos univalence: Equiv(A,B) ≃ (A = B) in object classifier", () => {
+  // A minimal ∞-topos with the univalence axiom encoded
+  const univalentTopos: TheoryJson = {
+    name: "UnivalentTopos",
+    doctrine: "PresentableInfinityCategory",
+    objects: [
+      { name: "Type", description: "Objects (types/spaces)" },
+      { name: "Equiv", description: "Equivalences between types" },
+      { name: "Path", description: "Identity paths" },
+    ],
+    morphisms: [
+      { name: "src_eq", domain: "Equiv", codomain: "Type" },
+      { name: "tgt_eq", domain: "Equiv", codomain: "Type" },
+      { name: "src_path", domain: "Path", codomain: "Type" },
+      { name: "tgt_path", domain: "Path", codomain: "Type" },
+      // The univalence map: paths → equivalences
+      { name: "idtoequiv", domain: "Path", codomain: "Equiv", description: "Identity induces equivalence" },
+      // The inverse: equivalences → paths (univalence)
+      { name: "ua", domain: "Equiv", codomain: "Path", description: "Univalence axiom" },
+    ],
+    axioms: [
+      {
+        name: "ua_section",
+        lhs: { comp: [{ atom: "ua" }, { atom: "idtoequiv" }] },
+        rhs: { id: "Equiv" },
+        description: "ua ∘ idtoequiv = id (univalence section)",
+      },
+      {
+        name: "ua_retraction",
+        lhs: { comp: [{ atom: "idtoequiv" }, { atom: "ua" }] },
+        rhs: { id: "Path" },
+        description: "idtoequiv ∘ ua = id (univalence retraction)",
+      },
+    ],
+  };
+
+  const hyp = theoryToHyperion(univalentTopos);
+
+  // The univalence axiom should appear as laws in the e-graph
+  assert.ok(hyp.includes("ua_section"), "should include ua section axiom");
+  assert.ok(hyp.includes("ua_retraction"), "should include ua retraction axiom");
+
+  // PathType must be present for the univalent universe
+  assert.ok(hyp.includes("[PathType"), "univalent topos needs PathType");
+
+  // E-graph saturation should detect that ua and idtoequiv are inverses
+  assert.ok(hyp.includes("@law"), "should use @law (bidirectional) for e-graph saturation");
+
+  // extract-proof: the proof that ua ∘ idtoequiv = id should be extractable
+  // as a path in the identity type, not just a boolean
+  assert.ok(hyp.includes("extract-proof"), "should extract proof paths for univalence");
+
+  // The Hyperion output should verify both directions of the equivalence
+  assert.ok(hyp.includes("[assert-eq ua_section"), "should assert ua section");
+  assert.ok(hyp.includes("[assert-eq ua_retraction"), "should assert ua retraction");
 });
 
 // ── Lemma loop tests ──────────────────────────────────────────────────────
@@ -646,125 +835,6 @@ test("TheoryJson without lemmas works as before", () => {
   const { source } = theoryToLean(CATEGORY_THEORY);
   assert.ok(!source.includes("Intermediate lemmas"), "should not have lemma section");
 });
-
-// ── Theory pushout tests ──────────────────────────────────────────────────
-
-test("computeTheoryPushout merges theories over common base", () => {
-  const base: TheoryJson = {
-    name: "Set", doctrine: "Category",
-    objects: [{ name: "S" }],
-    morphisms: [{ name: "id_S", domain: "S", codomain: "S" }],
-    axioms: [],
-  };
-  const theoryA: TheoryJson = {
-    name: "Mon", doctrine: "LawvereTheory",
-    objects: [{ name: "S" }, { name: "M" }],
-    morphisms: [
-      { name: "id_S", domain: "S", codomain: "S" },
-      { name: "mu", domain: { prod: ["M", "M"] }, codomain: "M" },
-    ],
-    axioms: [{ name: "assoc", lhs: { atom: "l" }, rhs: { atom: "r" } }],
-  };
-  const theoryB: TheoryJson = {
-    name: "Grp", doctrine: "LawvereTheory",
-    objects: [{ name: "S" }, { name: "G" }],
-    morphisms: [
-      { name: "id_S", domain: "S", codomain: "S" },
-      { name: "inv", domain: "G", codomain: "G" },
-    ],
-    axioms: [{ name: "inv_law", lhs: { atom: "l" }, rhs: { atom: "r" } }],
-  };
-
-  const pushout = computeTheoryPushout(theoryA, theoryB, base);
-
-  // Should identify shared base objects
-  assert.equal(pushout.objects.length, 3, "S + M + G = 3 objects");
-  const objNames = pushout.objects.map(o => o.name);
-  assert.ok(objNames.includes("S"), "should have shared S");
-  assert.ok(objNames.includes("M"), "should have M from Mon");
-  assert.ok(objNames.includes("G"), "should have G from Grp");
-
-  // Should identify shared base morphisms
-  assert.equal(pushout.morphisms.length, 3, "id_S + mu + inv = 3 morphisms");
-
-  // Should merge axioms
-  assert.equal(pushout.axioms.length, 2, "assoc + inv_law = 2 axioms");
-
-  // Should pick higher doctrine
-  assert.equal(pushout.doctrine, "LawvereTheory");
-});
-
-test("computeTheoryPushout name includes both theories", () => {
-  const base: TheoryJson = { name: "C", doctrine: "Category", objects: [], morphisms: [], axioms: [] };
-  const a: TheoryJson = { name: "A", doctrine: "Category", objects: [], morphisms: [], axioms: [] };
-  const b: TheoryJson = { name: "B", doctrine: "Category", objects: [], morphisms: [], axioms: [] };
-  const pushout = computeTheoryPushout(a, b, base);
-  assert.ok(pushout.name.includes("A") && pushout.name.includes("B"), "should name after both theories");
-});
-
-// ── Pushout cocone tests ──────────────────────────────────────────────────
-
-test("computePushoutCocone generates inclusion functors", () => {
-  const base: TheoryJson = {
-    name: "Set", doctrine: "Category",
-    objects: [{ name: "S" }],
-    morphisms: [{ name: "id_S", domain: "S", codomain: "S" }],
-    axioms: [],
-  };
-  const theoryA: TheoryJson = {
-    name: "Mon", doctrine: "LawvereTheory",
-    objects: [{ name: "S" }, { name: "M" }],
-    morphisms: [
-      { name: "id_S", domain: "S", codomain: "S" },
-      { name: "mu", domain: { prod: ["M", "M"] }, codomain: "M" },
-    ],
-    axioms: [{ name: "assoc", lhs: { atom: "l" }, rhs: { atom: "r" } }],
-  };
-  const theoryB: TheoryJson = {
-    name: "Grp", doctrine: "LawvereTheory",
-    objects: [{ name: "S" }, { name: "G" }],
-    morphisms: [
-      { name: "id_S", domain: "S", codomain: "S" },
-      { name: "inv", domain: "G", codomain: "G" },
-    ],
-    axioms: [],
-  };
-
-  const cocone = computePushoutCocone(theoryA, theoryB, base);
-
-  // Inclusion A → P
-  assert.equal(cocone.inclusionA.name, "ι_Mon", "should name inclusion after source");
-  assert.equal(cocone.inclusionA.objectMap["S"], "S", "shared object maps to itself");
-  assert.equal(cocone.inclusionA.objectMap["M"], "M", "unique object maps to itself");
-  assert.equal(cocone.inclusionA.morphismMap["mu"], "mu", "morphism maps to itself");
-
-  // Inclusion B → P
-  assert.equal(cocone.inclusionB.name, "ι_Grp");
-  assert.equal(cocone.inclusionB.objectMap["G"], "G");
-  assert.equal(cocone.inclusionB.morphismMap["inv"], "inv");
-});
-
-test("transportAxiom carries theorem from A into pushout P", () => {
-  const base: TheoryJson = { name: "C", doctrine: "Category", objects: [], morphisms: [], axioms: [] };
-  const theoryA: TheoryJson = {
-    name: "A", doctrine: "Category",
-    objects: [{ name: "X" }], morphisms: [],
-    axioms: [{ name: "thm1", lhs: { atom: "a" }, rhs: { atom: "b" }, description: "important" }],
-  };
-  const theoryB: TheoryJson = {
-    name: "B", doctrine: "Category", objects: [], morphisms: [], axioms: [],
-  };
-
-  const cocone = computePushoutCocone(theoryA, theoryB, base);
-  const transported = transportAxiom(theoryA.axioms[0], cocone.inclusionA);
-
-  assert.ok(transported.name.includes("ι_A"), "transported axiom includes functor name");
-  assert.ok(transported.description?.includes("transported"), "should note transport");
-  // For identity inclusion, lhs/rhs should be unchanged
-  assert.deepEqual(transported.lhs, { atom: "a" });
-  assert.deepEqual(transported.rhs, { atom: "b" });
-});
-
 // ── Expanded tactic tests ─────────────────────────────────────────────────
 
 test("LemmaJson with rw tactic generates rewrite steps", () => {
@@ -852,6 +922,56 @@ test("Realizability PER category uses Setoid/Quotient", () => {
   assert.ok(source.includes("Quotient.mk"), "should use Quotient.mk for morphisms");
   assert.ok(source.includes("Quotient.sound"), "should use Quotient.sound for laws");
   assert.ok(source.includes("Quotient.inductionOn"), "should use Quotient.inductionOn for id_comp");
+});
+
+// ── Verification feedback tests ───────────────────────────────────────────
+
+import { formatStructuralDiff } from "../src/llm";
+import type { VerificationResult } from "../src/types";
+
+test("formatStructuralDiff shows partial forms and trace on timeout", () => {
+  const result: VerificationResult = {
+    verified: false,
+    candidateName: "TestCandidate",
+    verificationStatus: "⏱ Timeout at depth 200",
+    missingSignatures: [],
+    unmappedObjects: [],
+    axiomViolations: [
+      {
+        sourceAxiom: "assoc",
+        status: "⏱ Timeout at depth 200",
+        lhsReduced: "comp(prod(μ, id(M)), μ)",
+        rhsReduced: "comp(prod(id(M), μ), μ)",
+        depthUsed: 200,
+        lhsTrace: ["assoc", "unit_l", "assoc", "unit_l", "assoc", "unit_l"],
+        rhsTrace: ["unit_r", "assoc"],
+      },
+    ],
+  };
+  const feedback = formatStructuralDiff(result);
+  // Should show partial normal forms (not hidden behind "circular rewriting loops")
+  assert.ok(feedback.includes("comp(prod(μ, id(M)), μ)"), "should show LHS partial form");
+  assert.ok(feedback.includes("comp(prod(id(M), μ), μ)"), "should show RHS partial form");
+  // Should show rewrite trace
+  assert.ok(feedback.includes("assoc → unit_l → assoc"), "should show LHS rewrite trace");
+  // Should detect cycling (assoc appears 3+ times)
+  assert.ok(feedback.includes("CYCLING DETECTED"), "should detect cycling rules");
+  assert.ok(feedback.includes("assoc"), "should name the cycling rule");
+});
+
+test("formatStructuralDiff shows doctrine auto-upgrade info", () => {
+  const result: VerificationResult = {
+    verified: true,
+    candidateName: "TestCandidate",
+    verificationStatus: "✓ Success",
+    missingSignatures: [],
+    unmappedObjects: [],
+    axiomViolations: [],
+    doctrine: "CartesianCategory",
+  };
+  const feedback = formatStructuralDiff(result);
+  assert.ok(feedback.includes("CartesianCategory"), "should mention upgraded doctrine");
+  assert.ok(feedback.includes("auto-inferred"), "should explain auto-inference");
 });
 
 // ── Print generated Lean for inspection ───────────────────────────────────────

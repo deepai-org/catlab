@@ -81,6 +81,22 @@ export interface TheoryJson {
   lemmas?: LemmaJson[];
 }
 
+// ── TheoryMorphism JSON ──────────────────────────────────────────────────────
+// Matches the Lean serialization in Protocol.lean's theoryMorphismToJson.
+
+export interface GeneratorMapEntryJson {
+  source: string;
+  target: ExprJson;
+}
+
+export interface TheoryMorphismJson {
+  name: string;
+  source: string;
+  target: string;
+  onObjects: GeneratorMapEntryJson[];
+  onMorphisms: GeneratorMapEntryJson[];
+}
+
 // ── VerificationResult ──────────────────────────────────────────────────────────
 // Generic feedback from the CAS. Specific fields (missingSignatures, etc.) are
 // present for structural-equivalence problems but optional in general.
@@ -101,6 +117,10 @@ export interface AxiomViolation {
   lhsReduced: string;
   rhsReduced: string;
   depthUsed: number;
+  /** Axiom names fired during LHS normalization (last N steps). Shows cycling rules on timeout. */
+  lhsTrace?: string[];
+  /** Axiom names fired during RHS normalization (last N steps). */
+  rhsTrace?: string[];
 }
 
 export interface VerificationResult {
@@ -116,6 +136,8 @@ export interface VerificationResult {
   feedbackStrings?: string[];
   /** Numeric distance/score (0 = perfect match, higher = worse). Used as gradient signal. */
   distance?: number;
+  /** Inferred/upgraded doctrine (if the CAS auto-upgraded from what the LLM stated). */
+  doctrine?: string;
 }
 
 // ── NDJSON Request types ──────────────────────────────────────────────────────
@@ -127,6 +149,10 @@ export type CatlabCommand =
   | { command: "validate"; theory: string }
   | { command: "apply_operator"; operator: string; theory: string }
   | { command: "compute_pushout"; theory1: string; theory2: string; base: string }
+  | { command: "compute_pushout_cocone"; theory1: string; theory2: string; base: string }
+  | { command: "compute_pullback"; theory1: string; theory2: string; base: string }
+  | { command: "compute_pullback_cone"; theory1: string; theory2: string; base: string }
+  | { command: "compute_morphism"; source: string; target: string; kind: "inclusion" | "identity" }
   | {
       command: "evaluate_inverse";
       target: string;
@@ -249,6 +275,13 @@ export interface CatlabResponseOk {
   extends_base?: boolean;
   missing_from_theory?: string[];
   new_morphisms?: number;
+  // Theory morphism fields (from compute_pushout_cocone, compute_morphism)
+  inclusionA?: TheoryMorphismJson;
+  inclusionB?: TheoryMorphismJson;
+  morphism?: TheoryMorphismJson;
+  leftProj?: TheoryMorphismJson;
+  rightProj?: TheoryMorphismJson;
+  preservesTyping?: boolean;
 }
 
 export interface CatlabResponseError {

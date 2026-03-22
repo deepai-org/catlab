@@ -812,301 +812,174 @@ function externalResponseToResult(
   };
 }
 
-// ── Cross-Tier Functor Interoperability ───────────────────────────────────────
+
+// ── Cross-Tier / Truncation / Pushout (REMOVED) ──────────────────────────────
+//
+// The following were removed because they duplicated Lean CAS functionality:
+//   - CrossTierFunctor, compileCrossTierFunctor, elaborateCrossTierFunctor
+//   - truncateToHomotopyCategory, truncatedTheoryToLean
+//   - computeTheoryPushout, PushoutCocone, computePushoutCocone
+//   - transportAxiom, applyFunctorToExpr, verifyTheoryPushout
+//
+// Lean's CAS already implements these correctly:
+//   - Theory pushouts: `pushout` operator via compute_pushout REPL command
+//   - Theory morphisms: TheoryMorphism with inclusion, comp, id
+//   - Truncation: `Truncate` operator via apply_operator REPL command
+//
+// The tier-translation logic (theory → .omega/.hyp source) remains in
+// theoryToOmega() and theoryToHyperion() above.
+
+// ── Geometric Morphism Elaboration ───────────────────────────────────────────
+
+import type { TheoryMorphismJson, GeneratorMapEntryJson } from "./types";
 
 /**
- * Detect when a theory references objects/morphisms that span multiple
- * verification tiers. For example, a functor from an Omega-verified
- * algebraic theory (Monoid) to a Lean-verified 1-category (Set).
+ * Translate a TheoryMorphism (from the Lean REPL) into Hyperion functor syntax.
  *
- * Strategy: "Upward compilation" — compile the lower tier into the
- * higher tier's language. Omega theories compile trivially into Lean
- * (Lean handles algebra perfectly), so the functor can be verified
- * in a unified Lean context.
+ * This is the critical tier-translation step for ∞-topos verification:
+ * Lean computes the theory morphism (pushout cocone leg, inclusion, etc.)
+ * and TypeScript translates it into Hyperion's functor verification language.
+ *
+ * For PathType doctrines, the functor must preserve paths:
+ *   F(p : x = y) becomes a valid path F(x) = F(y) in the target theory.
+ * Hyperion's [Functor :verify] directive checks this automatically once
+ * we declare the object/morphism mappings.
  */
-export interface CrossTierFunctor {
-  /** The functor's name */
-  name: string;
-  /** Source theory (with its tier) */
-  source: { theory: TheoryJson; tier: ExternalBackend };
-  /** Target theory (with its tier) */
-  target: { theory: TheoryJson; tier: ExternalBackend };
-  /** Object mapping: source object name → target object name */
-  objectMap: Record<string, string>;
-  /** Morphism mapping: source morphism name → target expression */
-  morphismMap: Record<string, string>;
-}
-
-/**
- * Determine the verification tier ordering.
- * null (Lean) > "hyperion" > "omega"
- * Higher tiers can embed lower tiers.
- */
-function tierRank(tier: ExternalBackend): number {
-  if (tier === "omega") return 0;
-  if (tier === null) return 1;  // Lean/Mathlib
-  if (tier === "hyperion") return 2;
-  return -1;
-}
-
-/**
- * Given a cross-tier functor, compile both theories into the higher tier
- * and return a unified verification payload.
- *
- * Compilation directions:
- *   omega → Lean:  trivial (Lean handles algebra natively)
- *   omega → Hyperion: compile omega theory into Hyperion Category block
- *   Lean → Hyperion: not supported (Lean theories are too rich for Hyperion)
- */
-export function compileCrossTierFunctor(functor: CrossTierFunctor): {
-  /** The unified theory combining source + target + functor axioms */
-  unifiedTheory: TheoryJson;
-  /** Which tier should verify the unified theory */
-  verifyWith: ExternalBackend;
-} {
-  const srcRank = tierRank(functor.source.tier);
-  const tgtRank = tierRank(functor.target.tier);
-
-  // The unified theory is verified at the higher tier
-  const verifyWith = srcRank >= tgtRank ? functor.source.tier : functor.target.tier;
-
-  // Build unified theory: merge objects, morphisms, and axioms from both,
-  // then add functor axioms (functoriality: F(id) = id, F(g∘f) = Fg∘Ff)
-  const unified: TheoryJson = {
-    name: `Functor_${functor.name}`,
-    doctrine: verifyWith === "hyperion"
-      ? functor.target.theory.doctrine  // use the Hyperion doctrine
-      : verifyWith === "omega"
-        ? functor.source.theory.doctrine
-        : "Category",  // Lean handles everything
-    objects: [
-      // Prefix source objects to avoid collisions
-      ...functor.source.theory.objects.map(o => ({
-        ...o, name: `src_${o.name}`,
-        description: `[source] ${o.description ?? o.name}`,
-      })),
-      ...functor.target.theory.objects.map(o => ({
-        ...o, name: `tgt_${o.name}`,
-        description: `[target] ${o.description ?? o.name}`,
-      })),
-    ],
-    morphisms: [
-      ...functor.source.theory.morphisms.map(m => ({
-        ...m, name: `src_${m.name}`,
-        domain: prefixExpr(m.domain, "src_"),
-        codomain: prefixExpr(m.codomain, "src_"),
-        description: `[source] ${m.description ?? m.name}`,
-      })),
-      ...functor.target.theory.morphisms.map(m => ({
-        ...m, name: `tgt_${m.name}`,
-        domain: prefixExpr(m.domain, "tgt_"),
-        codomain: prefixExpr(m.codomain, "tgt_"),
-        description: `[target] ${m.description ?? m.name}`,
-      })),
-      // Functor action on objects (as morphisms in the unified theory)
-      ...Object.entries(functor.objectMap).map(([src, tgt]) => ({
-        name: `F_obj_${src}`,
-        domain: `src_${src}` as ExprJson,
-        codomain: `tgt_${tgt}` as ExprJson,
-        description: `Functor ${functor.name}: ${src} ↦ ${tgt}`,
-      })),
-    ],
-    axioms: [
-      // Include all source and target axioms
-      ...functor.source.theory.axioms.map(a => ({
-        ...a, name: `src_${a.name}`,
-        lhs: prefixExpr(a.lhs, "src_"),
-        rhs: prefixExpr(a.rhs, "src_"),
-      })),
-      ...functor.target.theory.axioms.map(a => ({
-        ...a, name: `tgt_${a.name}`,
-        lhs: prefixExpr(a.lhs, "tgt_"),
-        rhs: prefixExpr(a.rhs, "tgt_"),
-      })),
-      // Functoriality axioms for each morphism mapping
-      ...Object.entries(functor.morphismMap).map(([srcMor, tgtExpr]) => ({
-        name: `F_mor_${srcMor}`,
-        lhs: { atom: `F_${srcMor}` } as ExprJson,
-        rhs: { atom: `tgt_${tgtExpr}` } as ExprJson,
-        description: `Functor maps ${srcMor} ↦ ${tgtExpr}`,
-      })),
-    ],
-  };
-
-  return { unifiedTheory: unified, verifyWith };
-}
-
-/** Prefix all atom names in an ExprJson with a given prefix. */
-function prefixExpr(expr: ExprJson, prefix: string): ExprJson {
-  if (typeof expr === "string") {
-    if (expr === "terminal" || expr === "unit" || expr === "initial") return expr;
-    return `${prefix}${expr}`;
-  }
-  if ("atom" in expr) return { atom: `${prefix}${expr.atom}` };
-  if ("comp" in expr) return { comp: [prefixExpr(expr.comp[0], prefix), prefixExpr(expr.comp[1], prefix)] };
-  if ("prod" in expr) return { prod: [prefixExpr(expr.prod[0], prefix), prefixExpr(expr.prod[1], prefix)] };
-  if ("tensor" in expr) return { tensor: [prefixExpr(expr.tensor[0], prefix), prefixExpr(expr.tensor[1], prefix)] };
-  if ("coprod" in expr) return { coprod: [prefixExpr(expr.coprod[0], prefix), prefixExpr(expr.coprod[1], prefix)] };
-  if ("hom" in expr) return { hom: [prefixExpr(expr.hom[0], prefix), prefixExpr(expr.hom[1], prefix)] };
-  if ("id" in expr) return { id: prefixExpr(expr.id, prefix) };
-  return expr;
-}
-
-/**
- * Elaborate a cross-tier functor by compiling to a unified theory
- * and verifying at the appropriate tier.
- */
-export async function elaborateCrossTierFunctor(
-  functor: CrossTierFunctor,
-  opts?: ExternalElaborationOptions,
-): Promise<ElaborationResult | null> {
-  const { unifiedTheory, verifyWith } = compileCrossTierFunctor(functor);
-
-  if (verifyWith === "omega") {
-    const source = theoryToOmega(unifiedTheory);
-    const bin = opts?.omegaBin ?? "omega";
-    const timeout = opts?.timeoutMs ?? 30000;
-    const response = await runExternalCli(bin, ["check", "--json", "--stdin"], source, timeout);
-    return externalResponseToResult(response, source, "omega");
-  } else if (verifyWith === "hyperion") {
-    const source = theoryToHyperion(unifiedTheory);
-    const bin = opts?.hyperionBin ?? "hyperion";
-    const timeout = opts?.timeoutMs ?? 30000;
-    const response = await runExternalCli(bin, ["check", "--json", "--stdin"], source, timeout);
-    return externalResponseToResult(response, source, "hyperion");
-  }
-
-  // verifyWith === null → Lean handles it, return null to fall through
-  return null;
-}
-
-// ── Downward Truncation: Hyperion → Lean ──────────────────────────────────────
-
-/**
- * Truncate a Hyperion ∞-categorical theory down to its homotopy 1-category.
- *
- * Maps PathType 2-cells to strict equalities via Quotient:
- *   - If Hyperion has a path p : f ≃ g, then in the homotopy category f = g.
- *   - All higher cells (paths between paths) are collapsed.
- *
- * This is the "nerve/realization" adjunction's left adjoint applied to
- * the theory: we freely force all parallel paths to be equal.
- */
-export function truncateToHomotopyCategory(
-  theory: TheoryJson,
-  /** Hyperion discoveries: equalities found by e-graph saturation */
-  discoveries?: ExternalDiscovery[],
-): TheoryJson {
-  // Start with the base theory structure
-  const truncated: TheoryJson = {
-    name: `Ho_${theory.name}`,
-    doctrine: "Category",  // downgraded from ∞-category to 1-category
-    objects: [...theory.objects],
-    morphisms: [...theory.morphisms],
-    axioms: [...theory.axioms.map(ax => ({
-      ...ax,
-      // All axioms become strict equalities (not paths)
-      description: `[truncated] ${ax.description ?? ax.name}`,
-    }))],
-  };
-
-  // Add equalities discovered by Hyperion's e-graph as axioms
-  // These are paths that e-graph saturation found — in the homotopy
-  // category they become strict equalities.
-  if (discoveries) {
-    for (const d of discoveries) {
-      truncated.axioms.push({
-        name: `egraph_${sanitize(d.lhs)}_${sanitize(d.rhs)}`,
-        lhs: { atom: d.lhs },
-        rhs: { atom: d.rhs },
-        description: `[e-graph discovery, truncated] ${d.description}`,
-      });
-    }
-  }
-
-  return truncated;
-}
-
-/**
- * Generate Lean source for a truncated homotopy category.
- *
- * Key difference from generic elaboration: we wrap morphism equality
- * in Quotient to explicitly model the truncation.
- *
- * For each pair of morphisms f, g : X ⟶ Y, if there exists a Hyperion
- * path p : f ≃ g, we add:
- *   axiom truncation_f_g : f = g
- *
- * This is mathematically justified: the homotopy category of an
- * ∞-category identifies all parallel morphisms connected by 2-cells.
- */
-export function truncatedTheoryToLean(
-  theory: TheoryJson,
-  discoveries?: ExternalDiscovery[],
+export function morphismToHyperion(
+  morphism: TheoryMorphismJson,
+  sourceTheory: TheoryJson,
+  targetTheory: TheoryJson,
 ): string {
-  const truncated = truncateToHomotopyCategory(theory, discoveries);
+  const lines: string[] = [];
+  const srcConfig = hyperionDoctrineConfig(sourceTheory.doctrine);
+  const tgtConfig = hyperionDoctrineConfig(targetTheory.doctrine);
+  const functorName = sanitize(morphism.name);
+
+  lines.push(`;; Functor: ${morphism.name}`);
+  lines.push(`;; ${morphism.source} → ${morphism.target}`);
+  lines.push(``);
+
+  // First, emit both theories as Category blocks
+  lines.push(`;; ── Source theory ──`);
+  lines.push(theoryToHyperion(sourceTheory));
+  lines.push(`;; ── Target theory ──`);
+  lines.push(theoryToHyperion(targetTheory));
+
+  // Functor block: declare the mapping
+  const srcCatName = sanitize(sourceTheory.name) + "Cat";
+  const tgtCatName = sanitize(targetTheory.name) + "Cat";
+
+  lines.push(`[Functor ${functorName}`);
+  lines.push(`  :source ${srcCatName}`);
+  lines.push(`  :target ${tgtCatName}`);
+
+  // Object mappings
+  for (const entry of morphism.onObjects) {
+    const srcName = sanitize(entry.source);
+    const tgtExpr = mapEntryTargetToHyperion(entry.target);
+    lines.push(`  [on-object ${srcName} ${tgtExpr}]`);
+  }
+
+  // Morphism mappings
+  for (const entry of morphism.onMorphisms) {
+    const srcName = sanitize(entry.source);
+    const tgtExpr = mapEntryTargetToHyperion(entry.target);
+    lines.push(`  [on-morphism ${srcName} ${tgtExpr}]`);
+  }
+
+  // Path preservation: if source has PathType, the functor must map paths
+  // to paths. Hyperion's :verify directive checks this automatically.
+  if (srcConfig.pathType || tgtConfig.pathType) {
+    lines.push(`  :preserve-paths true`);
+  }
+
+  lines.push(`  :verify true`);
+  lines.push(`]`);
+  lines.push(``);
+
+  return lines.join("\n");
+}
+
+/**
+ * Translate a pair of TheoryMorphisms representing an adjunction
+ * (geometric morphism) into Hyperion syntax for verification.
+ *
+ * A geometric morphism f : E → F between ∞-topoi consists of:
+ *   - f* : F → E  (inverse image, preserves finite limits)
+ *   - f_* : E → F (direct image, right adjoint to f*)
+ *
+ * Hyperion verifies:
+ *   1. f* preserves finite limits (checked via path-preservation)
+ *   2. The adjunction unit η : Id → f_* ∘ f* and counit ε : f* ∘ f_* → Id
+ *   3. Triangle identities
+ */
+export function adjunctionToHyperion(
+  inverseName: string,
+  inverseImage: TheoryMorphismJson,
+  directImage: TheoryMorphismJson,
+  sourceTheory: TheoryJson,
+  targetTheory: TheoryJson,
+): string {
   const lines: string[] = [];
 
-  lines.push("import Mathlib.CategoryTheory.Category.Basic");
-  lines.push("import Mathlib.CategoryTheory.Quotient");
-  lines.push("");
-  lines.push("open CategoryTheory");
-  lines.push("");
-  lines.push("universe v u");
-  lines.push("");
-  lines.push(`namespace CatLab.Truncation.${sanitize(theory.name)}`);
-  lines.push("");
-  lines.push("-- Homotopy category: truncation of an ∞-category to a 1-category.");
-  lines.push("-- All 2-cells (paths between morphisms) are collapsed to equalities.");
-  lines.push("-- This uses Lean's Quotient to model the identification.");
-  lines.push("");
-  lines.push("variable {C : Type u} [Category.{v} C]");
-  lines.push("");
+  lines.push(`;; Geometric morphism: ${inverseName}`);
+  lines.push(`;; f* : ${directImage.source} → ${directImage.target} (inverse image)`);
+  lines.push(`;; f_* : ${inverseImage.source} → ${inverseImage.target} (direct image)`);
+  lines.push(``);
 
-  // Objects
-  if (truncated.objects.length > 0) {
-    const objNames = truncated.objects.map(o => sanitize(o.name)).join(" ");
-    lines.push(`variable (${objNames} : C)`);
-    lines.push("");
+  // Emit both theories
+  lines.push(theoryToHyperion(sourceTheory));
+  lines.push(theoryToHyperion(targetTheory));
+
+  // Emit both functors
+  const srcCatName = sanitize(sourceTheory.name) + "Cat";
+  const tgtCatName = sanitize(targetTheory.name) + "Cat";
+  const fStarName = sanitize(inverseName) + "_star";
+  const fLowerName = sanitize(inverseName) + "_lower";
+
+  // f* : target → source (inverse image, left adjoint)
+  lines.push(`[Functor ${fStarName}`);
+  lines.push(`  :source ${tgtCatName}`);
+  lines.push(`  :target ${srcCatName}`);
+  for (const entry of inverseImage.onObjects) {
+    lines.push(`  [on-object ${sanitize(entry.source)} ${mapEntryTargetToHyperion(entry.target)}]`);
   }
-
-  // Morphisms
-  for (const mor of truncated.morphisms) {
-    lines.push(`variable (${sanitize(mor.name)} : ${sanitize(String(exprToSortName(mor.domain) ?? "X"))} ⟶ ${sanitize(String(exprToSortName(mor.codomain) ?? "Y"))})`);
+  for (const entry of inverseImage.onMorphisms) {
+    lines.push(`  [on-morphism ${sanitize(entry.source)} ${mapEntryTargetToHyperion(entry.target)}]`);
   }
-  if (truncated.morphisms.length > 0) lines.push("");
+  lines.push(`  :preserve-paths true`);
+  lines.push(`  :verify true`);
+  lines.push(`]`);
+  lines.push(``);
 
-  // Truncation axioms from e-graph discoveries
-  if (discoveries && discoveries.length > 0) {
-    lines.push("-- E-graph discoveries truncated to strict equalities:");
-    lines.push("-- In the ∞-category, these are paths (2-cells).");
-    lines.push("-- In the homotopy category, they become equalities.");
-    for (const d of discoveries) {
-      const axName = `truncate_${sanitize(d.lhs)}_${sanitize(d.rhs)}`;
-      lines.push(`-- ${d.description}`);
-      if (d.proof_term) {
-        lines.push(`-- Original path: ${d.proof_term}`);
-      }
-      if (d.rewrite_steps && d.rewrite_steps.length > 0) {
-        lines.push(`-- Via: ${d.rewrite_steps.join(" → ")}`);
-      }
-      lines.push(`axiom ${axName} : ${sanitize(d.lhs)} = ${sanitize(d.rhs)}`);
-    }
-    lines.push("");
+  // f_* : source → target (direct image, right adjoint)
+  lines.push(`[Functor ${fLowerName}`);
+  lines.push(`  :source ${srcCatName}`);
+  lines.push(`  :target ${tgtCatName}`);
+  for (const entry of directImage.onObjects) {
+    lines.push(`  [on-object ${sanitize(entry.source)} ${mapEntryTargetToHyperion(entry.target)}]`);
   }
-
-  // Regular axioms as lemmas
-  for (const ax of truncated.axioms) {
-    if (ax.name.startsWith("egraph_")) continue;  // already handled above
-    lines.push(`-- ${ax.description ?? ax.name}`);
-    lines.push(`lemma ${sanitize(ax.name)} : ${sanitize(String(exprToSortName(ax.lhs) ?? "lhs"))} = ${sanitize(String(exprToSortName(ax.rhs) ?? "rhs"))} := by`);
-    lines.push(`  aesop_cat`);
-    lines.push("");
+  for (const entry of directImage.onMorphisms) {
+    lines.push(`  [on-morphism ${sanitize(entry.source)} ${mapEntryTargetToHyperion(entry.target)}]`);
   }
+  lines.push(`  :verify true`);
+  lines.push(`]`);
+  lines.push(``);
 
-  lines.push(`end CatLab.Truncation.${sanitize(theory.name)}`);
+  // Adjunction declaration
+  lines.push(`[Adjunction ${sanitize(inverseName)}`);
+  lines.push(`  :left ${fStarName}`);
+  lines.push(`  :right ${fLowerName}`);
+  lines.push(`  :verify true`);
+  lines.push(`]`);
+  lines.push(``);
 
-  return lines.join("\n") + "\n";
+  return lines.join("\n");
+}
+
+/** Convert a GeneratorMapEntry target (ExprJson) to Hyperion syntax. */
+function mapEntryTargetToHyperion(target: ExprJson): string {
+  return exprToHyperion(target);
 }
 
 // ── Lemma Loop: LLM Proof Assistance ──────────────────────────────────────────
@@ -1250,248 +1123,6 @@ function exprToLeanish(expr: ExprJson): string {
   if ("tensor" in expr) return `(${exprToLeanish(expr.tensor[0])} ⊗ ${exprToLeanish(expr.tensor[1])})`;
   return "sorry";
 }
-
-// ── Theory Pushouts: The Category of Theories ────────────────────────────────
-
-/**
- * Compute the pushout of two theories over a common base.
- *
- * Given theories A and B with a span A ← C → B (where C is the base theory),
- * the pushout A ⊔_C B is the theory that:
- *   1. Contains all objects from A and B, with shared objects (from C) identified
- *   2. Contains all morphisms from A and B
- *   3. Contains all axioms from A and B
- *   4. Unifies namespaces: objects with the same name in C are merged
- *
- * This is the fundamental colimit operation in the Category of Theories.
- */
-export function computeTheoryPushout(
-  theoryA: TheoryJson,
-  theoryB: TheoryJson,
-  base: TheoryJson,
-): TheoryJson {
-  // Identify shared objects (those in the base theory)
-  const baseObjNames = new Set(base.objects.map(o => o.name));
-  const baseMorNames = new Set(base.morphisms.map(m => m.name));
-  const baseAxNames = new Set(base.axioms.map(a => a.name));
-
-  // Objects: union with identification of base objects
-  const pushoutObjects = [...base.objects];
-  const seenObjNames = new Set(baseObjNames);
-
-  for (const obj of theoryA.objects) {
-    if (!seenObjNames.has(obj.name)) {
-      pushoutObjects.push({ ...obj, description: `[from ${theoryA.name}] ${obj.description ?? ""}` });
-      seenObjNames.add(obj.name);
-    }
-  }
-  for (const obj of theoryB.objects) {
-    if (!seenObjNames.has(obj.name)) {
-      pushoutObjects.push({ ...obj, description: `[from ${theoryB.name}] ${obj.description ?? ""}` });
-      seenObjNames.add(obj.name);
-    }
-  }
-
-  // Morphisms: union with identification of base morphisms
-  const pushoutMorphisms = [...base.morphisms];
-  const seenMorNames = new Set(baseMorNames);
-
-  for (const mor of theoryA.morphisms) {
-    if (!seenMorNames.has(mor.name)) {
-      pushoutMorphisms.push(mor);
-      seenMorNames.add(mor.name);
-    }
-  }
-  for (const mor of theoryB.morphisms) {
-    if (!seenMorNames.has(mor.name)) {
-      pushoutMorphisms.push(mor);
-      seenMorNames.add(mor.name);
-    }
-  }
-
-  // Axioms: union with identification of base axioms
-  const pushoutAxioms = [...base.axioms];
-  const seenAxNames = new Set(baseAxNames);
-
-  for (const ax of theoryA.axioms) {
-    if (!seenAxNames.has(ax.name)) {
-      pushoutAxioms.push(ax);
-      seenAxNames.add(ax.name);
-    }
-  }
-  for (const ax of theoryB.axioms) {
-    if (!seenAxNames.has(ax.name)) {
-      pushoutAxioms.push(ax);
-      seenAxNames.add(ax.name);
-    }
-  }
-
-  // Determine doctrine: use the "highest" doctrine
-  const doctrine = higherDoctrine(theoryA.doctrine, theoryB.doctrine);
-
-  return {
-    name: `${theoryA.name}_⊔_${theoryB.name}`,
-    doctrine,
-    objects: pushoutObjects,
-    morphisms: pushoutMorphisms,
-    axioms: pushoutAxioms,
-  };
-}
-
-/**
- * A pushout cocone: the apex theory P plus the two inclusion functors
- * F_A : A → P and F_B : B → P that form the universal cocone.
- */
-export interface PushoutCocone {
-  /** The pushout theory P = A ⊔_base B */
-  pushout: TheoryJson;
-  /** Inclusion functor A → P: maps each A-object/morphism to its P counterpart */
-  inclusionA: CrossTierFunctor;
-  /** Inclusion functor B → P: maps each B-object/morphism to its P counterpart */
-  inclusionB: CrossTierFunctor;
-}
-
-/**
- * Compute the pushout cocone: apex + inclusion functors.
- *
- * The inclusions F_A and F_B are identity-on-names for objects/morphisms
- * that are shared with the base (they're identified in the pushout),
- * and identity-on-names for objects/morphisms unique to A or B
- * (they're included directly in the pushout).
- *
- * This gives us the categorical guarantee: for any theory T with
- * morphisms A → T and B → T agreeing on base, there exists a unique
- * morphism P → T (the universal property of the pushout).
- */
-export function computePushoutCocone(
-  theoryA: TheoryJson,
-  theoryB: TheoryJson,
-  base: TheoryJson,
-): PushoutCocone {
-  const pushout = computeTheoryPushout(theoryA, theoryB, base);
-  const pushoutTier = routeToExternal(pushout);
-
-  // Inclusion A → P: every object/morphism in A maps to itself in P
-  const objMapA: Record<string, string> = {};
-  for (const obj of theoryA.objects) {
-    objMapA[obj.name] = obj.name;  // identity mapping (names are preserved)
-  }
-  const morMapA: Record<string, string> = {};
-  for (const mor of theoryA.morphisms) {
-    morMapA[mor.name] = mor.name;
-  }
-
-  // Inclusion B → P: every object/morphism in B maps to itself in P
-  const objMapB: Record<string, string> = {};
-  for (const obj of theoryB.objects) {
-    objMapB[obj.name] = obj.name;
-  }
-  const morMapB: Record<string, string> = {};
-  for (const mor of theoryB.morphisms) {
-    morMapB[mor.name] = mor.name;
-  }
-
-  const inclusionA: CrossTierFunctor = {
-    name: `ι_${theoryA.name}`,
-    source: { theory: theoryA, tier: routeToExternal(theoryA) },
-    target: { theory: pushout, tier: pushoutTier },
-    objectMap: objMapA,
-    morphismMap: morMapA,
-  };
-
-  const inclusionB: CrossTierFunctor = {
-    name: `ι_${theoryB.name}`,
-    source: { theory: theoryB, tier: routeToExternal(theoryB) },
-    target: { theory: pushout, tier: pushoutTier },
-    objectMap: objMapB,
-    morphismMap: morMapB,
-  };
-
-  return { pushout, inclusionA, inclusionB };
-}
-
-/**
- * Transport a theorem (axiom) from theory A into the pushout P
- * via the inclusion functor F_A.
- *
- * Given an axiom in A, returns the corresponding axiom in P.
- * Since the inclusion is identity-on-names, this is straightforward,
- * but the function provides the categorical guarantee that the
- * transport is well-defined.
- */
-export function transportAxiom(
-  axiom: AxiomJson,
-  inclusion: CrossTierFunctor,
-): AxiomJson {
-  return {
-    ...axiom,
-    name: `${inclusion.name}_${axiom.name}`,
-    description: `[transported via ${inclusion.name}] ${axiom.description ?? axiom.name}`,
-    // For identity inclusions, lhs/rhs are unchanged.
-    // For non-trivial functors, we'd need to apply the functor to the expressions.
-    lhs: applyFunctorToExpr(axiom.lhs, inclusion),
-    rhs: applyFunctorToExpr(axiom.rhs, inclusion),
-  };
-}
-
-/** Apply a functor's mapping to an expression. */
-function applyFunctorToExpr(expr: ExprJson, functor: CrossTierFunctor): ExprJson {
-  if (typeof expr === "string") {
-    if (expr === "terminal" || expr === "unit" || expr === "initial") return expr;
-    // Check if it's an object name
-    if (functor.objectMap[expr]) return functor.objectMap[expr];
-    // Check if it's a morphism name
-    if (functor.morphismMap[expr]) return functor.morphismMap[expr];
-    return expr;
-  }
-  if ("atom" in expr) {
-    if (functor.objectMap[expr.atom]) return { atom: functor.objectMap[expr.atom] };
-    if (functor.morphismMap[expr.atom]) return { atom: functor.morphismMap[expr.atom] };
-    return expr;
-  }
-  if ("comp" in expr) return { comp: [applyFunctorToExpr(expr.comp[0], functor), applyFunctorToExpr(expr.comp[1], functor)] };
-  if ("prod" in expr) return { prod: [applyFunctorToExpr(expr.prod[0], functor), applyFunctorToExpr(expr.prod[1], functor)] };
-  if ("tensor" in expr) return { tensor: [applyFunctorToExpr(expr.tensor[0], functor), applyFunctorToExpr(expr.tensor[1], functor)] };
-  if ("coprod" in expr) return { coprod: [applyFunctorToExpr(expr.coprod[0], functor), applyFunctorToExpr(expr.coprod[1], functor)] };
-  if ("hom" in expr) return { hom: [applyFunctorToExpr(expr.hom[0], functor), applyFunctorToExpr(expr.hom[1], functor)] };
-  if ("id" in expr) return { id: applyFunctorToExpr(expr.id, functor) };
-  return expr;
-}
-
-/** Pick the "richer" doctrine when merging two theories. */
-function higherDoctrine(a: string, b: string): string {
-  const rank: Record<string, number> = {
-    "Category": 0,
-    "LawvereTheory": 1,
-    "FiniteProduct": 1,
-    "CartesianCategory": 2,
-    "MonoidalCategory": 2,
-    "CartesianClosed": 3,
-    "SymmetricMonoidal": 3,
-    "Abelian": 4,
-    "Topos": 5,
-    "ElementaryTopos": 5,
-  };
-  return (rank[a] ?? 0) >= (rank[b] ?? 0) ? a : b;
-}
-
-/**
- * Verify a theory pushout across the appropriate tier.
- *
- * Routes the pushout theory to the correct backend based on its
- * doctrine, then verifies all axioms (including newly merged ones).
- */
-export async function verifyTheoryPushout(
-  theoryA: TheoryJson,
-  theoryB: TheoryJson,
-  base: TheoryJson,
-  opts?: ExternalElaborationOptions,
-): Promise<{ pushout: TheoryJson; result: ElaborationResult | null }> {
-  const pushout = computeTheoryPushout(theoryA, theoryB, base);
-  const result = await elaborateExternal(pushout, opts);
-  return { pushout, result };
-}
-
 // ── Utilities ────────────────────────────────────────────────────────────────
 
 /** Check if a string is valid JSON. */

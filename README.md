@@ -13,18 +13,20 @@ CatLab is organized around a four-tier architecture:
 **Tier 1 — Primitives & Symmetries**
 The foundation: `Theory`, `TheoryMorphism`, `InitialTheory` (⊥), `TerminalTheory` (⊤), `Opposite`, `Mirror`.
 
-**Tier 2 — Combinators (The Colimit Engine)**
+**Tier 2 — Combinators (The Colimit/Limit Engine)**
 The algebraic operations on theories:
 - `pushout f g` — amalgamated sum T₁ ⊔_{T₀} T₂ (the fundamental combinator)
+- `theoryPullback f g` — fibered product T₁ ×_{T₃} T₂ (the dual: "diff" / "intersection")
 - `tensorTheories` — Freyd/Kronecker product for commuting structures
 - `theoryCoproduct` — disjoint union, derived as `pushout` over ⊥
+- `theoryProduct'` — product, derived as `pullback` over ⊤
 - `quotientCategory` — derived as `pushout` along an inclusion
 
 **Tier 3 — Categorical Constructors**
 Derived semantics with structural content: `FunctorCategory` (three functor-objects F/G/H, naturality squares for α and β, vertical composition, left/right unit laws), `Comma` (comma morphisms, commutativity squares), `Grothendieck` (projection functors, naturality axioms, identity morphisms, identity laws), `Limits`/`Colimits` (full universal properties: existence + uniqueness axioms, proper η-laws encoding `⟨π₁ ∘ h, π₂ ∘ h⟩`), `Slice`, `Model`, `Decategorify` (isoClasses with axiom translation, K₀ with additivity, Euler characteristic with additivity).
 
 **Tier 4 — Advanced Applications**
-Specialized constructions: `Dialectica`, `TriposToTopos`, `Realizability`, `MacNeille`, `Skolem`, `Truncate` (higher-categorical truncation), and 50+ others.
+Specialized constructions: `Dialectica`, `TriposToTopos`, `Realizability`, `MacNeille`, `Skolem`, `Truncate` (higher-categorical truncation), `TheoryFamily` (dependent theories / fibered theory families), and 50+ others.
 
 ### Theory Morphisms
 
@@ -42,6 +44,62 @@ TheoryMorphism.inclusion Monoid Group
 pushout (inclusion Monoid Group) (inclusion Monoid Ring)
 -- → a theory with both Group and Ring structure, Monoid generators identified
 ```
+
+### Pullback (Fibered Product)
+
+The dual of pushout. Where pushout merges two theories over a shared base (amalgamated sum), pullback extracts the maximal shared sub-structure:
+
+```lean
+-- Pullback: the largest theory mapping into both T₁ and T₂ compatibly over T₃
+theoryPullback (inclusion base T₁) (inclusion base T₂)
+
+-- Product as pullback over ⊤ (terminal theory)
+theoryProduct' T₁ T₂  -- = pullback (terminalMorphism T₁) (terminalMorphism T₂)
+
+-- PullbackCone: apex + projection morphisms π₁, π₂
+pullbackCone f g  -- returns { apex, leftProj : P → T₁, rightProj : P → T₂ }
+```
+
+Algorithm: pair objects where `f(x) = g(y)` in T₃, pair morphisms where images match and domains/codomains are paired, pair axioms where translated equations agree.
+
+### Dependent Theories (TheoryFamily)
+
+A `TheoryFamily` parameterizes theories over a base — instead of hardcoding hundreds of variants, you define a single family and instantiate it:
+
+```lean
+-- Extract Module as a family over Ring
+let family := extractFamily TheoryOfRings (TheoryOfModules "R") "Module"
+
+-- Instantiate with ℤ: smul becomes ℤ × M → M instead of R × M → M
+let intMod := family.instantiate "ℤ" model
+-- intMod.name = "Module(ℤ)"
+```
+
+Key types:
+- **`SyntacticModel`** — a lightweight assignment of concrete Exprs to a theory's generators
+- **`TheoryFamily`** — `{ base : Theory, fiberOf : SyntacticModel → Theory }`
+- **`extractFamily`** — given a base B and total theory T extending B, automatically separates base from fiber using domain/codomain analysis
+- **`flatten`** / **`instantiate`** — substitute a model into the fiber, producing a standalone Theory
+- **`totalTheory`** — merge base + generic fiber into one Theory
+
+### Doctrine Inference
+
+CatLab automatically infers the minimum doctrine from a theory's AST structure, so the LLM doesn't need to get doctrine labels right:
+
+```lean
+-- Bottom-up constraint collection from Expr constructors:
+--   prod/terminal → CartesianCategory
+--   tensor       → MonoidalCategory
+--   hom          → CartesianClosed
+--   coprod       → FinitelyCocomplete
+--   sigma/pi     → MartinLofTypeTheory
+
+-- Auto-upgrade: if the LLM says "Category" but uses prod/coprod,
+-- the doctrine is automatically upgraded to CartesianCategory
+let upgraded := theory.autoUpgradeDoctrine
+```
+
+The doctrine lattice (`Doctrine.join`) handles special cases like Cartesian + Monoidal = Cartesian, FinitelyComplete + FinitelyCocomplete = Abelian.
 
 ---
 
@@ -86,10 +144,12 @@ structure VerificationResult where
   status            : VerificationStatus   -- Success | Failed reason | Timeout depth
   missingSignatures : List MorphismSignature  -- morphisms required by target, absent in produced
   unmappedObjects   : List Name               -- objects the LLM hallucinated
-  axiomViolations   : List AxiomViolation     -- axioms that don't hold, with partial reductions
+  axiomViolations   : List AxiomViolation     -- axioms that don't hold, with partial reductions + rewrite traces
 ```
 
 Three traps addressed explicitly:
+
+- **Rich timeout diagnostics.** When Knuth-Bendix times out, the LLM receives partial normal forms, rewrite traces (last 10 axiom names that fired), and cycle detection (rules firing 3+ times indicate looping). This gives the LLM actionable gradient signal instead of a blind "Timeout at depth N".
 
 - **Verification is bounded, not decidable.** CatLab checks *strict presentation isomorphism* — same generator counts, matching domain/codomain shapes (position-normalized), and axioms that reduce to the same normal form under bounded term rewriting. This is not categorical equivalence: two presentations of the same mathematical structure (related by Tietze transformations) will be rejected if their generator counts or expression shapes differ. Checking full categorical equivalence is undecidable in general (it reduces to the Word Problem). `VerificationStatus.Timeout depth` reports "I tried N rewriting steps and couldn't prove this" rather than falsely reporting failure — an unavoidable consequence of the bounded Word Problem. The LLM is expected to match the target's presentation structure, not discover arbitrary equivalent presentations.
 
@@ -246,6 +306,7 @@ Every theory produced by every operator must pass all five checks. This is enfor
 | **Limits/Colimits** | Product/coproduct/pullback/pushout/equalizer/coequalizer/general limit/colimit: morphism counts, axiom counts (including uniqueness), quantifier presence, η-law encoding, domain/codomain correctness, duality | 36 | **36/36** |
 | **Coherence** | Naturality axiom presence in functor categories, monoidal coherence (pentagon/triangle/hexagon), isomorphism axioms, quantifier usage | 16 | **16/16** |
 | **Higher-categorical** | Truncation metadata, strictified flags, truncation validity, cell count reduction, doctrine preservation, isHigherCategorical classification | 27 | **27/27** |
+| **TheoryFamily** | SyntacticModel substitution, generic fiber, flatten, extractFamily (Module/Ring), totalTheory, ℤ-Module instantiation | 20 | **20/20** |
 | **Mutation testing** | 7 mutant operators (broken opposite, mirror, drop axioms/morphisms, duplicate names) all caught by existing checks | ~40 | all pass |
 
 **Total: ~5,314 assertions, 0 failures.**
@@ -461,11 +522,11 @@ Core/
   PrettyPrint.lean    — pretty-printing for theories and expressions
   Pipeline.lean       — operator pipeline execution
 
-Operators/            — 68 categorical construction operators (incl. Truncate)
+Operators/            — 70 categorical construction operators (incl. Truncate, Pullback, TheoryFamily)
 Library/              — 33 registered theory instances (+ InfinityCategory, InfinityTwoCategory)
 Repl/                 — REPL server (Protocol.lean, Server.lean)
 Tests/                — test suite (Categories A–D, Validate, Fuzz, Properties, Negative,
-                        Functorial, Mutation, Limits, Coherence, Higher, Roundtrip)
+                        Functorial, Mutation, Limits, Coherence, Higher, Roundtrip, TheoryFamily)
 
 studio/               — CatLab Studio web UI
 ts/                   — TypeScript orchestrator (LLM ↔ CAS solver)

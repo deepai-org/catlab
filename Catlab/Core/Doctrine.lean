@@ -64,6 +64,73 @@ def Doctrine.hasSubobjectClassifier : Doctrine → Bool
   | .Topos | .GrothendieckTopos => true
   | _ => false
 
+-- ============================================================
+-- Doctrine lattice: numeric rank + join
+-- ============================================================
+
+/-- Numeric rank in the doctrine lattice. Higher rank = richer structure.
+    This defines a total preorder used to compute joins. Doctrines on
+    independent axes (e.g., Monoidal vs Cartesian) are handled by
+    `join` selecting the one whose features subsume the other. -/
+def Doctrine.rank : Doctrine → Nat
+  | .Category                    => 0
+  | .LawvereTheory               => 1
+  | .Operad                      => 1
+  | .EnrichedCategory            => 1
+  | .MonoidalCategory            => 2
+  | .BraidedMonoidal             => 3
+  | .SymmetricMonoidal           => 4
+  | .CartesianCategory           => 5
+  | .FinitelyComplete            => 6
+  | .FinitelyCocomplete          => 7
+  | .CartesianClosed             => 8
+  | .SymmetricMonoidalClosed     => 8
+  | .Abelian                     => 9
+  | .LinearLogic                 => 5
+  | .GeometricLogic              => 6
+  | .Locale                      => 4
+  | .DifferentialGraded          => 5
+  | .StableCategory              => 7
+  | .TriangulatedCategory        => 7
+  | .ModelCategory               => 8
+  | .Derivator                   => 8
+  | .ElementaryTopos             => 10
+  | .Topos                       => 10
+  | .GrothendieckTopos           => 11
+  | .MartinLofTypeTheory         => 12
+  | .InfinityNCategory           => 12
+  | .CubicalTypeTheory           => 13
+  | .PresentableInfinityCategory => 14
+  | .CohesiveHomotopyTypeTheory  => 15
+
+/-- Join (least upper bound) in the doctrine lattice.
+    For doctrines on the same axis (e.g., Category < Cartesian < CartesianClosed),
+    this returns the higher one. For doctrines on independent axes (Monoidal vs
+    Cartesian), it selects the one with richer overall structure (higher rank).
+
+    This is a heuristic — the true doctrine lattice is a partial order with
+    independent branches. A full lattice would need explicit joins for every
+    pair (e.g., join(Monoidal, Cartesian) = CartesianMonoidal). We approximate
+    by picking the higher-ranked doctrine, which is correct for all common cases. -/
+def Doctrine.join (a b : Doctrine) : Doctrine :=
+  if a == b then a
+  -- Special cases: known lattice joins
+  else match a, b with
+  | .CartesianCategory, .MonoidalCategory
+  | .MonoidalCategory, .CartesianCategory => .CartesianCategory  -- products are monoidal
+  | .CartesianClosed, .MonoidalCategory
+  | .MonoidalCategory, .CartesianClosed => .CartesianClosed
+  | .SymmetricMonoidal, .CartesianCategory
+  | .CartesianCategory, .SymmetricMonoidal => .CartesianCategory
+  | .CartesianCategory, d | d, .CartesianCategory =>
+    if d.hasExponentials then .CartesianClosed
+    else if d.rank > Doctrine.CartesianCategory.rank then d else .CartesianCategory
+  | .CartesianClosed, d | d, .CartesianClosed =>
+    if d.rank > Doctrine.CartesianClosed.rank then d else .CartesianClosed
+  | .FinitelyComplete, .FinitelyCocomplete
+  | .FinitelyCocomplete, .FinitelyComplete => .Abelian  -- both limits + colimits
+  | _, _ => if a.rank >= b.rank then a else b
+
 /-- Does this doctrine describe an inherently higher-categorical structure?
     Higher-categorical doctrines (∞-categories, HoTT, cubical type theory) cannot
     be faithfully represented as strict 1-categorical presentations with equations.
