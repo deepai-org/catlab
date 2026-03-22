@@ -246,7 +246,7 @@ All Omega and Hyperion interaction is centralized in `ts/src/external-elaborator
 
 **Higher Structures (strictified presentations):** ElementaryTopos, InfinityTopos, HoTT, CohesiveHoTT, CubicalTypeTheory, InfinityCategory, InfinityTwoCategory, Multicategory, SymmetricOperad, CategoriesWithAttributes
 
-> **Caveat on higher-categorical theories.** The ∞-category, HoTT, and cubical type theory entries are *strictified 1-categorical presentations* of the syntactic structure — they encode the generators and equations of the type theory's signature, not the semantic ∞-topos or its homotopy-coherent structure. True ∞-categories require higher morphisms (homotopies, homotopies between homotopies, etc.) and homotopy-coherent limits/colimits, which cannot be faithfully represented in a strict 1-categorical AST with equations. A "pushout" computed by CatLab's colimit engine is a strict 1-categorical colimit, not a homotopy pushout. These theories are useful for reasoning about the *presentation* of type theories (e.g., which generators and axiom schemas a type theory declares) but should not be mistaken for implementations of the semantic higher-categorical structures they describe.
+> **Higher-categorical theories.** The library entries for HoTT, CohesiveHoTT, CubicalTypeTheory, and InfinityTopos are *strictified 1-categorical presentations* of the type theory's syntactic signature. However, the core AST now supports genuine HoTT constructs: `path` types (identity types), `univ n` (Russell-style universe hierarchy), dependent types (`pi`, `sigma`), path induction (`pathJ`), and Higher Inductive Types via `HITDecl` (with point and path constructors). Operators like `homotopyPushout`, `homotopyCoproduct`, and `homotopySuspension` compute homotopy colimits as HITs — not strict 1-categorical colimits. Propositional/set truncation, equivalence types (`Equiv A B`), the univalence axiom (`ua`/`idToEquiv`), and the subobject classifier Ω are defined as Theory-level macros composing these primitives.
 >
 > **Truncation support.** Higher theories carry a `truncationLevel` in their `DoctrineContext` (e.g., `some 2` for (∞,2)-Category). The `truncate n` operator explicitly reduces a higher theory to level n by keeping k-cells for k ≤ n and filtering morphisms/axioms that reference removed cells. This makes the relationship between higher and lower theories computationally explicit.
 
@@ -469,6 +469,17 @@ catlab-solve --problem interpolation --base Monoid --target Group       # round 
 catlab-solve --problem simplify --target Monoid                         # round 2 ✅
 catlab-solve --problem model-finding --target Monoid                    # round 1 ✅
 catlab-solve --problem synthesis --base Group --source M --target M     # round 1 ✅
+
+# ── HoTT / ∞-Topos ────────────────────────────────────────
+# Full command line (from ts/ directory):
+#   export $(cat .env | xargs) && node dist/index.js --problem model-finding \
+#     --target "HoTT" --rounds 3 --lean /path/to/catlab --timeout 60000
+catlab-solve --problem model-finding --target HoTT                          # round 1 ✅
+catlab-solve --problem model-finding --target InfinityTopos                  # round 1 ✅
+catlab-solve --problem model-finding --target CohesiveHoTT                  # round 2 ✅
+catlab-solve --problem model-finding --target CubicalTypeTheory              # round 2 ✅
+catlab-solve HoTT identity                                                   # round 2 ✅
+catlab-solve HoTT opposite                                                   # round 3 ✅
 
 # ── Quotient / Relaxation / Sub-object / Decomposition ─────
 catlab-solve --problem quotient --base Group --property commutative     # round 1 ✅
