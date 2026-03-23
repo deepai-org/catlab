@@ -743,11 +743,19 @@ def handleEvaluateModel (j : Json) (id : String) (rt : List (String × Theory)) 
     | .error e, _ => errorResponse id e
     | _, .error e => errorResponse id s!"invalid candidate: {e}"
     | .ok theory, .ok candidate =>
-      -- A "model" here is a theory with the same structure as the target
-      -- but with concrete interpretations. Verify it's a valid instance
-      -- by checking the candidate's axiom structure matches the theory.
-      let result := computeStructuralDiff candidate candidate theory
-      okResponse id [("result", verificationToJson result)]
+      -- Run universe/positivity/predicativity validation on the candidate
+      let validationErrors := validate candidate
+      if !validationErrors.isEmpty then
+        okResponse id [("result", Json.mkObj [
+          ("status", "invalid"),
+          ("score", Json.num 0),
+          ("reason", Json.str s!"validation failed: {validationErrors.map toString}")])]
+      else
+        -- A "model" here is a theory with the same structure as the target
+        -- but with concrete interpretations. Verify it's a valid instance
+        -- by checking the candidate's axiom structure matches the theory.
+        let result := computeStructuralDiff candidate candidate theory
+        okResponse id [("result", verificationToJson result)]
 
 -- ============================================================
 -- evaluate_subobject command

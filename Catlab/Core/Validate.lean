@@ -137,13 +137,312 @@ def checkCompositionBoundaries (t : Theory) : List ValidationError :=
     checkCompBoundaries idx s!"axiom '{ax.id.name}' LHS" ax.leftPath ++
     checkCompBoundaries idx s!"axiom '{ax.id.name}' RHS" ax.rightPath
 
+-- ============================================================
+-- Universe Consistency (Option C: Constraint Solver)
+--
+-- Assigns each object/expression a universe level variable and
+-- checks that all constraints are satisfiable. Catches:
+--   1. U : U (universe stratification)
+--   2. Impredicativity (Π(x:A).B must be at max(level(A), level(B)))
+-- ============================================================
+
+/-- Infer the universe level of an Expr. Returns `none` for expressions
+    without a meaningful universe level (morphisms, bound vars, etc.).
+    Objects get their level from the objLevel map. -/
+private partial def inferLevel (objLevel : Std.HashMap Name Nat) (e : Expr) : Option Nat :=
+  match e with
+  | .univ n       => some (n + 1)    -- U_n : U_{n+1}, so U_n lives at level n+1
+  | .terminal     => some 0
+  | .initial      => some 0
+  | .unit         => some 0
+  | .atom gid     => objLevel[gid.name]?
+  | .prod a b     =>
+    match inferLevel objLevel a, inferLevel objLevel b with
+    | some la, some lb => some (max la lb)
+    | _, _ => none
+  | .coprod a b   =>
+    match inferLevel objLevel a, inferLevel objLevel b with
+    | some la, some lb => some (max la lb)
+    | _, _ => none
+  | .sigma _ base body =>
+    match inferLevel objLevel base, inferLevel objLevel body with
+    | some lb, some lf => some (max lb lf)
+    | _, _ => none
+  | .pi _ base body =>
+    -- Predicativity: Π(x:A).B lives at max(level(A), level(B))
+    match inferLevel objLevel base, inferLevel objLevel body with
+    | some lb, some lf => some (max lb lf)
+    | _, _ => none
+  | .path A _ _   => inferLevel objLevel A    -- path type lives where A lives
+  | .hom a b      =>
+    match inferLevel objLevel a, inferLevel objLevel b with
+    | some la, some lb => some (max la lb)
+    | _, _ => none
+  | _ => none
+
+/-- Check universe consistency of a theory.
+    Strategy: assign each object the minimum universe level consistent with
+    its morphism signatures, then check for contradictions.
+
+    A morphism f : A → B where A or B is `univ n` constrains:
+      - If codomain is `univ n`: the domain type must live at level ≤ n
+        (i.e., it classifies types at level n, so inputs are types at level ≤ n)
+      - If domain is `univ n`: the codomain must live at level ≥ n+1
+        (i.e., consuming a universe-level value requires being at least that level)
+
+    A morphism f : A → A where A = `univ n` is fine (endomorphism on universe).
+    But `code : univ n → U` and `decode : U → univ n` with `decode ∘ code = id`
+    forces `U` to be isomorphic to `univ n`, meaning `U` must live at level n+1.
+    If `self : 1 → U` with `decode(self) = U`, then U ∈ U, requiring level(U) > level(U). -/
+def checkUniverseConsistency (t : Theory) : List ValidationError :=
+  -- Only check for MLTT / HoTT theories (categorical theories don't have universe issues)
+  match t.doctrine.doctrine with
+  | .MartinLofTypeTheory | .CubicalTypeTheory | .CohesiveHomotopyTypeTheory => doCheck t
+  | _ => []
+where
+  doCheck (t : Theory) : List ValidationError :=
+    -- Phase 1: Assign initial universe levels to objects
+    -- Start everything at level 0, then propagate constraints upward
+    let initLevels : Std.HashMap Name Nat :=
+      t.objects.foldl (fun acc o => acc.insert o.id.name 0) {}
+
+    -- Phase 2: Propagate constraints from morphisms (fixed-point iteration)
+    -- A morphism f : A → univ n means A classifies types at level n, so level(A) ≥ n+1
+    -- A morphism f : univ n → A means A receives universe-level data, so level(A) ≥ n+1
+    let rec propagate (levels : Std.HashMap Name Nat) (fuel : Nat) : Std.HashMap Name Nat :=
+      match fuel with
+      | 0 => levels
+      | fuel' + 1 =>
+        let newLevels := t.morphisms.foldl (fun acc m =>
+          let domLevel := inferLevel acc m.domain
+          let codLevel := inferLevel acc m.codomain
+          -- If domain is univ n, codomain object must be at level ≥ n+1
+          let acc' := match m.domain with
+            | .univ n => match m.codomain with
+              | .atom gid =>
+                let cur := acc[gid.name]?.getD 0
+                if cur < n + 1 then acc.insert gid.name (n + 1) else acc
+              | _ => acc
+            | _ => acc
+          -- If codomain is univ n, domain object must be at level ≤ n (type classification)
+          -- But if domain is also an object, it needs to live at a level where it can
+          -- be a member of univ n, meaning the TYPE of domain needs to be ≤ univ n
+          -- i.e., level(domain) ≤ n
+          let acc'' := match m.codomain with
+            | .univ n => match m.domain with
+              | .atom gid =>
+                -- This is fine: domain maps into universe, no level bump needed
+                -- But if there's a reverse morphism, constraints will propagate
+                acc'
+              | _ => acc'
+            | _ => acc'
+          -- Propagate through Σ/Π types in domain/codomain
+          let acc''' := match domLevel, codLevel with
+            | some dl, some cl =>
+              -- If an object appears in both domain and codomain at different levels,
+              -- it must be at the max
+              t.objects.foldl (fun a o =>
+                let n := o.id.name
+                let inDom := m.domain.atoms.any (· == n)
+                let inCod := m.codomain.atoms.any (· == n)
+                if inDom || inCod then
+                  let cur := a[n]?.getD 0
+                  let req := if inDom && inCod then max dl cl
+                             else if inDom then dl else cl
+                  if cur < req then a.insert n req else a
+                else a
+              ) acc''
+            | _, _ => acc''
+          acc'''
+        ) levels
+        if newLevels.toList.all (fun (k, v) => levels[k]?.getD 0 == v)
+        then newLevels  -- Fixed point reached
+        else propagate newLevels fuel'
+    let finalLevels := propagate initLevels 20
+
+    -- Phase 3: Check for contradictions
+    -- Look for self-referential universe membership
+    let errors := t.morphisms.foldl (fun acc m =>
+      -- Pattern: decode : U → univ n with code : univ n → U
+      -- If there exists `self : 1 → U` with axiom `comp(self, decode) = U`
+      -- then U ∈ U, which requires level(U) > level(U) — contradiction
+      match m.domain, m.codomain with
+      | .atom domId, .univ n =>
+        -- f : X → univ n  means X classifies types at level n
+        -- Check if there's a reverse morphism univ n → X (making X ≅ univ n)
+        let hasReverse := t.morphisms.any fun m' =>
+          match m'.domain, m'.codomain with
+          | .univ n', .atom codId => n' == n && codId.name == domId.name
+          | _, _ => false
+        if hasReverse then
+          let objLevel := finalLevels[domId.name]?.getD 0
+          -- X ≅ univ n means X must live at level n+1
+          -- Check if any morphism puts X inside univ n (via an axiom like decode(self) = X)
+          let hasSelfRef := t.axioms.any fun ax =>
+            -- Check if any axiom equates something to the atom X
+            -- where the LHS involves composing through decode
+            let mentionsObj := ax.rightPath.atoms.any (· == domId.name) ||
+                              ax.leftPath.atoms.any (· == domId.name)
+            let mentionsDecode := ax.rightPath.atoms.any (· == m.id.name) ||
+                                 ax.leftPath.atoms.any (· == m.id.name)
+            mentionsObj && mentionsDecode
+          if hasSelfRef then
+            -- U ≅ univ n means U must live at level n+1
+            -- But self-referential code means U ∈ univ n, requiring level(U) ≤ n
+            -- This is always a contradiction: n+1 ≤ n is impossible
+            ValidationError.doctrineViolation
+              s!"Universe inconsistency: '{domId.name}' is isomorphic to univ {n} (level {n+1}) but contains a self-referential code. This violates universe stratification (Girard's paradox)." :: acc
+          else acc
+        else acc
+      | _, _ => acc
+    ) ([] : List ValidationError)
+    errors
+
+-- ============================================================
+-- Strict Positivity for HITDecls
+--
+-- A HIT constructor is strictly positive if the type being defined
+-- does NOT appear to the left of any arrow (→/Π) in the constructor's
+-- body. Violations allow encoding Y-combinators → inconsistency.
+--
+-- Example violation: `bad_make : (Bad → Nat) → Bad`
+--   Here `Bad` appears left of `→` in its own constructor.
+-- ============================================================
+
+/-- Check if a name appears in the "negative" (left-of-arrow) position in an Expr.
+    Negative positions are:
+      - Domain of a `pi` / function type
+      - Domain of a `hom`
+    Positive positions are everywhere else. -/
+private partial def appearsNegative (target : Name) : Expr → Bool
+  | .pi _ base body =>
+    -- base is in negative position; body is in positive position
+    -- (but body could contain more pi's that flip again)
+    appearsAnywhere target base || appearsNegative target body
+  | .hom dom cod =>
+    appearsAnywhere target dom || appearsNegative target cod
+  | .sigma _ base body =>
+    appearsNegative target base || appearsNegative target body
+  | .prod a b =>
+    appearsNegative target a || appearsNegative target b
+  | .coprod a b =>
+    appearsNegative target a || appearsNegative target b
+  | .path A x y =>
+    appearsNegative target A || appearsNegative target x || appearsNegative target y
+  | .comp f g => appearsNegative target f || appearsNegative target g
+  | .app f x => appearsNegative target f || appearsNegative target x
+  | .lam _ dom body => appearsAnywhere target dom || appearsNegative target body
+  | _ => false
+where
+  /-- Check if a name appears anywhere in an expression. -/
+  appearsAnywhere (target : Name) : Expr → Bool
+    | .atom gid => gid.name == target
+    | .comp f g => appearsAnywhere target f || appearsAnywhere target g
+    | .prod a b | .coprod a b | .tensor a b | .hom a b =>
+      appearsAnywhere target a || appearsAnywhere target b
+    | .id e => appearsAnywhere target e
+    | .sigma _ b f | .pi _ b f | .lam _ b f =>
+      appearsAnywhere target b || appearsAnywhere target f
+    | .path A x y =>
+      appearsAnywhere target A || appearsAnywhere target x || appearsAnywhere target y
+    | .refl x => appearsAnywhere target x
+    | .app f x => appearsAnywhere target f || appearsAnywhere target x
+    | .fiber m p => appearsAnywhere target m || appearsAnywhere target p
+    | .proj _ s | .inj _ s => appearsAnywhere target s
+    | .limit d | .colimit d => appearsAnywhere target d
+    | .natComponent n x => appearsAnywhere target n || appearsAnywhere target x
+    | .pathJ m r t p =>
+      appearsAnywhere target m || appearsAnywhere target r ||
+      appearsAnywhere target t || appearsAnywhere target p
+    | .hcomp s b | .fill s b | .coe s b =>
+      appearsAnywhere target s || appearsAnywhere target b
+    | _ => false
+
+/-- Check strict positivity of all HIT declarations in a theory.
+    For each HITDecl, verify that the HIT's own name does not appear
+    in a negative (left-of-arrow) position in any of its constructors. -/
+def checkStrictPositivity (t : Theory) : List ValidationError :=
+  t.hitDecls.flatMap fun hit =>
+    hit.constructors.filterMap fun ctor =>
+      if appearsNegative hit.name ctor.body then
+        some (ValidationError.doctrineViolation
+          s!"Strict positivity violation in HIT '{hit.name}': constructor '{ctor.name}' has '{hit.name}' in a negative position (left of →). This allows encoding paradoxes.")
+      else none
+
+-- ============================================================
+-- Predicativity check for Π-types
+--
+-- In predicative MLTT, Π(x:A).B lives at max(level(A), level(B)).
+-- If a theory uses Π(x : univ n). B where B : univ m with m ≤ n,
+-- the Π-type must be at level n, not m. This prevents impredicative
+-- encodings that collapse the universe hierarchy.
+-- ============================================================
+
+/-- Walk all expressions in a theory checking that Π-types don't
+    violate predicativity. Reports violations where a Π-type with
+    domain at level n is used as if it lived at level < n. -/
+def checkPredicativity (t : Theory) : List ValidationError :=
+  -- Only relevant for MLTT
+  match t.doctrine.doctrine with
+  | .MartinLofTypeTheory | .CubicalTypeTheory | .CohesiveHomotopyTypeTheory =>
+    let objLevels : Std.HashMap Name Nat :=
+      t.objects.foldl (fun acc o => acc.insert o.id.name 0) {}
+    -- Check morphism types for predicativity violations
+    t.morphisms.flatMap fun m =>
+      checkExprPredicativity objLevels s!"morphism '{m.id.name}' domain" m.domain ++
+      checkExprPredicativity objLevels s!"morphism '{m.id.name}' codomain" m.codomain
+  | _ => []
+where
+  /-- Check a single expression for predicativity violations. -/
+  checkExprPredicativity (objLevels : Std.HashMap Name Nat) (ctx : String) : Expr → List ValidationError
+    | .pi _ base body =>
+      -- Check if domain is a universe
+      let violations := match base with
+        | .univ n =>
+          -- The Π-type Π(x : U_n). B must live at level ≥ n+1
+          -- Check if body is claimed to be at a lower level
+          match inferLevel objLevels body with
+          | some bodyLevel =>
+            if bodyLevel < n + 1 then
+              [ValidationError.doctrineViolation
+                s!"Predicativity violation in {ctx}: Π(x : univ {n}). B where B is at level {bodyLevel}, but Π-type must be at level ≥ {n + 1}"]
+            else []
+          | none => []
+        | _ => []
+      violations ++
+        checkExprPredicativity objLevels ctx base ++
+        checkExprPredicativity objLevels ctx body
+    | .sigma _ base body =>
+      checkExprPredicativity objLevels ctx base ++
+      checkExprPredicativity objLevels ctx body
+    | .prod a b | .coprod a b | .hom a b | .tensor a b =>
+      checkExprPredicativity objLevels ctx a ++
+      checkExprPredicativity objLevels ctx b
+    | .path A x y =>
+      checkExprPredicativity objLevels ctx A ++
+      checkExprPredicativity objLevels ctx x ++
+      checkExprPredicativity objLevels ctx y
+    | .comp f g =>
+      checkExprPredicativity objLevels ctx f ++
+      checkExprPredicativity objLevels ctx g
+    | .app f x =>
+      checkExprPredicativity objLevels ctx f ++
+      checkExprPredicativity objLevels ctx x
+    | .lam _ d b =>
+      checkExprPredicativity objLevels ctx d ++
+      checkExprPredicativity objLevels ctx b
+    | _ => []
+
 /-- Run all validation checks on a theory -/
 def validate (t : Theory) : List ValidationError :=
   checkDuplicates t ++
   checkMorphismReferences t ++
   checkAxiomReferences t ++
   checkDoctrine t ++
-  checkCompositionBoundaries t
+  checkCompositionBoundaries t ++
+  checkUniverseConsistency t ++
+  checkStrictPositivity t ++
+  checkPredicativity t
 
 /-- Is a theory well-formed? -/
 def Theory.isValid (t : Theory) : Bool :=

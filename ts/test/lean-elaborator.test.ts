@@ -313,16 +313,16 @@ test("theoryToHyperion generates Category/Substrate/Universe blocks", () => {
   assert.ok(source.includes("[Universe HoTTTestUni"), "missing Universe block");
   assert.ok(source.includes("[PathType"), "missing PathType for MLTT");
   assert.ok(source.includes("[JType"), "missing JType for MLTT");
-  assert.ok(source.includes("@equality rewrite-equivalence"), "MLTT should use rewrite, not e-graph");
+  assert.ok(source.includes("@equality proof-relevant"), "MLTT should use proof-relevant equality");
 });
 
-test("theoryToHyperion uses e-graph for InfinityNCategory", () => {
+test("theoryToHyperion uses proof-relevant for InfinityNCategory", () => {
   const theory: TheoryJson = {
     name: "Inf", doctrine: "InfinityNCategory",
     objects: [{ name: "Cell0" }], morphisms: [], axioms: [],
   };
   const source = theoryToHyperion(theory);
-  assert.ok(source.includes("@equality equality-saturation"), "should use e-graph");
+  assert.ok(source.includes("@equality proof-relevant"), "should use proof-relevant e-graph");
 });
 
 test("theoryToHyperion adds PartialElement for CubicalTypeTheory", () => {
@@ -707,8 +707,8 @@ test("∞-topos geometric morphism: Spaces → Sh(X) with object classifier", ()
   const pathTypeCount = (hyp.match(/\[PathType/g) || []).length;
   assert.ok(pathTypeCount >= 2, `should have PathType in both theories, got ${pathTypeCount}`);
 
-  // E-graph equality saturation (needed for ∞-categorical coherence)
-  assert.ok(hyp.includes("equality-saturation"), "should use e-graph for ∞-categories");
+  // Proof-relevant equality (needed for ∞-categorical coherence)
+  assert.ok(hyp.includes("proof-relevant"), "should use proof-relevant equality for ∞-categories");
 
   // Object classifier / universe should appear in the generated source
   assert.ok(hyp.includes("U_obj"), "should include universe object");

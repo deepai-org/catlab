@@ -608,13 +608,25 @@ catlab-solve --problem model-finding --target ClassifyingSpaceBG \
   --target-file theories/classifying-space.json                                  # round 1 ✅
 
 # Boss 16: Girard Paradox — model "a type containing all types, including itself"
-# The LLM produces U : U (structurally valid). The CAS accepts the structural match,
-# exposing that universe consistency requires deep (Lean kernel) verification to catch.
+# The LLM produces U : U. The universe consistency checker now rejects this
+# with "Universe inconsistency: U is isomorphic to univ 0 but contains a self-referential code."
 catlab-solve --problem model-finding --target TypeOfAllTypes \
-  --target-file theories/type-of-all-types.json                                  # round 1 ✅ ⚠️
+  --target-file theories/type-of-all-types.json                                  # round 1 ✅ → ❌ (rejected by validator)
 ```
 
-> **Note on Boss 16:** The structural verifier accepts `U : U` because it only checks generator shapes, not universe stratification. This is by design — catching Girard's paradox requires the `--deep` flag (Lean kernel type-checking). Boss 16 demonstrates the boundary between fast structural verification and full semantic soundness.
+> **Note on Boss 16:** The universe consistency checker (`Catlab/Core/Validate.lean`) now catches Girard's paradox. When the LLM produces `U : U` (a type isomorphic to `univ 0` that contains a code for itself), the validator detects the self-referential universe membership and rejects it. This runs as part of `evaluate_model` — no `--deep` flag needed.
+
+### Universe Consistency Checking
+
+The validator (`Catlab/Core/Validate.lean`) enforces three soundness checks for HoTT theories (MLTT, Cubical, Cohesive):
+
+1. **Universe stratification** — `univ n` lives at level `n+1`. If an object `U ≅ univ n` contains a self-referential code (`self : 1 → U` with `decode(self) = U`), this requires `level(U) > level(U)`, which is a contradiction (Girard's paradox).
+
+2. **Strict positivity for HITs** — A HIT constructor must not reference the type being defined in a negative (left-of-arrow) position. For example, `bad : (Bad → Nat) → Bad` allows encoding a Y-combinator and deriving `⊥`.
+
+3. **Predicativity for Π-types** — `Π(x : univ n). B` must live at level `≥ n+1`, not below. Violations allow impredicative encodings of large types in small universes.
+
+These checks are integrated into `evaluate_model` and run automatically on all MLTT/Cubical/Cohesive candidates before structural matching.
 
 ### User-Defined Theories
 
