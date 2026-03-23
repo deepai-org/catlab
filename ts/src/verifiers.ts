@@ -14,8 +14,41 @@ import type {
   VerificationResult,
 } from "./types";
 import { validateTheoryPayload, formatStructuralDiff } from "./llm";
+import { verifyEquivalenceViaHyperion, HYPERION_DOCTRINES } from "./external-elaborators";
 
-// ── Helper ───────────────────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * If a verification result has axiom timeouts and the doctrine is HoTT/higher-categorical,
+ * attempt re-verification via Hyperion's e-graph equality saturation.
+ * Returns the Hyperion result on success, or the original result if Hyperion is unavailable
+ * or the doctrine doesn't qualify.
+ */
+async function maybeHyperionFallback(
+  result: VerificationResult,
+  res: { produced?: TheoryJson; target?: TheoryJson; produced_doctrine?: string },
+): Promise<VerificationResult> {
+  if (result.verified) return result;
+
+  // Check for timeout violations
+  const hasTimeout = result.axiomViolations?.some(
+    v => typeof v.status === "string" && v.status.includes("Timeout"),
+  );
+  if (!hasTimeout) return result;
+
+  // Check doctrine is Hyperion-routable
+  // Lean may return fully-qualified names like "CatLab.Doctrine.MartinLofTypeTheory"
+  const doctrine = res.produced_doctrine ?? res.produced?.doctrine;
+  if (!doctrine) return result;
+  const shortDoctrine = doctrine.replace(/^.*\./, ""); // strip namespace prefix
+  if (!HYPERION_DOCTRINES.has(doctrine) && !HYPERION_DOCTRINES.has(shortDoctrine)) return result;
+
+  // Need both produced and target theories
+  if (!res.produced || !res.target) return result;
+
+  const hyperionResult = await verifyEquivalenceViaHyperion(res.produced, res.target);
+  return hyperionResult;
+}
 
 async function fetchTheorySummary(
   catlab: CatlabClient,
@@ -71,7 +104,7 @@ export class InverseVerifier implements Verifier {
       timeoutMs,
     );
     if (res.status === "error") throw new Error(`Lean error: ${res.message}`);
-    return res.result!;
+    return maybeHyperionFallback(res.result!, res);
   }
 }
 
@@ -254,7 +287,8 @@ export class MultiObjectiveVerifier implements Verifier {
           timeoutMs,
         );
         if (res.status === "error") throw new Error(`Lean error: ${res.message}`);
-        return { label: `${obj.forwardOp}(X) ≅ ${obj.target}`, result: res.result! };
+        const result = await maybeHyperionFallback(res.result!, res);
+        return { label: `${obj.forwardOp}(X) ≅ ${obj.target}`, result };
       }),
     );
 
@@ -332,7 +366,7 @@ export class FixedPointVerifier implements Verifier {
       },
       timeoutMs,
     );
-    return res.result!;
+    return maybeHyperionFallback(res.result!, res);
   }
 }
 

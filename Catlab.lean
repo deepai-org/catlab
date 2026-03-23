@@ -128,3 +128,4 @@ import Catlab.Tests.Test_HomotopyPushout
 import Catlab.Operators.PropTrunc
 import Catlab.Library.Univalence
 import Catlab.Tests.Test_InfinityTopos
+import Catlab.Library.Sphere

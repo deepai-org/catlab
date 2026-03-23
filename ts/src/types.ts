@@ -27,6 +27,9 @@ export type ExprJson =
   | { bvar: number }
   | { fvar: number }
   | { lam: { name: string; domain: ExprJson; body: ExprJson } }
+  | { app: [ExprJson, ExprJson] }
+  | { pi: { name: string; base: ExprJson; body: ExprJson } }
+  | { sigma: { name: string; base: ExprJson; body: ExprJson } }
   | { univ: number };
 
 // ── Theory JSON ───────────────────────────────────────────────────────────────
@@ -285,6 +288,10 @@ export interface CatlabResponseOk {
   extends_base?: boolean;
   missing_from_theory?: string[];
   new_morphisms?: number;
+  // Hyperion fallback: produced/target theories returned on axiom timeout
+  produced?: TheoryJson;
+  target?: TheoryJson;
+  produced_doctrine?: string;
   // Theory morphism fields (from compute_pushout_cocone, compute_morphism)
   inclusionA?: TheoryMorphismJson;
   inclusionB?: TheoryMorphismJson;

@@ -190,7 +190,101 @@ partial def exprFromJson (j : Json) : Except String Expr :=
           match j.getObjVal? "univ" with
           | .ok (.num n) => .ok (.univ n.mantissa.toNat)
           | .ok _        => .error "'univ' value must be a number"
-          | .error _     => .error s!"unrecognized Expr tag in: {j.compress}"
+          | .error _     =>
+          -- Try "bvar"
+          match j.getObjVal? "bvar" with
+          | .ok (.num n) => .ok (.bvar n.mantissa.toNat)
+          | .ok _        => .error "'bvar' value must be a number"
+          | .error _     =>
+          -- Try "fvar"
+          match j.getObjVal? "fvar" with
+          | .ok (.num n) => .ok (.fvar n.mantissa.toNat)
+          | .ok _        => .error "'fvar' value must be a number"
+          | .error _     =>
+          -- Try "refl"
+          match j.getObjVal? "refl" with
+          | .ok inner => (exprFromJson inner).map .refl
+          | .error _  =>
+          -- Try "path" (3-element array: [A, x, y])
+          match j.getObjVal? "path" with
+          | .ok (.arr args) =>
+            if h : args.size = 3 then do
+              let a ← exprFromJson args[0]
+              let x ← exprFromJson args[1]
+              let y ← exprFromJson args[2]
+              .ok (.path a x y)
+            else .error "'path' requires exactly 3 elements"
+          | .ok _  => .error "'path' must be an array"
+          | .error _ =>
+          -- Try "pathJ" (4-element array)
+          match j.getObjVal? "pathJ" with
+          | .ok (.arr args) =>
+            if h : args.size = 4 then do
+              let m ← exprFromJson args[0]
+              let r ← exprFromJson args[1]
+              let t ← exprFromJson args[2]
+              let p ← exprFromJson args[3]
+              .ok (.pathJ m r t p)
+            else .error "'pathJ' requires exactly 4 elements"
+          | .ok _  => .error "'pathJ' must be an array"
+          | .error _ =>
+          -- Try "coe" (2-element array)
+          match j.getObjVal? "coe" with
+          | .ok (.arr args) => parseBinary2 args "coe" .coe exprFromJson
+          | .ok _  => .error "'coe' must be an array"
+          | .error _ =>
+          -- Try "hcomp" (2-element array)
+          match j.getObjVal? "hcomp" with
+          | .ok (.arr args) => parseBinary2 args "hcomp" .hcomp exprFromJson
+          | .ok _  => .error "'hcomp' must be an array"
+          | .error _ =>
+          -- Try "fill" (2-element array)
+          match j.getObjVal? "fill" with
+          | .ok (.arr args) => parseBinary2 args "fill" .fill exprFromJson
+          | .ok _  => .error "'fill' must be an array"
+          | .error _ =>
+          -- Try "app" (2-element array: [f, arg])
+          match j.getObjVal? "app" with
+          | .ok (.arr args) => parseBinary2 args "app" .app exprFromJson
+          | .ok _  => .error "'app' must be an array"
+          | .error _ =>
+          -- Try "lam" (object with name, domain, body)
+          match j.getObjVal? "lam" with
+          | .ok lamObj => do
+            let name ← getStr lamObj "name"
+            let domJ ← match lamObj.getObjVal? "domain" with
+              | .ok d => .ok d | .error _ => .error "'lam' missing 'domain'"
+            let bodyJ ← match lamObj.getObjVal? "body" with
+              | .ok b => .ok b | .error _ => .error "'lam' missing 'body'"
+            let dom ← exprFromJson domJ
+            let body ← exprFromJson bodyJ
+            .ok (.lam name dom body)
+          | .error _ =>
+          -- Try "pi" (object with name, base, body)
+          match j.getObjVal? "pi" with
+          | .ok piObj => do
+            let name ← getStr piObj "name"
+            let baseJ ← match piObj.getObjVal? "base" with
+              | .ok b => .ok b | .error _ => .error "'pi' missing 'base'"
+            let bodyJ ← match piObj.getObjVal? "body" with
+              | .ok b => .ok b | .error _ => .error "'pi' missing 'body'"
+            let base ← exprFromJson baseJ
+            let body ← exprFromJson bodyJ
+            .ok (.pi name base body)
+          | .error _ =>
+          -- Try "sigma" (object with name, base, body)
+          match j.getObjVal? "sigma" with
+          | .ok sigObj => do
+            let name ← getStr sigObj "name"
+            let baseJ ← match sigObj.getObjVal? "base" with
+              | .ok b => .ok b | .error _ => .error "'sigma' missing 'base'"
+            let bodyJ ← match sigObj.getObjVal? "body" with
+              | .ok b => .ok b | .error _ => .error "'sigma' missing 'body'"
+            let base ← exprFromJson baseJ
+            let body ← exprFromJson bodyJ
+            .ok (.sigma name base body)
+          | .error _ =>
+          .error s!"unrecognized Expr tag in: {j.compress}"
   | other => .error s!"expected string or object Expr, got: {other.compress}"
 
 -- ============================================================
@@ -278,6 +372,9 @@ partial def exprToJson : Expr → Json
   | .bvar i         => Json.mkObj [("bvar", .num ⟨Int.ofNat i, 0⟩)]
   | .fvar uid       => Json.mkObj [("fvar", .num ⟨Int.ofNat uid, 0⟩)]
   | .lam v dom body => Json.mkObj [("lam", Json.mkObj [("name", .str v), ("domain", exprToJson dom), ("body", exprToJson body)])]
+  | .app f x   => Json.mkObj [("app", .arr #[exprToJson f, exprToJson x])]
+  | .pi v base fam => Json.mkObj [("pi", Json.mkObj [("name", .str v), ("base", exprToJson base), ("body", exprToJson fam)])]
+  | .sigma v base fam => Json.mkObj [("sigma", Json.mkObj [("name", .str v), ("base", exprToJson base), ("body", exprToJson fam)])]
   | .univ n     => Json.mkObj [("univ", .num ⟨Int.ofNat n, 0⟩)]
   | .unit       => .str "unit"
   | .terminal   => .str "terminal"

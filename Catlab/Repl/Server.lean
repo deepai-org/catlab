@@ -127,6 +127,9 @@ import Catlab.Library.Locale
 import Catlab.Library.HopfAlgebra
 import Catlab.Library.LieAlgebra
 import Catlab.Library.DifferentialGradedAlgebra
+import Catlab.Library.Sphere
+import Catlab.Library.Univalence
+import Catlab.Operators.PropTrunc
 import Catlab.Repl.Protocol
 
 namespace CatLab.Repl
@@ -171,7 +174,12 @@ def theoryRegistry : List (String × Theory) :=
   , ("Locale",                   TheoryOfLocale)
   , ("HopfAlgebra",              TheoryOfHopfAlgebra)
   , ("LieAlgebra",               TheoryOfLieAlgebra)
-  , ("DGA",                      TheoryOfDifferentialGradedAlgebra) ]
+  , ("DGA",                      TheoryOfDifferentialGradedAlgebra)
+  , ("S0",                       TheoryOfS0)
+  , ("S1",                       TheoryOfS1)
+  , ("S2",                       TheoryOfS2)
+  , ("Univalence",               TheoryOfUnivalence 0)
+  , ("SubobjectClassifier",      TheoryOfSubobjectClassifier) ]
 
 def lookupTheory (name : String) : Except String Theory :=
   match theoryRegistry.find? (fun (n, _) => n == name) with
@@ -253,7 +261,17 @@ def applyForwardOp (op : String) (t : Theory) : Except String Theory :=
   | "factorization"                     => .ok (pathCategory t)
   | "operad_envelope"                   => .ok (operadicEnvelope t)
   | "limits"                            => .ok (regCompletion t)
-  | s => .error s!"Unknown forward_op '{s}'. Use one of: opposite, mirror, core, identity, decategorify_iso, decategorify_K0, decategorify_chi, arrow, arrow_category, twisted_arrow, slice, karoubi, morita, macneille, reg_completion, ex_completion, ind_completion, pro_completion, presheaf, yoneda, family, functor_category, scone, freyd, syntactic, lawvere, free, chain_complex, homotopy, derived, stabilize, center, drinfeld_center, booleanize, span, cospan, nerve, realize, isbell_spec, isbell_cospec, isbell, product, coproduct, matrix, int, internal_cat, path, factorization, operad_envelope, limits"
+  -- HoTT operators
+  | "homotopy_suspension"              =>
+    match homotopySuspension t with
+    | some r => .ok r
+    | none   => .error "homotopySuspension failed"
+  | "homotopy_coproduct"               =>
+    match homotopyCoproduct t t with
+    | some r => .ok r
+    | none   => .error "homotopyCoproduct failed"
+  | "prop_trunc"                        => .ok (propTruncTheory t)
+  | s => .error s!"Unknown forward_op '{s}'. Use one of: opposite, mirror, core, identity, decategorify_iso, decategorify_K0, decategorify_chi, arrow, arrow_category, twisted_arrow, slice, karoubi, morita, macneille, reg_completion, ex_completion, ind_completion, pro_completion, presheaf, yoneda, family, functor_category, scone, freyd, syntactic, lawvere, free, chain_complex, homotopy, derived, stabilize, center, drinfeld_center, booleanize, span, cospan, nerve, realize, isbell_spec, isbell_cospec, isbell, product, coproduct, matrix, int, internal_cat, path, factorization, operad_envelope, limits, homotopy_suspension, homotopy_coproduct, prop_trunc"
 
 /-- Does this operator reverse composition order (and is an involution)?
     Such operators benefit from contravariant verification: instead of diffing
@@ -454,7 +472,21 @@ def handleEvaluateInverse (j : Json) (id : String) : Json :=
     | .ok target, .ok candidate =>
       match operatorAwareDiff fwdOp candidate target with
       | .error e => errorResponse id e
-      | .ok result => okResponse id [("result", verificationToJson result)]
+      | .ok result =>
+        -- If timeout on MLTT/HIT theory, include produced theory for TS-side Hyperion re-verification
+        let hasTimeout := result.axiomViolations.any fun v =>
+          match v.status with | .Timeout _ => true | _ => false
+        if hasTimeout then
+          match applyForwardOp fwdOp candidate with
+          | .ok p =>
+            okResponse id [("result", verificationToJson result),
+                           ("produced", theoryToJson p),
+                           ("target", theoryToJson target),
+                           ("produced_doctrine", .str (toString (repr p.doctrine.doctrine)))]
+          | .error _ =>
+            okResponse id [("result", verificationToJson result)]
+        else
+          okResponse id [("result", verificationToJson result)]
 
 -- ============================================================
 -- solve_inverse command
