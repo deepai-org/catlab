@@ -515,6 +515,91 @@ catlab-solve list  # list all 33 available theories
 
 Output goes to stderr (progress logs) and stdout (final JSON result).
 
+### Final Boss Tests (HoTT / Higher-Categorical)
+
+These test the full three-tier verification pipeline including the Hyperion e-graph backend for HIT (Higher Inductive Type) theories where bounded KnuthBendix rewriting times out.
+
+```bash
+# Boss 1: The Topological Inverse — find X such that Σ(X) ≅ S¹
+# Answer: X = S⁰. Hyperion e-graph verifies the HIT structural equivalence.
+catlab-solve --problem inverse --target S1 --op homotopy_suspension          # round 1 ✅
+
+# Boss 2: The Logic Quotient — quotient HoTT to satisfy isProp
+# The LLM must realize "quotienting into a proposition" means propositional truncation.
+catlab-solve --problem quotient --base HoTT --property isProp                # round 1 ✅
+
+# Boss 3: Univalence Catalyst — synthesize a morphism Equiv(A,B) → Path(U₀,A,B)
+# Tests understanding of universe levels and the univalence axiom (ua).
+catlab-solve --problem synthesis --base Univalence \
+  --source 'Equiv A B' --target 'path (univ 0) A B'                         # round 1 ✅
+
+# Boss 4: E-Graph Coherence Stress Test — fixed-point of S¹ under homotopy coproduct
+# A stress test: S¹ ⊔ₕ S¹ (figure-eight) ≠ S¹. Tests graceful failure/creative solutions.
+catlab-solve --problem fixed-point --target S1 --op homotopy_coproduct       # round 1 ✅
+```
+
+### Secret Boss Tests (Advanced HoTT)
+
+These test deeper mathematical reasoning: duality, higher-dimensional paths, contractibility, and the Eckmann-Hilton argument.
+
+```bash
+# Boss 5: The Homotopy Pullback (Dual Trap) — model the fiber product Σ(a:A).Σ(b:B).path(C,f(a),g(b))
+# Tests that the LLM does NOT reach for HITs when limits (Σ + path types) suffice.
+catlab-solve --problem model-finding --target HomotopyPullback                   # round 1 ✅
+
+# Boss 6: Set Truncation — quotient a type to satisfy isSet (0-truncation)
+# The LLM must output a 2-dimensional path constructor: squash on paths, not points.
+catlab-solve --problem quotient --base TypeA --property isSet                    # round 3 ✅
+
+# Boss 7: Based Path Space Contractibility — simplify Σ(x:A).path(A,a,x) to Unit
+# The LLM must recognize the "based path space is contractible" theorem.
+catlab-solve --problem simplify --target BasedPathSpace                          # round 1 ✅
+
+# Boss 8: Eckmann-Hilton — extend Ω²(X,x) with commutative composition
+# The LLM sets up 2-loops; the CAS verifies the interchange law.
+catlab-solve --problem extension --base LoopSpaceSquared \
+  --property "commutative composition"                                           # round 2 ✅
+```
+
+### Ascension Boss Tests (Topology & Dependent Types)
+
+These test cross-domain reasoning (algebra ↔ topology), 2-dimensional HIT geometry, universal properties of mapping spaces, and dependent-type manipulation.
+
+```bash
+# Boss 9: The Torus T² — synthesize a 2-dimensional HIT with surface constructor
+# The LLM must produce base, loop1, loop2, and a 2-cell surf : loop1·loop2 = loop2·loop1.
+catlab-solve --problem model-finding --target Torus \
+  --target-file theories/torus.json                                              # round 1 ✅
+
+# Boss 10: The Fundamental Group — find X such that Ω(X) ≅ ℤ
+# The space whose loop space is the integers is the circle S¹. Classic π₁(S¹) ≅ ℤ.
+catlab-solve --problem inverse --target Integers \
+  --target-file theories/integers.json --op loop_space                           # round 1 ✅
+
+# Boss 11: Universal Property of S¹ — simplify (S¹ → X) to the free loop space
+# The LLM should reduce Map(S¹, X) to Σ(x:X).path(X,x,x).
+catlab-solve --problem simplify --target FunctionSpaceS1 \
+  --target-file theories/function-space-s1.json                                  # round 1 ✅
+
+# Boss 12: Function Extensionality from Univalence — extend Univalence with FunExt
+# The LLM must correctly encode happly with dependent types (Π, path, app, bvar).
+catlab-solve --problem extension --base Univalence --property funext             # round 1 ✅
+```
+
+### User-Defined Theories
+
+You can define custom theories from JSON files without modifying the Lean source:
+
+```bash
+# Register a theory from a file and use it as a target
+catlab-solve --problem model-finding --target MyTheory --target-file my_theory.json
+
+# Also available: --base-file and --source-file
+catlab-solve --problem extension --base MyBase --base-file base.json --property "has_inverses"
+```
+
+The Lean REPL supports a `define_theory` command that registers theories at runtime, making them available to all subsequent commands in the same session.
+
 ---
 
 ## Structure

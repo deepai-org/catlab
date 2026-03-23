@@ -206,6 +206,17 @@ When working in doctrine \`MartinLofTypeTheory\`, you have access to the full Ho
 
 **Dependent types:** Use \`pi\` for dependent function types and \`sigma\` for dependent pair types. Bodies use de Bruijn indices (\`{"bvar": 0}\` = most recently bound variable).
 
+**Example: morphism with dependent domain/codomain (function extensionality):**
+\`\`\`json
+{
+  "name": "happly",
+  "domain": {"path": [{"pi": ["_", "A", "B"]}, {"atom": "f"}, {"atom": "g"}]},
+  "codomain": {"pi": ["x", "A", {"path": ["B", {"app": [{"atom": "f"}, {"bvar": 0}]}, {"app": [{"atom": "g"}, {"bvar": 0}]}]}]},
+  "description": "happly : (f =_{A→B} g) → Π(x:A). f(x) =_B g(x)"
+}
+\`\`\`
+Note: \`morphisms\` MUST be a JSON array of objects, never a string. Each morphism has \`name\`, \`domain\`, \`codomain\` (as Expr JSON), and optional \`description\`.
+
 **Higher Inductive Types (HITs):** For colimits, truncations, and quotients, use the \`hitDecls\` field in your theory:
 
 \`\`\`json

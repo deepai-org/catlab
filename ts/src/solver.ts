@@ -48,9 +48,16 @@ function classifyLLMError(err: unknown): ErrorKind {
 
 function classifyLeanError(err: unknown): ErrorKind {
   if (err instanceof Error) {
-    if (err.message.includes("not found")) return "FATAL";
-    if (err.message.includes("timed out"))  return "RETRYABLE";
-    if (err.message.includes("exited"))     return "RETRYABLE";
+    const m = err.message;
+    // Configuration / setup errors that no retry will fix
+    if (m.includes("not found"))    return "FATAL";
+    if (m.includes("Unknown"))      return "FATAL";
+    if (m.includes("not supported")) return "FATAL";
+    if (m.includes("Use one of"))   return "FATAL";
+    if (m.includes("Use 'list_"))   return "FATAL";
+    // Transient errors worth retrying
+    if (m.includes("timed out"))    return "RETRYABLE";
+    if (m.includes("exited"))       return "RETRYABLE";
   }
   return "RETRYABLE";
 }
@@ -102,6 +109,10 @@ export class GenericSolver {
     const emit = (ev: Omit<SolverProgressEvent, "maxRounds">) =>
       options.onProgress?.({ ...ev, maxRounds } as SolverProgressEvent);
 
+    // Safety net: absolute cap on total LLM API calls to prevent runaway costs
+    const maxTotalLLMCalls = maxRounds * (maxLLMRetries + 1) + 5; // generous but bounded
+    let totalLLMCalls = 0;
+
     // ── Preflight: get problem spec from verifier ───────────────────────
     console.error(`[solver:INIT] Running verifier preflight...`);
     const spec = await this.verifier.preflight(this.catlab, timeoutMs);
@@ -144,7 +155,17 @@ export class GenericSolver {
         let generatedPayload: unknown | undefined;
 
         while (llmAttempt <= maxLLMRetries) {
+          // Safety net: abort if we've made too many LLM calls total
+          if (totalLLMCalls >= maxTotalLLMCalls) {
+            console.error(
+              `${tag("GENERATING", round + 1, maxRounds)} ` +
+              `FATAL: total LLM call cap reached (${totalLLMCalls}). Aborting to prevent runaway costs.`,
+            );
+            phase = "EXHAUSTED";
+            break;
+          }
           try {
+            totalLLMCalls++;
             if (!isRefine || generatedPayload === undefined && llmAttempt > 0) {
               generatedPayload = await this.llm.generateInitial(spec);
             } else {
@@ -245,9 +266,17 @@ export class GenericSolver {
                 `${tag("VERIFYING", round + 1, maxRounds)} ` +
                 `Lean retries exhausted (${maxLeanRetries}). Last error: ${msg}`,
               );
+              // Count this as a spent round to prevent infinite generate→fail loops
+              round++;
               payload    = undefined;
               lastResult = undefined;
-              phase = "GENERATING";
+              if (round >= maxRounds) {
+                console.error(`\n❌ [solver:EXHAUSTED] max rounds reached (Lean errors)`);
+                emit({ phase: "exhausted", round, message: `Exhausted ${round} rounds (Lean errors)` });
+                phase = "EXHAUSTED";
+              } else {
+                phase = "GENERATING";
+              }
               break;
             }
 

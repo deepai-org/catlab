@@ -160,8 +160,8 @@ private def parseBinary2 (args : Array Json) (tag : String)
 partial def exprFromJson (j : Json) : Except String Expr :=
   match j with
   | .str "unit"     => .ok .unit
-  | .str "terminal" => .ok .terminal
-  | .str "initial"  => .ok .initial
+  | .str "terminal" | .str "1" => .ok .terminal
+  | .str "initial"  | .str "0" => .ok .initial
   | .str s          => .ok (.atom (gid s 0 .sort))   -- bare string shorthand
   | .obj _          =>
     -- Try "atom" first

@@ -1,0 +1,16 @@
+{
+  "name": "FunctionSpaceS1",
+  "doctrine": "MartinLofTypeTheory",
+  "objects": [
+    { "name": "X", "description": "Target space X" },
+    { "name": "MapS1X", "description": "Function space (S¹ → X)" }
+  ],
+  "morphisms": [
+    { "name": "ev_base", "domain": "MapS1X", "codomain": "X", "description": "Evaluate at base: f ↦ f(base)" },
+    { "name": "ev_loop", "domain": "MapS1X", "codomain": "MapS1X", "description": "Transport along loop: the automorphism induced by loop" },
+    { "name": "const", "domain": "X", "codomain": "MapS1X", "description": "Constant function: x ↦ (λ_.x)" }
+  ],
+  "axioms": [
+    { "name": "const_ev", "lhs": { "comp": [{ "atom": "const" }, { "atom": "ev_base" }] }, "rhs": { "id": { "atom": "X" } }, "description": "ev_base ∘ const = id (evaluating constant at base gives back the point)" }
+  ]
+}

@@ -457,7 +457,10 @@ def operatorMetas : List OperatorMeta := [
     params := [{ name := "cwf_data", kind := .fibration, description := "CwF structure data" }] },
   { name := "ends_coends", displayName := "EndsCoends", symbol := "E/C", group := "glue",
     description := "Compute ends and coends—generalized limits and colimits over profunctors.",
-    params := [{ name := "profunctor", kind := .theoryFunctor, description := "Profunctor to compute end/coend of" }] }
+    params := [{ name := "profunctor", kind := .theoryFunctor, description := "Profunctor to compute end/coend of" }] },
+  { name := "loop_space", displayName := "LoopSpace", symbol := "Ω", group := "transformer",
+    description := "The loop space Ω(X,x): paths from the basepoint to itself. Produces an ∞-group.",
+    params := [] }
 ]
 
 /-- Check whether an operator can be applied with just a Theory (no extra params needed). -/

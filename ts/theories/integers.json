@@ -1,0 +1,18 @@
+{
+  "name": "Integers",
+  "doctrine": "MartinLofTypeTheory",
+  "objects": [
+    { "name": "Z", "description": "The integers ℤ (as a group)" }
+  ],
+  "morphisms": [
+    { "name": "zero", "domain": "1", "codomain": "Z", "description": "Zero element: 1 → ℤ" },
+    { "name": "add", "domain": { "prod": [{ "atom": "Z" }, { "atom": "Z" }] }, "codomain": "Z", "description": "Addition: ℤ × ℤ → ℤ" },
+    { "name": "neg", "domain": "Z", "codomain": "Z", "description": "Negation: ℤ → ℤ" }
+  ],
+  "axioms": [
+    { "name": "add_left_unit", "lhs": { "comp": [{ "prod": [{ "atom": "zero" }, { "id": { "atom": "Z" } }] }, { "atom": "add" }] }, "rhs": { "id": { "atom": "Z" } }, "description": "add(0, n) = n" },
+    { "name": "add_right_unit", "lhs": { "comp": [{ "prod": [{ "id": { "atom": "Z" } }, { "atom": "zero" }] }, { "atom": "add" }] }, "rhs": { "id": { "atom": "Z" } }, "description": "add(n, 0) = n" },
+    { "name": "add_left_inv", "lhs": { "comp": [{ "prod": [{ "atom": "neg" }, { "id": { "atom": "Z" } }] }, { "atom": "add" }] }, "rhs": { "comp": [{ "atom": "!" }, { "atom": "zero" }] }, "description": "add(neg(n), n) = 0" },
+    { "name": "add_right_inv", "lhs": { "comp": [{ "prod": [{ "id": { "atom": "Z" } }, { "atom": "neg" }] }, { "atom": "add" }] }, "rhs": { "comp": [{ "atom": "!" }, { "atom": "zero" }] }, "description": "add(n, neg(n)) = 0" }
+  ]
+}

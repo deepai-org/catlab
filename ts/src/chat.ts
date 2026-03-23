@@ -577,8 +577,10 @@ export class ChatAgent {
           const r = await api.submitTheory(this.casClient, theoryJson);
           if (!r.ok) return { text: `Error: ${r.error.error}` };
           if (r.data.valid) {
+            // Also register in Lean's runtime registry so solver can reference it by name
+            await this.casClient.defineTheory(theoryJson);
             return {
-              text: `Theory '${theoryJson.name}' is VALID.\n${JSON.stringify(theoryJson, null, 2)}`,
+              text: `Theory '${theoryJson.name}' is VALID and registered.\n${JSON.stringify(theoryJson, null, 2)}`,
               theory: theoryJson,
             };
           }

@@ -16,6 +16,7 @@
  * Logs (stderr):   round-by-round progress
  */
 
+import * as fs from "fs";
 import { CatlabClient } from "./client";
 import { LLMClient } from "./llm";
 import { GenericSolver } from "./solver";
@@ -70,13 +71,18 @@ Problem types:
   compose               find X satisfying ALL constraints simultaneously
 
 Problem arguments:
-  --target <name>       Target theory name
+  --target <name>       Target theory name (or use --target-file)
   --op <name>           Forward operator (for inverse / fixed-point)
-  --base <name>         Base theory (for pushout-complement / extension)
+  --base <name>         Base theory name (or use --base-file)
   --property <name>     Property to check (for extension / subobject)
   --objectives <spec>   Comma-separated target:op pairs (for multi)
   --constraints <spec>  Plus-separated constraint specs (for compose)
-  --source <name>       Source object (for synthesis)
+  --source <name>       Source object (for synthesis, or use --source-file)
+
+Theory file arguments (register user-defined theories from JSON files):
+  --target-file <path>  Load target theory from a JSON file
+  --base-file <path>    Load base theory from a JSON file
+  --source-file <path>  Load source theory from a JSON file
 
 General options:
   --style <str>         Style guidance / hints for the LLM
@@ -162,6 +168,7 @@ function buildVerifier(args: string[]): {
   repoRoot?: string;
   deep?: boolean;
   deepTimeoutMs?: number;
+  theoryFiles: { targetFile?: string; baseFile?: string; sourceFile?: string };
 } {
   // Shorthand: catlab-solve <target> <forwardOp> [options]
   if (args.length >= 2 && !args[0].startsWith("--")) {
@@ -191,6 +198,7 @@ function buildVerifier(args: string[]): {
       repoRoot,
       deep,
       deepTimeoutMs,
+      theoryFiles: {},
     };
   }
 
@@ -206,6 +214,9 @@ function buildVerifier(args: string[]): {
   let repoRoot: string | undefined;
   let deep = false;
   let deepTimeoutMs: number | undefined;
+  let targetFile: string | undefined;
+  let baseFile: string | undefined;
+  let sourceFile: string | undefined;
   const solverOpts: SolverOptions = {};
 
   for (let i = 0; i < args.length; i++) {
@@ -225,6 +236,9 @@ function buildVerifier(args: string[]): {
       case "--reflect":      solverOpts.reflect = true; break;
       case "--deep":         deep = true; break;
       case "--deep-timeout": deepTimeoutMs = parseInt(args[++i], 10); break;
+      case "--target-file":  targetFile = args[++i]; break;
+      case "--base-file":    baseFile = args[++i]; break;
+      case "--source-file":  sourceFile = args[++i]; break;
       default: console.error(`Unknown option: ${args[i]}`); usage();
     }
   }
@@ -316,7 +330,7 @@ function buildVerifier(args: string[]): {
       usage();
   }
 
-  return { verifier, solverOpts, repoRoot, deep, deepTimeoutMs };
+  return { verifier, solverOpts, repoRoot, deep, deepTimeoutMs, theoryFiles: { targetFile, baseFile, sourceFile } };
 }
 
 async function main(): Promise<void> {
@@ -337,7 +351,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const { verifier: baseVerifier, solverOpts, repoRoot, deep, deepTimeoutMs } = buildVerifier(args);
+  const { verifier: baseVerifier, solverOpts, repoRoot, deep, deepTimeoutMs, theoryFiles } = buildVerifier(args);
 
   // Wrap with deep verification if --deep flag is set
   const projectRoot = repoRoot ?? process.cwd();
@@ -355,6 +369,15 @@ async function main(): Promise<void> {
 
   // ── Run the solver ────────────────────────────────────────────────────────
   const catlab = new CatlabClient(repoRoot);
+
+  // Register any file-based theories before solving
+  for (const filePath of [theoryFiles.targetFile, theoryFiles.baseFile, theoryFiles.sourceFile]) {
+    if (!filePath) continue;
+    const raw = fs.readFileSync(filePath, "utf-8");
+    const theory = JSON.parse(raw);
+    console.error(`[solver:INIT] Registering theory "${theory.name}" from ${filePath}`);
+    await catlab.defineTheory(theory);
+  }
   const llm = new LLMClient();
   const solver = new GenericSolver(catlab, llm, verifier);
 

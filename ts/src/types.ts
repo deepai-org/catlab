@@ -255,6 +255,10 @@ export type CatlabCommand =
       source: string;
       target: string;
       candidate: TheoryJson;
+    }
+  | {
+      command: "define_theory";
+      theory: TheoryJson;
     };
 
 export type CatlabRequest = CatlabCommand & { id: string };

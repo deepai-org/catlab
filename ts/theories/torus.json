@@ -1,0 +1,15 @@
+{
+  "name": "Torus",
+  "doctrine": "MartinLofTypeTheory",
+  "objects": [
+    { "name": "T2", "description": "The torus type T²" }
+  ],
+  "morphisms": [
+    { "name": "base", "domain": "1", "codomain": "T2", "description": "Base point: 1 → T²" }
+  ],
+  "axioms": [
+    { "name": "loop1", "lhs": "base", "rhs": "base", "description": "First loop: base =_{T²} base" },
+    { "name": "loop2", "lhs": "base", "rhs": "base", "description": "Second loop: base =_{T²} base" },
+    { "name": "surf", "lhs": "trans(loop1, loop2)", "rhs": "trans(loop2, loop1)", "description": "Surface: loop1 · loop2 = loop2 · loop1 (the 2-cell)" }
+  ]
+}

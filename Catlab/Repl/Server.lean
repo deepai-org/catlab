@@ -129,7 +129,9 @@ import Catlab.Library.LieAlgebra
 import Catlab.Library.DifferentialGradedAlgebra
 import Catlab.Library.Sphere
 import Catlab.Library.Univalence
+import Catlab.Library.SecretBoss
 import Catlab.Operators.PropTrunc
+import Catlab.Operators.LoopSpace
 import Catlab.Repl.Protocol
 
 namespace CatLab.Repl
@@ -179,12 +181,24 @@ def theoryRegistry : List (String × Theory) :=
   , ("S1",                       TheoryOfS1)
   , ("S2",                       TheoryOfS2)
   , ("Univalence",               TheoryOfUnivalence 0)
-  , ("SubobjectClassifier",      TheoryOfSubobjectClassifier) ]
+  , ("SubobjectClassifier",      TheoryOfSubobjectClassifier)
+  , ("HomotopyPullback",         TheoryOfHomotopyPullback)
+  , ("TypeA",                    TheoryOfTypeA)
+  , ("BasedPathSpace",           TheoryOfBasedPathSpace)
+  , ("LoopSpaceSquared",         TheoryOfLoopSpaceSquared) ]
 
-def lookupTheory (name : String) : Except String Theory :=
-  match theoryRegistry.find? (fun (n, _) => n == name) with
+-- Runtime registry for user-defined theories (populated by define_theory command).
+-- Uses `initialize` so it's a global IO.Ref accessible from pure code via unsafeBaseIO.
+initialize runtimeRegistry : IO.Ref (List (String × Theory)) ← IO.mkRef []
+
+/-- Look up a theory by name. Checks extra (runtime) list first, then static registry. -/
+def lookupTheory (name : String) (extra : List (String × Theory) := []) : Except String Theory :=
+  match extra.find? (fun (n, _) => n == name) with
   | some (_, t) => .ok t
-  | none        => .error s!"Theory '{name}' not found. Use 'list_theories' to see available names."
+  | none =>
+    match theoryRegistry.find? (fun (n, _) => n == name) with
+    | some (_, t) => .ok t
+    | none        => .error s!"Theory '{name}' not found. Use 'list_theories' to see available names."
 
 -- ============================================================
 -- Forward operator dispatch
@@ -271,7 +285,8 @@ def applyForwardOp (op : String) (t : Theory) : Except String Theory :=
     | some r => .ok r
     | none   => .error "homotopyCoproduct failed"
   | "prop_trunc"                        => .ok (propTruncTheory t)
-  | s => .error s!"Unknown forward_op '{s}'. Use one of: opposite, mirror, core, identity, decategorify_iso, decategorify_K0, decategorify_chi, arrow, arrow_category, twisted_arrow, slice, karoubi, morita, macneille, reg_completion, ex_completion, ind_completion, pro_completion, presheaf, yoneda, family, functor_category, scone, freyd, syntactic, lawvere, free, chain_complex, homotopy, derived, stabilize, center, drinfeld_center, booleanize, span, cospan, nerve, realize, isbell_spec, isbell_cospec, isbell, product, coproduct, matrix, int, internal_cat, path, factorization, operad_envelope, limits, homotopy_suspension, homotopy_coproduct, prop_trunc"
+  | "loop_space"                        => .ok (loopSpace t)
+  | s => .error s!"Unknown forward_op '{s}'. Use one of: opposite, mirror, core, identity, decategorify_iso, decategorify_K0, decategorify_chi, arrow, arrow_category, twisted_arrow, slice, karoubi, morita, macneille, reg_completion, ex_completion, ind_completion, pro_completion, presheaf, yoneda, family, functor_category, scone, freyd, syntactic, lawvere, free, chain_complex, homotopy, derived, stabilize, center, drinfeld_center, booleanize, span, cospan, nerve, realize, isbell_spec, isbell_cospec, isbell, product, coproduct, matrix, int, internal_cat, path, factorization, operad_envelope, limits, homotopy_suspension, homotopy_coproduct, prop_trunc, loop_space"
 
 /-- Does this operator reverse composition order (and is an involution)?
     Such operators benefit from contravariant verification: instead of diffing
@@ -329,10 +344,10 @@ def operatorAwareFixedPointDiff (fwdOp : String) (candidate : Theory) : Except S
 -- Applies a single named operator to a theory from the registry
 -- ============================================================
 
-def handleApplyOp (j : Json) (id : String) : Json :=
+def handleApplyOp (j : Json) (id : String) (rt : List (String × Theory)) : Json :=
   match getStr j "operator", getStr j "theory" with
   | .ok op, .ok name =>
-    match lookupTheory name with
+    match lookupTheory name rt with
     | .error e => errorResponse id e
     | .ok t    =>
       match applyForwardOp op t with
@@ -348,10 +363,10 @@ def handleApplyOp (j : Json) (id : String) : Json :=
 -- Computes pushout (inclusion base theory1) (inclusion base theory2)
 -- ============================================================
 
-def handleComputePushout (j : Json) (id : String) : Json :=
+def handleComputePushout (j : Json) (id : String) (rt : List (String × Theory)) : Json :=
   match getStr j "theory1", getStr j "theory2", getStr j "base" with
   | .ok n1, .ok n2, .ok nb =>
-    match lookupTheory n1, lookupTheory n2, lookupTheory nb with
+    match lookupTheory n1 rt, lookupTheory n2 rt, lookupTheory nb rt with
     | .ok t1, .ok t2, .ok base =>
       let f := TheoryMorphism.inclusion base t1
       let g := TheoryMorphism.inclusion base t2
@@ -367,10 +382,10 @@ def handleComputePushout (j : Json) (id : String) : Json :=
 -- Like compute_pushout but also returns the inclusion morphisms
 -- ============================================================
 
-def handleComputePushoutCocone (j : Json) (id : String) : Json :=
+def handleComputePushoutCocone (j : Json) (id : String) (rt : List (String × Theory)) : Json :=
   match getStr j "theory1", getStr j "theory2", getStr j "base" with
   | .ok n1, .ok n2, .ok nb =>
-    match lookupTheory n1, lookupTheory n2, lookupTheory nb with
+    match lookupTheory n1 rt, lookupTheory n2 rt, lookupTheory nb rt with
     | .ok t1, .ok t2, .ok base =>
       let f := TheoryMorphism.inclusion base t1
       let g := TheoryMorphism.inclusion base t2
@@ -390,10 +405,10 @@ def handleComputePushoutCocone (j : Json) (id : String) : Json :=
 -- Computes pullback (inclusion target theory1) (inclusion target theory2)
 -- ============================================================
 
-def handleComputePullback (j : Json) (id : String) : Json :=
+def handleComputePullback (j : Json) (id : String) (rt : List (String × Theory)) : Json :=
   match getStr j "theory1", getStr j "theory2", getStr j "base" with
   | .ok n1, .ok n2, .ok nb =>
-    match lookupTheory n1, lookupTheory n2, lookupTheory nb with
+    match lookupTheory n1 rt, lookupTheory n2 rt, lookupTheory nb rt with
     | .ok t1, .ok t2, .ok base =>
       let f := TheoryMorphism.inclusion base t1
       let g := TheoryMorphism.inclusion base t2
@@ -409,10 +424,10 @@ def handleComputePullback (j : Json) (id : String) : Json :=
 -- Like compute_pullback but also returns the projection morphisms
 -- ============================================================
 
-def handleComputePullbackCone (j : Json) (id : String) : Json :=
+def handleComputePullbackCone (j : Json) (id : String) (rt : List (String × Theory)) : Json :=
   match getStr j "theory1", getStr j "theory2", getStr j "base" with
   | .ok n1, .ok n2, .ok nb =>
-    match lookupTheory n1, lookupTheory n2, lookupTheory nb with
+    match lookupTheory n1 rt, lookupTheory n2 rt, lookupTheory nb rt with
     | .ok t1, .ok t2, .ok base =>
       let f := TheoryMorphism.inclusion base t1
       let g := TheoryMorphism.inclusion base t2
@@ -432,10 +447,10 @@ def handleComputePullbackCone (j : Json) (id : String) : Json :=
 -- Computes a TheoryMorphism between two theories and returns it as JSON
 -- ============================================================
 
-def handleComputeMorphism (j : Json) (id : String) : Json :=
+def handleComputeMorphism (j : Json) (id : String) (rt : List (String × Theory)) : Json :=
   match getStr j "source", getStr j "target", getStr j "kind" with
   | .ok srcName, .ok tgtName, .ok kind =>
-    match lookupTheory srcName, lookupTheory tgtName with
+    match lookupTheory srcName rt, lookupTheory tgtName rt with
     | .ok src, .ok tgt =>
       match kind with
       | "inclusion" =>
@@ -456,7 +471,7 @@ def handleComputeMorphism (j : Json) (id : String) : Json :=
 -- Applies forwardOp to candidate, diffs against target, returns VerificationResult
 -- ============================================================
 
-def handleEvaluateInverse (j : Json) (id : String) : Json :=
+def handleEvaluateInverse (j : Json) (id : String) (rt : List (String × Theory)) : Json :=
   -- Parse required fields
   let targetResult  := getStr j "target"
   let forwardResult := getStr j "forward_op"
@@ -466,7 +481,7 @@ def handleEvaluateInverse (j : Json) (id : String) : Json :=
   | _, .error e, _       => errorResponse id e
   | _, _, .error _       => errorResponse id "missing field 'candidate'"
   | .ok targetName, .ok fwdOp, .ok candJson =>
-    match lookupTheory targetName, theoryFromJson candJson with
+    match lookupTheory targetName rt, theoryFromJson candJson with
     | .error e, _ => errorResponse id e
     | _, .error e => errorResponse id s!"invalid candidate: {e}"
     | .ok target, .ok candidate =>
@@ -493,7 +508,7 @@ def handleEvaluateInverse (j : Json) (id : String) : Json :=
 -- Tries each candidate in order, returns first that passes
 -- ============================================================
 
-def handleSolveInverse (j : Json) (id : String) : Json :=
+def handleSolveInverse (j : Json) (id : String) (rt : List (String × Theory)) : Json :=
   let targetResult    := getStr j "target"
   let forwardResult   := getStr j "forward_op"
   let candidatesJson  := j.getObjVal? "candidates"
@@ -502,7 +517,7 @@ def handleSolveInverse (j : Json) (id : String) : Json :=
   | _, .error e, _     => errorResponse id e
   | _, _, .error _     => errorResponse id "missing field 'candidates'"
   | .ok tn, .ok fwdOp, .ok (.arr arr) =>
-    match lookupTheory tn with
+    match lookupTheory tn rt with
     | .error e => errorResponse id e
     | .ok target =>
       let forward : Theory → Option Theory := fun c =>
@@ -531,7 +546,7 @@ def handleSolveInverse (j : Json) (id : String) : Json :=
 -- Verifies by computing pushout(base, candidate) and diffing against target
 -- ============================================================
 
-def handleEvaluatePushoutComplement (j : Json) (id : String) : Json :=
+def handleEvaluatePushoutComplement (j : Json) (id : String) (rt : List (String × Theory)) : Json :=
   let baseResult   := getStr j "base"
   let targetResult := getStr j "target"
   let candidateJson := j.getObjVal? "candidate"
@@ -540,7 +555,7 @@ def handleEvaluatePushoutComplement (j : Json) (id : String) : Json :=
   | _, .error e, _       => errorResponse id e
   | _, _, .error _       => errorResponse id "missing field 'candidate'"
   | .ok baseName, .ok targetName, .ok candJson =>
-    match lookupTheory baseName, lookupTheory targetName, theoryFromJson candJson with
+    match lookupTheory baseName rt, lookupTheory targetName rt, theoryFromJson candJson with
     | .error e, _, _ => errorResponse id e
     | _, .error e, _ => errorResponse id e
     | _, _, .error e => errorResponse id s!"invalid candidate: {e}"
@@ -559,7 +574,7 @@ def handleEvaluatePushoutComplement (j : Json) (id : String) : Json :=
 -- Verifies candidate extends base (inclusion exists) and satisfies property
 -- ============================================================
 
-def handleEvaluateExtension (j : Json) (id : String) : Json :=
+def handleEvaluateExtension (j : Json) (id : String) (rt : List (String × Theory)) : Json :=
   let baseResult     := getStr j "base"
   let propertyResult := getStr j "property"
   let candidateJson  := j.getObjVal? "candidate"
@@ -568,7 +583,7 @@ def handleEvaluateExtension (j : Json) (id : String) : Json :=
   | _, .error e, _       => errorResponse id e
   | _, _, .error _       => errorResponse id "missing field 'candidate'"
   | .ok baseName, .ok _property, .ok candJson =>
-    match lookupTheory baseName, theoryFromJson candJson with
+    match lookupTheory baseName rt, theoryFromJson candJson with
     | .error e, _ => errorResponse id e
     | _, .error e => errorResponse id s!"invalid candidate: {e}"
     | .ok base, .ok candidate =>
@@ -595,7 +610,7 @@ def handleEvaluateExtension (j : Json) (id : String) : Json :=
 -- Verifies each objective independently, all must pass
 -- ============================================================
 
-def handleEvaluateMultiObjective (j : Json) (id : String) : Json :=
+def handleEvaluateMultiObjective (j : Json) (id : String) (rt : List (String × Theory)) : Json :=
   let candidateJson  := j.getObjVal? "candidate"
   let objectivesJson := j.getObjVal? "objectives"
   match candidateJson, objectivesJson with
@@ -610,7 +625,7 @@ def handleEvaluateMultiObjective (j : Json) (id : String) : Json :=
           | .ok (.str s) => s | _ => ""
         let fwdOp := match objJson.getObjVal? "forward_op" with
           | .ok (.str s) => s | _ => ""
-        match lookupTheory targetName with
+        match lookupTheory targetName rt with
         | .error e =>
           Json.mkObj [("candidateName", .str candidate.name), ("verified", .bool false),
             ("verificationStatus", .str s!"✗ Failed: target '{targetName}' not found: {e}"),
@@ -658,7 +673,7 @@ def handleEvaluateFixedPoint (j : Json) (id : String) : Json :=
 -- Dual of pushout complement: uses opposite theories
 -- ============================================================
 
-def handleEvaluatePullbackComplement (j : Json) (id : String) : Json :=
+def handleEvaluatePullbackComplement (j : Json) (id : String) (rt : List (String × Theory)) : Json :=
   let baseResult   := getStr j "base"
   let targetResult := getStr j "target"
   let candidateJson := j.getObjVal? "candidate"
@@ -667,7 +682,7 @@ def handleEvaluatePullbackComplement (j : Json) (id : String) : Json :=
   | _, .error e, _       => errorResponse id e
   | _, _, .error _       => errorResponse id "missing field 'candidate'"
   | .ok baseName, .ok targetName, .ok candJson =>
-    match lookupTheory baseName, lookupTheory targetName, theoryFromJson candJson with
+    match lookupTheory baseName rt, lookupTheory targetName rt, theoryFromJson candJson with
     | .error e, _, _ => errorResponse id e
     | _, .error e, _ => errorResponse id e
     | _, _, .error e => errorResponse id s!"invalid candidate: {e}"
@@ -691,14 +706,14 @@ def handleEvaluatePullbackComplement (j : Json) (id : String) : Json :=
 -- Verifies X ≅ target and reports generator count
 -- ============================================================
 
-def handleEvaluateSimplification (j : Json) (id : String) : Json :=
+def handleEvaluateSimplification (j : Json) (id : String) (rt : List (String × Theory)) : Json :=
   let targetResult := getStr j "target"
   let candidateJson := j.getObjVal? "candidate"
   match targetResult, candidateJson with
   | .error e, _       => errorResponse id e
   | _, .error _       => errorResponse id "missing field 'candidate'"
   | .ok targetName, .ok candJson =>
-    match lookupTheory targetName, theoryFromJson candJson with
+    match lookupTheory targetName rt, theoryFromJson candJson with
     | .error e, _ => errorResponse id e
     | _, .error e => errorResponse id s!"invalid candidate: {e}"
     | .ok target, .ok candidate =>
@@ -717,14 +732,14 @@ def handleEvaluateSimplification (j : Json) (id : String) : Json :=
 -- The candidate provides concrete assignments; we check axioms hold
 -- ============================================================
 
-def handleEvaluateModel (j : Json) (id : String) : Json :=
+def handleEvaluateModel (j : Json) (id : String) (rt : List (String × Theory)) : Json :=
   let theoryResult := getStr j "theory"
   let candidateJson := j.getObjVal? "candidate"
   match theoryResult, candidateJson with
   | .error e, _       => errorResponse id e
   | _, .error _       => errorResponse id "missing field 'candidate'"
   | .ok theoryName, .ok candJson =>
-    match lookupTheory theoryName, theoryFromJson candJson with
+    match lookupTheory theoryName rt, theoryFromJson candJson with
     | .error e, _ => errorResponse id e
     | _, .error e => errorResponse id s!"invalid candidate: {e}"
     | .ok theory, .ok candidate =>
@@ -740,7 +755,7 @@ def handleEvaluateModel (j : Json) (id : String) : Json :=
 -- Candidate must be a sub-theory (all generators from candidate exist in target)
 -- ============================================================
 
-def handleEvaluateSubobject (j : Json) (id : String) : Json :=
+def handleEvaluateSubobject (j : Json) (id : String) (rt : List (String × Theory)) : Json :=
   let targetResult   := getStr j "target"
   let propertyResult := getStr j "property"
   let candidateJson  := j.getObjVal? "candidate"
@@ -749,7 +764,7 @@ def handleEvaluateSubobject (j : Json) (id : String) : Json :=
   | _, .error e, _       => errorResponse id e
   | _, _, .error _       => errorResponse id "missing field 'candidate'"
   | .ok targetName, .ok _property, .ok candJson =>
-    match lookupTheory targetName, theoryFromJson candJson with
+    match lookupTheory targetName rt, theoryFromJson candJson with
     | .error e, _ => errorResponse id e
     | _, .error e => errorResponse id s!"invalid candidate: {e}"
     | .ok target, .ok candidate =>
@@ -778,14 +793,14 @@ def handleEvaluateSubobject (j : Json) (id : String) : Json :=
 -- The candidate is a theory extending the base with the desired composite
 -- ============================================================
 
-def handleEvaluateSynthesis (j : Json) (id : String) : Json :=
+def handleEvaluateSynthesis (j : Json) (id : String) (rt : List (String × Theory)) : Json :=
   let theoryResult := getStr j "theory"
   let candidateJson := j.getObjVal? "candidate"
   match theoryResult, candidateJson with
   | .error e, _       => errorResponse id e
   | _, .error _       => errorResponse id "missing field 'candidate'"
   | .ok theoryName, .ok candJson =>
-    match lookupTheory theoryName, theoryFromJson candJson with
+    match lookupTheory theoryName rt, theoryFromJson candJson with
     | .error e, _ => errorResponse id e
     | _, .error e => errorResponse id s!"invalid candidate: {e}"
     | .ok theory, .ok candidate =>
@@ -813,7 +828,7 @@ def handleEvaluateSynthesis (j : Json) (id : String) : Json :=
 -- The candidate is a theory representing base/∼ (with some axioms collapsed)
 -- ============================================================
 
-def handleEvaluateQuotient (j : Json) (id : String) : Json :=
+def handleEvaluateQuotient (j : Json) (id : String) (rt : List (String × Theory)) : Json :=
   let baseResult     := getStr j "base"
   let propertyResult := getStr j "property"
   let candidateJson  := j.getObjVal? "candidate"
@@ -822,7 +837,7 @@ def handleEvaluateQuotient (j : Json) (id : String) : Json :=
   | _, .error e, _       => errorResponse id e
   | _, _, .error _       => errorResponse id "missing field 'candidate'"
   | .ok baseName, .ok _property, .ok candJson =>
-    match lookupTheory baseName, theoryFromJson candJson with
+    match lookupTheory baseName rt, theoryFromJson candJson with
     | .error e, _ => errorResponse id e
     | _, .error e => errorResponse id s!"invalid candidate: {e}"
     | .ok base, .ok candidate =>
@@ -850,14 +865,14 @@ def handleEvaluateQuotient (j : Json) (id : String) : Json :=
 -- The candidate provides multiple sub-theories; we verify their coproduct
 -- ============================================================
 
-def handleEvaluateDecomposition (j : Json) (id : String) : Json :=
+def handleEvaluateDecomposition (j : Json) (id : String) (rt : List (String × Theory)) : Json :=
   let targetResult := getStr j "target"
   let candidateJson := j.getObjVal? "candidate"
   match targetResult, candidateJson with
   | .error e, _       => errorResponse id e
   | _, .error _       => errorResponse id "missing field 'candidate'"
   | .ok targetName, .ok candJson =>
-    match lookupTheory targetName, theoryFromJson candJson with
+    match lookupTheory targetName rt, theoryFromJson candJson with
     | .error e, _ => errorResponse id e
     | _, .error e => errorResponse id s!"invalid candidate: {e}"
     | .ok target, .ok candidate =>
@@ -871,7 +886,7 @@ def handleEvaluateDecomposition (j : Json) (id : String) : Json :=
 -- Find X minimizing edit distance to target while satisfying property P
 -- ============================================================
 
-def handleEvaluateRelaxation (j : Json) (id : String) : Json :=
+def handleEvaluateRelaxation (j : Json) (id : String) (rt : List (String × Theory)) : Json :=
   let targetResult   := getStr j "target"
   let propertyResult := getStr j "property"
   let candidateJson  := j.getObjVal? "candidate"
@@ -880,7 +895,7 @@ def handleEvaluateRelaxation (j : Json) (id : String) : Json :=
   | _, .error e, _       => errorResponse id e
   | _, _, .error _       => errorResponse id "missing field 'candidate'"
   | .ok targetName, .ok _property, .ok candJson =>
-    match lookupTheory targetName, theoryFromJson candJson with
+    match lookupTheory targetName rt, theoryFromJson candJson with
     | .error e, _ => errorResponse id e
     | _, .error e => errorResponse id s!"invalid candidate: {e}"
     | .ok target, .ok candidate =>
@@ -900,7 +915,7 @@ def handleEvaluateRelaxation (j : Json) (id : String) : Json :=
 -- Find C such that A⊗C → B⊗C is valid (inclusion exists)
 -- ============================================================
 
-def handleEvaluateCatalyst (j : Json) (id : String) : Json :=
+def handleEvaluateCatalyst (j : Json) (id : String) (rt : List (String × Theory)) : Json :=
   let sourceResult := getStr j "source"
   let targetResult := getStr j "target"
   let candidateJson := j.getObjVal? "candidate"
@@ -909,7 +924,7 @@ def handleEvaluateCatalyst (j : Json) (id : String) : Json :=
   | _, .error e, _       => errorResponse id e
   | _, _, .error _       => errorResponse id "missing field 'candidate'"
   | .ok sourceName, .ok targetName, .ok candJson =>
-    match lookupTheory sourceName, lookupTheory targetName, theoryFromJson candJson with
+    match lookupTheory sourceName rt, lookupTheory targetName rt, theoryFromJson candJson with
     | .error e, _, _ => errorResponse id e
     | _, .error e, _ => errorResponse id e
     | _, _, .error e => errorResponse id s!"invalid candidate: {e}"
@@ -928,7 +943,7 @@ def handleEvaluateCatalyst (j : Json) (id : String) : Json :=
 -- Find (X, Y) such that tensor(X, Y) ≅ target
 -- ============================================================
 
-def handleEvaluateFactorization (j : Json) (id : String) : Json :=
+def handleEvaluateFactorization (j : Json) (id : String) (rt : List (String × Theory)) : Json :=
   let targetResult := getStr j "target"
   let binaryOp     := match getStr j "binary_op" with | .ok s => s | .error _ => "tensor"
   let factorXJson  := j.getObjVal? "factor_x"
@@ -938,7 +953,7 @@ def handleEvaluateFactorization (j : Json) (id : String) : Json :=
   | _, .error _, _       => errorResponse id "missing field 'factor_x'"
   | _, _, .error _       => errorResponse id "missing field 'factor_y'"
   | .ok targetName, .ok fxJson, .ok fyJson =>
-    match lookupTheory targetName, theoryFromJson fxJson, theoryFromJson fyJson with
+    match lookupTheory targetName rt, theoryFromJson fxJson, theoryFromJson fyJson with
     | .error e, _, _ => errorResponse id e
     | _, .error e, _ => errorResponse id s!"invalid factor_x: {e}"
     | _, _, .error e => errorResponse id s!"invalid factor_y: {e}"
@@ -955,35 +970,27 @@ def handleEvaluateFactorization (j : Json) (id : String) : Json :=
 -- summary / validate commands
 -- ============================================================
 
-def handleSummary (j : Json) (id : String) : Json :=
+def handleSummary (j : Json) (id : String) (rt : List (String × Theory)) : Json :=
   match getStr j "theory" with
   | .error e => errorResponse id e
   | .ok name =>
-    match lookupTheory name with
+    match lookupTheory name rt with
     | .error e => errorResponse id e
     | .ok t    =>
       okResponse id [("summary",   .str t.summary),
                      ("theory",    theoryToJson t)]
 
-def handleValidate (j : Json) (id : String) : Json :=
+def handleValidate (j : Json) (id : String) (rt : List (String × Theory)) : Json :=
   match getStr j "theory" with
   | .error e => errorResponse id e
   | .ok name =>
-    match lookupTheory name with
+    match lookupTheory name rt with
     | .error e => errorResponse id e
     | .ok t    =>
       let errors := validate t
       okResponse id [("valid",   .bool errors.isEmpty),
                      ("errors",  .arr (errors.map (Json.str ∘ toString)).toArray)]
 
-def handleListTheories (_j : Json) (id : String) : Json :=
-  let names := theoryRegistry.map (Json.str ∘ Prod.fst)
-  let metas := theoryMetas.map theoryMetaToJson
-  let groups := theoryGroups.map groupMetaToJson
-  okResponse id [("theories", .arr names.toArray),
-                 ("metas",    .arr metas.toArray),
-                 ("groups",   .arr groups.toArray),
-                 ("count",    natJson theoryRegistry.length)]
 
 def handleListOperators (_j : Json) (id : String) : Json :=
   let metas := operatorMetas.map operatorMetaToJson
@@ -993,52 +1000,86 @@ def handleListOperators (_j : Json) (id : String) : Json :=
                  ("count",     natJson operatorMetas.length)]
 
 -- ============================================================
+-- define_theory: register a user-defined theory at runtime
+-- ============================================================
+
+def handleDefineTheory (j : Json) (id : String) : IO Json := do
+  match j.getObjVal? "theory" with
+  | .error _ => return errorResponse id "missing 'theory' field"
+  | .ok theoryJson =>
+    match theoryFromJson theoryJson with
+    | .error e => return errorResponse id s!"Invalid theory JSON: {e}"
+    | .ok theory =>
+      -- Register in runtime registry (shadows any existing theory with same name)
+      runtimeRegistry.modify fun reg =>
+        -- Remove any existing entry with the same name, then prepend
+        (theory.name, theory) :: reg.filter (fun (n, _) => n != theory.name)
+      return okResponse id [("message", .str s!"Theory '{theory.name}' registered"),
+                            ("name",    .str theory.name),
+                            ("theory",  theoryToJson theory)]
+
+-- ============================================================
 -- Main dispatch: parse request, route to handler, return response
 -- ============================================================
 
-def handleRequest (line : String) : Json :=
+def handleRequest (line : String) : IO Json := do
   match Json.parse line with
   | .error e  =>
     -- Malformed JSON: can't echo an id, use "parse_error"
-    errorResponse "parse_error" s!"JSON parse error: {e}"
+    return errorResponse "parse_error" s!"JSON parse error: {e}"
   | .ok j =>
     -- Extract optional request id for correlation
     let id := match j.getObjVal? "id" with
       | .ok (.str s) => s
       | _            => "unknown"
     match j.getObjVal? "command" with
-    | .error _        => errorResponse id "missing field 'command'"
+    | .error _        => return errorResponse id "missing field 'command'"
     | .ok (.str cmd)  =>
       match cmd with
-      | "list_theories"    => handleListTheories    j id
-      | "list_operators"   => handleListOperators   j id
-      | "summary"          => handleSummary         j id
-      | "validate"         => handleValidate        j id
-      | "apply_operator"   => handleApplyOp         j id
-      | "compute_pushout"         => handleComputePushout        j id
-      | "compute_pushout_cocone"  => handleComputePushoutCocone j id
-      | "compute_pullback"         => handleComputePullback       j id
-      | "compute_pullback_cone"    => handleComputePullbackCone  j id
-      | "compute_morphism"        => handleComputeMorphism      j id
-      | "evaluate_inverse"             => handleEvaluateInverse            j id
-      | "solve_inverse"                => handleSolveInverse               j id
-      | "evaluate_pushout_complement"  => handleEvaluatePushoutComplement  j id
-      | "evaluate_extension"           => handleEvaluateExtension          j id
-      | "evaluate_multi_objective"     => handleEvaluateMultiObjective     j id
-      | "evaluate_fixed_point"         => handleEvaluateFixedPoint         j id
-      | "evaluate_pullback_complement" => handleEvaluatePullbackComplement j id
-      | "evaluate_simplification"      => handleEvaluateSimplification     j id
-      | "evaluate_model"               => handleEvaluateModel              j id
-      | "evaluate_subobject"           => handleEvaluateSubobject          j id
-      | "evaluate_synthesis"           => handleEvaluateSynthesis          j id
-      | "evaluate_quotient"            => handleEvaluateQuotient           j id
-      | "evaluate_decomposition"       => handleEvaluateDecomposition      j id
-      | "evaluate_relaxation"          => handleEvaluateRelaxation         j id
-      | "evaluate_catalyst"            => handleEvaluateCatalyst           j id
-      | "evaluate_factorization"      => handleEvaluateFactorization     j id
-      | other              => errorResponse id s!"Unknown command '{other}'"
+      | "define_theory"  => handleDefineTheory j id
+      | "list_theories"  =>
+        -- Include runtime theories in the listing
+        let runtime ← runtimeRegistry.get
+        let staticNames := theoryRegistry.map (Json.str ∘ Prod.fst)
+        let runtimeNames := runtime.map (Json.str ∘ Prod.fst)
+        let allNames := runtimeNames ++ staticNames
+        let metas := theoryMetas.map theoryMetaToJson
+        let groups := theoryGroups.map groupMetaToJson
+        return okResponse id [("theories", .arr allNames.toArray),
+                              ("metas",    .arr metas.toArray),
+                              ("groups",   .arr groups.toArray),
+                              ("count",    natJson allNames.length)]
+      | other =>
+        let rt ← runtimeRegistry.get
+        return match other with
+        | "list_operators"   => handleListOperators   j id
+        | "summary"          => handleSummary         j id rt
+        | "validate"         => handleValidate        j id rt
+        | "apply_operator"   => handleApplyOp         j id rt
+        | "compute_pushout"         => handleComputePushout        j id rt
+        | "compute_pushout_cocone"  => handleComputePushoutCocone j id rt
+        | "compute_pullback"         => handleComputePullback       j id rt
+        | "compute_pullback_cone"    => handleComputePullbackCone  j id rt
+        | "compute_morphism"        => handleComputeMorphism      j id rt
+        | "evaluate_inverse"             => handleEvaluateInverse            j id rt
+        | "solve_inverse"                => handleSolveInverse               j id rt
+        | "evaluate_pushout_complement"  => handleEvaluatePushoutComplement  j id rt
+        | "evaluate_extension"           => handleEvaluateExtension          j id rt
+        | "evaluate_multi_objective"     => handleEvaluateMultiObjective     j id rt
+        | "evaluate_fixed_point"         => handleEvaluateFixedPoint         j id
+        | "evaluate_pullback_complement" => handleEvaluatePullbackComplement j id rt
+        | "evaluate_simplification"      => handleEvaluateSimplification     j id rt
+        | "evaluate_model"               => handleEvaluateModel              j id rt
+        | "evaluate_subobject"           => handleEvaluateSubobject          j id rt
+        | "evaluate_synthesis"           => handleEvaluateSynthesis          j id rt
+        | "evaluate_quotient"            => handleEvaluateQuotient           j id rt
+        | "evaluate_decomposition"       => handleEvaluateDecomposition      j id rt
+        | "evaluate_relaxation"          => handleEvaluateRelaxation         j id rt
+        | "evaluate_catalyst"            => handleEvaluateCatalyst           j id rt
+        | "evaluate_factorization"      => handleEvaluateFactorization     j id rt
+        | _                  => errorResponse id s!"Unknown command '{other}'"
     | .ok other =>
-      errorResponse id s!"'command' must be a string, got: {other.compress}"
+      return errorResponse id s!"'command' must be a string, got: {other.compress}"
 
 -- ============================================================
 -- NDJSON main loop
@@ -1053,7 +1094,7 @@ partial def ndjsonLoop : IO Unit := do
   let line   ← stdin.getLine
   -- Empty line = EOF (stdin closed by orchestrator)
   if line.trim.isEmpty then return
-  let response := handleRequest line
+  let response ← handleRequest line
   stdout.putStrLn response.compress
   stdout.flush                          -- ← critical: unblock the TS readline
   ndjsonLoop

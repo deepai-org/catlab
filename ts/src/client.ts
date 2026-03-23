@@ -126,6 +126,11 @@ export class CatlabClient {
     return res as Extract<CatlabResponse, { status: "ok" }>;
   }
 
+  /** Register a user-defined theory in the Lean runtime registry. */
+  async defineTheory(theory: import("./types").TheoryJson, timeoutMs = 30_000): Promise<CatlabResponse> {
+    return this.requestOrThrow({ command: "define_theory", theory }, timeoutMs);
+  }
+
   kill() {
     this.process.kill();
   }
