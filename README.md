@@ -586,6 +586,36 @@ catlab-solve --problem simplify --target FunctionSpaceS1 \
 catlab-solve --problem extension --base Univalence --property funext             # round 1 ✅
 ```
 
+### Transcendence Boss Tests (Fibrations, Coherence & Paradox)
+
+These test synthetic fibrations, higher-dimensional coherence, delooping, and universe consistency boundaries.
+
+```bash
+# Boss 13: The Hopf Fibration — synthesize S² → U₀ with fiber S¹
+# The LLM must compose HITs (S², S¹), universes, and univalence into a typed fibration map.
+catlab-solve --problem model-finding --target HopfFibration \
+  --target-file theories/hopf-fibration.json                                     # round 1 ✅
+
+# Boss 14: Mac Lane Pentagon — extend a monoidal type with the pentagon coherence axiom
+# The LLM must wire up 5 associator applications into the exact commuting 3-cell boundary.
+catlab-solve --problem extension --base MonoidalWithAssociator \
+  --base-file theories/monoidal-with-associator.json \
+  --property "Mac Lane Pentagon Identity"                                        # round 1 ✅
+
+# Boss 15: Classifying Space BG — model a groupoid HIT with loop constructors per group element
+# The LLM must embed strict group structure into the path-algebra of a HIT.
+catlab-solve --problem model-finding --target ClassifyingSpaceBG \
+  --target-file theories/classifying-space.json                                  # round 1 ✅
+
+# Boss 16: Girard Paradox — model "a type containing all types, including itself"
+# The LLM produces U : U (structurally valid). The CAS accepts the structural match,
+# exposing that universe consistency requires deep (Lean kernel) verification to catch.
+catlab-solve --problem model-finding --target TypeOfAllTypes \
+  --target-file theories/type-of-all-types.json                                  # round 1 ✅ ⚠️
+```
+
+> **Note on Boss 16:** The structural verifier accepts `U : U` because it only checks generator shapes, not universe stratification. This is by design — catching Girard's paradox requires the `--deep` flag (Lean kernel type-checking). Boss 16 demonstrates the boundary between fast structural verification and full semantic soundness.
+
 ### User-Defined Theories
 
 You can define custom theories from JSON files without modifying the Lean source:

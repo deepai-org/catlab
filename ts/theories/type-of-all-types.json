@@ -1,0 +1,17 @@
+{
+  "name": "TypeOfAllTypes",
+  "doctrine": "MartinLofTypeTheory",
+  "objects": [
+    { "name": "U", "description": "A type that contains all types, including itself" }
+  ],
+  "morphisms": [
+    { "name": "code", "domain": { "univ": 0 }, "codomain": { "atom": "U" }, "description": "Every type in U₀ has a code in U" },
+    { "name": "decode", "domain": { "atom": "U" }, "codomain": { "univ": 0 }, "description": "Every code decodes to a type in U₀" },
+    { "name": "self", "domain": "terminal", "codomain": { "atom": "U" }, "description": "U contains a code for itself: self : 1 → U" }
+  ],
+  "axioms": [
+    { "name": "decode_code", "lhs": { "comp": [{ "atom": "code" }, { "atom": "decode" }] }, "rhs": { "id": { "univ": 0 } }, "description": "decode(code(A)) = A for all types A" },
+    { "name": "code_decode", "lhs": { "comp": [{ "atom": "decode" }, { "atom": "code" }] }, "rhs": { "id": { "atom": "U" } }, "description": "code(decode(u)) = u for all u : U" },
+    { "name": "self_decodes_to_U", "lhs": { "comp": [{ "atom": "self" }, { "atom": "decode" }] }, "rhs": { "atom": "U" }, "description": "decode(self) = U: U contains itself" }
+  ]
+}

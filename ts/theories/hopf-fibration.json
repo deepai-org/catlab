@@ -1,0 +1,16 @@
+{
+  "name": "HopfFibration",
+  "doctrine": "MartinLofTypeTheory",
+  "objects": [
+    { "name": "S2", "description": "The 2-sphere S² (base space)" },
+    { "name": "S1", "description": "The circle S¹ (fiber)" }
+  ],
+  "morphisms": [
+    { "name": "base_s2", "domain": "terminal", "codomain": { "atom": "S2" }, "description": "Base point of S²" },
+    { "name": "base_s1", "domain": "terminal", "codomain": { "atom": "S1" }, "description": "Base point of S¹" },
+    { "name": "hopf", "domain": { "atom": "S2" }, "codomain": { "univ": 0 }, "description": "Hopf fibration: S² → U₀, mapping each point to its fiber type" }
+  ],
+  "axioms": [
+    { "name": "fiber_at_base", "lhs": { "comp": [{ "atom": "base_s2" }, { "atom": "hopf" }] }, "rhs": { "atom": "S1" }, "description": "The fiber over the basepoint of S² is S¹: hopf(base) = S¹" }
+  ]
+}

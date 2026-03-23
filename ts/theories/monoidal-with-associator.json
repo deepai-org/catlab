@@ -1,0 +1,17 @@
+{
+  "name": "MonoidalWithAssociator",
+  "doctrine": "MartinLofTypeTheory",
+  "objects": [
+    { "name": "A", "description": "A type with a binary operation" }
+  ],
+  "morphisms": [
+    { "name": "mul", "domain": { "prod": [{ "atom": "A" }, { "atom": "A" }] }, "codomain": { "atom": "A" }, "description": "Binary operation: mul : A × A → A" },
+    { "name": "alpha", "domain": { "atom": "A" }, "codomain": { "atom": "A" }, "description": "Associator witness: an endomorphism witnessing (x·y)·z = x·(y·z)" }
+  ],
+  "axioms": [
+    { "name": "alpha_assoc",
+      "lhs": { "comp": [{ "comp": [{ "prod": [{ "prod": [{ "id": { "atom": "A" } }, { "id": { "atom": "A" } }] }, { "id": { "atom": "A" } }] }, { "prod": [{ "atom": "mul" }, { "id": { "atom": "A" } }] }] }, { "atom": "mul" }] },
+      "rhs": { "comp": [{ "comp": [{ "prod": [{ "id": { "atom": "A" } }, { "prod": [{ "id": { "atom": "A" } }, { "id": { "atom": "A" } }] }] }, { "prod": [{ "id": { "atom": "A" } }, { "atom": "mul" }] }] }, { "atom": "mul" }] },
+      "description": "Associativity: (x·y)·z = x·(y·z)" }
+  ]
+}

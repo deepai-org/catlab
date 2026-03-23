@@ -1,0 +1,20 @@
+{
+  "name": "ClassifyingSpaceBG",
+  "doctrine": "MartinLofTypeTheory",
+  "objects": [
+    { "name": "G", "description": "A discrete group" },
+    { "name": "BG", "description": "The classifying space (delooping) of G" }
+  ],
+  "morphisms": [
+    { "name": "e", "domain": "terminal", "codomain": { "atom": "G" }, "description": "Identity element of G" },
+    { "name": "mul", "domain": { "prod": [{ "atom": "G" }, { "atom": "G" }] }, "codomain": { "atom": "G" }, "description": "Group multiplication" },
+    { "name": "inv", "domain": { "atom": "G" }, "codomain": { "atom": "G" }, "description": "Group inverse" },
+    { "name": "base", "domain": "terminal", "codomain": { "atom": "BG" }, "description": "Base point of BG (the unique 0-cell)" },
+    { "name": "loop", "domain": { "atom": "G" }, "codomain": { "path": [{ "atom": "BG" }, { "atom": "base" }, { "atom": "base" }] }, "description": "Loop constructor: each g ∈ G gives a loop in BG" }
+  ],
+  "axioms": [
+    { "name": "mul_left_unit", "lhs": { "comp": [{ "prod": [{ "atom": "e" }, { "id": { "atom": "G" } }] }, { "atom": "mul" }] }, "rhs": { "id": { "atom": "G" } }, "description": "e · g = g" },
+    { "name": "mul_right_unit", "lhs": { "comp": [{ "prod": [{ "id": { "atom": "G" } }, { "atom": "e" }] }, { "atom": "mul" }] }, "rhs": { "id": { "atom": "G" } }, "description": "g · e = g" },
+    { "name": "mul_left_inv", "lhs": { "comp": [{ "prod": [{ "atom": "inv" }, { "id": { "atom": "G" } }] }, { "atom": "mul" }] }, "rhs": { "comp": [{ "atom": "!" }, { "atom": "e" }] }, "description": "inv(g) · g = e" }
+  ]
+}
